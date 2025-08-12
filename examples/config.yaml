@@ -1,0 +1,13 @@
+app:
+  name: iot-middleware
+mqtt:
+  host: mosquitto
+  port: 1883
+influxdb:
+  url: http://influxdb:8086
+  org: my-org
+  bucket: iot
+  token: dev-token
+api:
+  host: 0.0.0.0
+  port: 8000
