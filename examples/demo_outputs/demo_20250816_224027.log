@@ -1,0 +1,282 @@
+2025-08-16 22:40:27,090 - iot_middleware.demo.demo_manager.DemoManager - INFO - Inicializando demostración...
+2025-08-16 22:40:27,090 - iot_middleware.demo.demo_manager.DemoManager - INFO - Pipeline de datos inicializado
+2025-08-16 22:40:27,090 - iot_middleware.demo.demo_manager.DemoManager - INFO - Simulador mqtt inicializado
+2025-08-16 22:40:27,090 - iot_middleware.demo.demo_manager.DemoManager - INFO - Simulador http inicializado
+2025-08-16 22:40:27,090 - iot_middleware.demo.demo_manager.DemoManager - INFO - Simulador ble inicializado
+2025-08-16 22:40:27,090 - iot_middleware.demo.demo_manager.DemoManager - INFO - Simulador lora inicializado
+2025-08-16 22:40:27,090 - iot_middleware.demo.demo_manager.DemoManager - INFO - Simulador midi inicializado
+2025-08-16 22:40:27,090 - iot_middleware.demo.demo_manager.DemoManager - INFO - Simulador modbus inicializado
+2025-08-16 22:40:27,090 - iot_middleware.demo.demo_manager.DemoManager - INFO - Simulador zigbee inicializado
+2025-08-16 22:40:27,090 - iot_middleware.demo.demo_manager.DemoManager - INFO - Demostración inicializada correctamente
+2025-08-16 22:40:27,090 - iot_middleware.demo.demo_manager.DemoManager - INFO - Iniciando demostración...
+2025-08-16 22:40:27,090 - iot_middleware.demo.demo_manager.DemoManager - INFO - Simulador mqtt iniciado
+2025-08-16 22:40:27,090 - iot_middleware.demo.demo_manager.DemoManager - INFO - Simulador http iniciado
+2025-08-16 22:40:27,090 - iot_middleware.demo.demo_manager.DemoManager - INFO - Simulador ble iniciado
+2025-08-16 22:40:27,090 - iot_middleware.demo.demo_manager.DemoManager - INFO - Simulador lora iniciado
+2025-08-16 22:40:27,090 - iot_middleware.demo.demo_manager.DemoManager - INFO - Simulador midi iniciado
+2025-08-16 22:40:27,091 - iot_middleware.demo.demo_manager.DemoManager - INFO - Simulador modbus iniciado
+2025-08-16 22:40:27,091 - iot_middleware.demo.demo_manager.DemoManager - INFO - Simulador zigbee iniciado
+2025-08-16 22:40:27,091 - iot_middleware.demo.demo_manager.DemoManager - INFO - === Estado Demo (0.0 min) ===
+2025-08-16 22:40:27,091 - iot_middleware.demo.demo_manager.DemoManager - INFO - Total generados: 7
+2025-08-16 22:40:27,091 - iot_middleware.demo.demo_manager.DemoManager - INFO - Demostración iniciada. Duración: 10 minutos
+2025-08-16 22:40:27,091 - iot_middleware.demo.demo_manager.DemoManager - INFO - Total procesados: 7
+2025-08-16 22:40:27,091 - iot_middleware.demo.demo_manager.DemoManager - INFO - Pipeline: Rate: 0.00 msg/s
+2025-08-16 22:40:27,091 - iot_middleware.demo.demo_manager.DemoManager - INFO -   MQTT: 1 datos, 1 dispositivos
+2025-08-16 22:40:27,091 - iot_middleware.demo.demo_manager.DemoManager - INFO -   HTTP: 1 datos, 1 dispositivos
+2025-08-16 22:40:27,091 - iot_middleware.demo.demo_manager.DemoManager - INFO -   BLE: 1 datos, 1 dispositivos
+2025-08-16 22:40:27,091 - iot_middleware.demo.demo_manager.DemoManager - INFO -   LORA: 1 datos, 1 dispositivos
+2025-08-16 22:40:27,091 - iot_middleware.demo.demo_manager.DemoManager - INFO -   MIDI: 1 datos, 1 dispositivos
+2025-08-16 22:40:27,091 - iot_middleware.demo.demo_manager.DemoManager - INFO -   MODBUS: 1 datos, 1 dispositivos
+2025-08-16 22:40:27,091 - iot_middleware.demo.demo_manager.DemoManager - INFO -   ZIGBEE: 1 datos, 1 dispositivos
+2025-08-16 22:40:28,569 - iot_middleware.demo.demo_manager.DemoManager - INFO - Datos generados: 10, Procesados: 10
+2025-08-16 22:40:30,216 - iot_middleware.demo.demo_manager.DemoManager - INFO - Datos generados: 20, Procesados: 20
+2025-08-16 22:40:33,095 - iot_middleware.demo.demo_manager.DemoManager - INFO - Datos generados: 30, Procesados: 30
+2025-08-16 22:40:34,705 - iot_middleware.demo.demo_manager.DemoManager - INFO - Datos generados: 40, Procesados: 40
+2025-08-16 22:40:37,337 - iot_middleware.demo.demo_manager.DemoManager - INFO - Datos generados: 50, Procesados: 50
+2025-08-16 22:40:39,058 - iot_middleware.demo.demo_manager.DemoManager - INFO - Datos generados: 60, Procesados: 60
+2025-08-16 22:40:41,069 - iot_middleware.demo.demo_manager.DemoManager - INFO - Datos generados: 70, Procesados: 70
+2025-08-16 22:40:43,423 - iot_middleware.demo.demo_manager.DemoManager - INFO - Datos generados: 80, Procesados: 80
+2025-08-16 22:40:45,459 - iot_middleware.demo.demo_manager.DemoManager - INFO - Datos generados: 90, Procesados: 90
+2025-08-16 22:40:47,737 - iot_middleware.demo.demo_manager.DemoManager - INFO - Datos generados: 100, Procesados: 100
+2025-08-16 22:40:49,848 - iot_middleware.demo.demo_manager.DemoManager - INFO - Datos generados: 110, Procesados: 110
+2025-08-16 22:40:52,078 - iot_middleware.demo.demo_manager.DemoManager - INFO - Datos generados: 120, Procesados: 120
+2025-08-16 22:40:54,261 - iot_middleware.demo.demo_manager.DemoManager - INFO - Datos generados: 130, Procesados: 130
+2025-08-16 22:40:56,157 - iot_middleware.demo.demo_manager.DemoManager - INFO - Datos generados: 140, Procesados: 140
+2025-08-16 22:40:57,096 - iot_middleware.demo.demo_manager.DemoManager - INFO - === Estado Demo (0.5 min) ===
+2025-08-16 22:40:57,097 - iot_middleware.demo.demo_manager.DemoManager - INFO - Total generados: 143
+2025-08-16 22:40:57,097 - iot_middleware.demo.demo_manager.DemoManager - INFO - Total procesados: 143
+2025-08-16 22:40:57,097 - iot_middleware.demo.demo_manager.DemoManager - INFO - Pipeline: Rate: 0.00 msg/s
+2025-08-16 22:40:57,097 - iot_middleware.demo.demo_manager.DemoManager - INFO -   MQTT: 21 datos, 11 dispositivos
+2025-08-16 22:40:57,097 - iot_middleware.demo.demo_manager.DemoManager - INFO -   HTTP: 21 datos, 12 dispositivos
+2025-08-16 22:40:57,098 - iot_middleware.demo.demo_manager.DemoManager - INFO -   BLE: 20 datos, 13 dispositivos
+2025-08-16 22:40:57,098 - iot_middleware.demo.demo_manager.DemoManager - INFO -   LORA: 20 datos, 8 dispositivos
+2025-08-16 22:40:57,098 - iot_middleware.demo.demo_manager.DemoManager - INFO -   MIDI: 20 datos, 12 dispositivos
+2025-08-16 22:40:57,098 - iot_middleware.demo.demo_manager.DemoManager - INFO -   MODBUS: 20 datos, 8 dispositivos
+2025-08-16 22:40:57,098 - iot_middleware.demo.demo_manager.DemoManager - INFO -   ZIGBEE: 21 datos, 6 dispositivos
+2025-08-16 22:40:58,239 - iot_middleware.demo.demo_manager.DemoManager - INFO - Datos generados: 150, Procesados: 150
+2025-08-16 22:41:00,612 - iot_middleware.demo.demo_manager.DemoManager - INFO - Datos generados: 160, Procesados: 160
+2025-08-16 22:41:02,427 - iot_middleware.demo.demo_manager.DemoManager - INFO - Datos generados: 170, Procesados: 170
+2025-08-16 22:41:04,744 - iot_middleware.demo.demo_manager.DemoManager - INFO - Datos generados: 180, Procesados: 180
+2025-08-16 22:41:06,937 - iot_middleware.demo.demo_manager.DemoManager - INFO - Datos generados: 190, Procesados: 190
+2025-08-16 22:41:09,127 - iot_middleware.demo.demo_manager.DemoManager - INFO - Datos generados: 200, Procesados: 200
+2025-08-16 22:41:11,480 - iot_middleware.demo.demo_manager.DemoManager - INFO - Datos generados: 210, Procesados: 210
+2025-08-16 22:41:13,140 - iot_middleware.demo.demo_manager.DemoManager - INFO - Datos generados: 220, Procesados: 220
+2025-08-16 22:41:15,939 - iot_middleware.demo.demo_manager.DemoManager - INFO - Datos generados: 230, Procesados: 230
+2025-08-16 22:41:17,458 - iot_middleware.demo.demo_manager.DemoManager - INFO - Datos generados: 240, Procesados: 240
+2025-08-16 22:41:19,978 - iot_middleware.demo.demo_manager.DemoManager - INFO - Datos generados: 250, Procesados: 250
+2025-08-16 22:41:21,843 - iot_middleware.demo.demo_manager.DemoManager - INFO - Datos generados: 260, Procesados: 260
+2025-08-16 22:41:23,921 - iot_middleware.demo.demo_manager.DemoManager - INFO - Datos generados: 270, Procesados: 270
+2025-08-16 22:41:26,210 - iot_middleware.demo.demo_manager.DemoManager - INFO - Datos generados: 280, Procesados: 280
+2025-08-16 22:41:27,102 - iot_middleware.demo.demo_manager.DemoManager - INFO - === Estado Demo (1.0 min) ===
+2025-08-16 22:41:27,103 - iot_middleware.demo.demo_manager.DemoManager - INFO - Total generados: 284
+2025-08-16 22:41:27,103 - iot_middleware.demo.demo_manager.DemoManager - INFO - Total procesados: 284
+2025-08-16 22:41:27,103 - iot_middleware.demo.demo_manager.DemoManager - INFO - Pipeline: Rate: 4.62 msg/s
+2025-08-16 22:41:27,103 - iot_middleware.demo.demo_manager.DemoManager - INFO -   MQTT: 41 datos, 18 dispositivos
+2025-08-16 22:41:27,104 - iot_middleware.demo.demo_manager.DemoManager - INFO -   HTTP: 41 datos, 14 dispositivos
+2025-08-16 22:41:27,104 - iot_middleware.demo.demo_manager.DemoManager - INFO -   BLE: 40 datos, 15 dispositivos
+2025-08-16 22:41:27,104 - iot_middleware.demo.demo_manager.DemoManager - INFO -   LORA: 40 datos, 10 dispositivos
+2025-08-16 22:41:27,105 - iot_middleware.demo.demo_manager.DemoManager - INFO -   MIDI: 41 datos, 14 dispositivos
+2025-08-16 22:41:27,105 - iot_middleware.demo.demo_manager.DemoManager - INFO -   MODBUS: 40 datos, 10 dispositivos
+2025-08-16 22:41:27,105 - iot_middleware.demo.demo_manager.DemoManager - INFO -   ZIGBEE: 41 datos, 6 dispositivos
+2025-08-16 22:41:27,951 - iot_middleware.demo.demo_manager.DemoManager - INFO - Datos generados: 290, Procesados: 290
+2025-08-16 22:41:30,498 - iot_middleware.demo.demo_manager.DemoManager - INFO - Datos generados: 300, Procesados: 300
+2025-08-16 22:41:32,319 - iot_middleware.demo.demo_manager.DemoManager - INFO - Datos generados: 310, Procesados: 310
+2025-08-16 22:41:35,076 - iot_middleware.demo.demo_manager.DemoManager - INFO - Datos generados: 320, Procesados: 320
+2025-08-16 22:41:36,775 - iot_middleware.demo.demo_manager.DemoManager - INFO - Datos generados: 330, Procesados: 330
+2025-08-16 22:41:39,660 - iot_middleware.demo.demo_manager.DemoManager - INFO - Datos generados: 340, Procesados: 340
+2025-08-16 22:41:41,526 - iot_middleware.demo.demo_manager.DemoManager - INFO - Datos generados: 350, Procesados: 350
+2025-08-16 22:41:57,110 - iot_middleware.demo.demo_manager.DemoManager - INFO - === Estado Demo (1.5 min) ===
+2025-08-16 22:41:57,111 - iot_middleware.demo.demo_manager.DemoManager - INFO - Total generados: 350
+2025-08-16 22:41:57,111 - iot_middleware.demo.demo_manager.DemoManager - INFO - Total procesados: 350
+2025-08-16 22:41:57,111 - iot_middleware.demo.demo_manager.DemoManager - INFO - Pipeline: Rate: 4.62 msg/s
+2025-08-16 22:41:57,111 - iot_middleware.demo.demo_manager.DemoManager - INFO -   MQTT: 50 datos, 19 dispositivos
+2025-08-16 22:41:57,111 - iot_middleware.demo.demo_manager.DemoManager - INFO -   HTTP: 50 datos, 15 dispositivos
+2025-08-16 22:41:57,112 - iot_middleware.demo.demo_manager.DemoManager - INFO -   BLE: 50 datos, 15 dispositivos
+2025-08-16 22:41:57,112 - iot_middleware.demo.demo_manager.DemoManager - INFO -   LORA: 50 datos, 10 dispositivos
+2025-08-16 22:41:57,112 - iot_middleware.demo.demo_manager.DemoManager - INFO -   MIDI: 50 datos, 16 dispositivos
+2025-08-16 22:41:57,112 - iot_middleware.demo.demo_manager.DemoManager - INFO -   MODBUS: 50 datos, 10 dispositivos
+2025-08-16 22:41:57,112 - iot_middleware.demo.demo_manager.DemoManager - INFO -   ZIGBEE: 50 datos, 6 dispositivos
+2025-08-16 22:42:27,117 - iot_middleware.demo.demo_manager.DemoManager - INFO - === Estado Demo (2.0 min) ===
+2025-08-16 22:42:27,119 - iot_middleware.demo.demo_manager.DemoManager - INFO - Total generados: 350
+2025-08-16 22:42:27,119 - iot_middleware.demo.demo_manager.DemoManager - INFO - Total procesados: 350
+2025-08-16 22:42:27,119 - iot_middleware.demo.demo_manager.DemoManager - INFO - Pipeline: Rate: 2.89 msg/s
+2025-08-16 22:42:27,119 - iot_middleware.demo.demo_manager.DemoManager - INFO -   MQTT: 50 datos, 19 dispositivos
+2025-08-16 22:42:27,119 - iot_middleware.demo.demo_manager.DemoManager - INFO -   HTTP: 50 datos, 15 dispositivos
+2025-08-16 22:42:27,120 - iot_middleware.demo.demo_manager.DemoManager - INFO -   BLE: 50 datos, 15 dispositivos
+2025-08-16 22:42:27,120 - iot_middleware.demo.demo_manager.DemoManager - INFO -   LORA: 50 datos, 10 dispositivos
+2025-08-16 22:42:27,120 - iot_middleware.demo.demo_manager.DemoManager - INFO -   MIDI: 50 datos, 16 dispositivos
+2025-08-16 22:42:27,120 - iot_middleware.demo.demo_manager.DemoManager - INFO -   MODBUS: 50 datos, 10 dispositivos
+2025-08-16 22:42:27,120 - iot_middleware.demo.demo_manager.DemoManager - INFO -   ZIGBEE: 50 datos, 6 dispositivos
+2025-08-16 22:42:57,126 - iot_middleware.demo.demo_manager.DemoManager - INFO - === Estado Demo (2.5 min) ===
+2025-08-16 22:42:57,128 - iot_middleware.demo.demo_manager.DemoManager - INFO - Total generados: 350
+2025-08-16 22:42:57,128 - iot_middleware.demo.demo_manager.DemoManager - INFO - Total procesados: 350
+2025-08-16 22:42:57,128 - iot_middleware.demo.demo_manager.DemoManager - INFO - Pipeline: Rate: 2.89 msg/s
+2025-08-16 22:42:57,128 - iot_middleware.demo.demo_manager.DemoManager - INFO -   MQTT: 50 datos, 19 dispositivos
+2025-08-16 22:42:57,128 - iot_middleware.demo.demo_manager.DemoManager - INFO -   HTTP: 50 datos, 15 dispositivos
+2025-08-16 22:42:57,128 - iot_middleware.demo.demo_manager.DemoManager - INFO -   BLE: 50 datos, 15 dispositivos
+2025-08-16 22:42:57,128 - iot_middleware.demo.demo_manager.DemoManager - INFO -   LORA: 50 datos, 10 dispositivos
+2025-08-16 22:42:57,128 - iot_middleware.demo.demo_manager.DemoManager - INFO -   MIDI: 50 datos, 16 dispositivos
+2025-08-16 22:42:57,129 - iot_middleware.demo.demo_manager.DemoManager - INFO -   MODBUS: 50 datos, 10 dispositivos
+2025-08-16 22:42:57,129 - iot_middleware.demo.demo_manager.DemoManager - INFO -   ZIGBEE: 50 datos, 6 dispositivos
+2025-08-16 22:43:27,135 - iot_middleware.demo.demo_manager.DemoManager - INFO - === Estado Demo (3.0 min) ===
+2025-08-16 22:43:27,137 - iot_middleware.demo.demo_manager.DemoManager - INFO - Total generados: 350
+2025-08-16 22:43:27,137 - iot_middleware.demo.demo_manager.DemoManager - INFO - Total procesados: 350
+2025-08-16 22:43:27,138 - iot_middleware.demo.demo_manager.DemoManager - INFO - Pipeline: Rate: 1.93 msg/s
+2025-08-16 22:43:27,138 - iot_middleware.demo.demo_manager.DemoManager - INFO -   MQTT: 50 datos, 19 dispositivos
+2025-08-16 22:43:27,139 - iot_middleware.demo.demo_manager.DemoManager - INFO -   HTTP: 50 datos, 15 dispositivos
+2025-08-16 22:43:27,139 - iot_middleware.demo.demo_manager.DemoManager - INFO -   BLE: 50 datos, 15 dispositivos
+2025-08-16 22:43:27,139 - iot_middleware.demo.demo_manager.DemoManager - INFO -   LORA: 50 datos, 10 dispositivos
+2025-08-16 22:43:27,139 - iot_middleware.demo.demo_manager.DemoManager - INFO -   MIDI: 50 datos, 16 dispositivos
+2025-08-16 22:43:27,140 - iot_middleware.demo.demo_manager.DemoManager - INFO -   MODBUS: 50 datos, 10 dispositivos
+2025-08-16 22:43:27,140 - iot_middleware.demo.demo_manager.DemoManager - INFO -   ZIGBEE: 50 datos, 6 dispositivos
+2025-08-16 22:43:57,144 - iot_middleware.demo.demo_manager.DemoManager - INFO - === Estado Demo (3.5 min) ===
+2025-08-16 22:43:57,146 - iot_middleware.demo.demo_manager.DemoManager - INFO - Total generados: 350
+2025-08-16 22:43:57,147 - iot_middleware.demo.demo_manager.DemoManager - INFO - Total procesados: 350
+2025-08-16 22:43:57,147 - iot_middleware.demo.demo_manager.DemoManager - INFO - Pipeline: Rate: 1.93 msg/s
+2025-08-16 22:43:57,147 - iot_middleware.demo.demo_manager.DemoManager - INFO -   MQTT: 50 datos, 19 dispositivos
+2025-08-16 22:43:57,147 - iot_middleware.demo.demo_manager.DemoManager - INFO -   HTTP: 50 datos, 15 dispositivos
+2025-08-16 22:43:57,147 - iot_middleware.demo.demo_manager.DemoManager - INFO -   BLE: 50 datos, 15 dispositivos
+2025-08-16 22:43:57,147 - iot_middleware.demo.demo_manager.DemoManager - INFO -   LORA: 50 datos, 10 dispositivos
+2025-08-16 22:43:57,148 - iot_middleware.demo.demo_manager.DemoManager - INFO -   MIDI: 50 datos, 16 dispositivos
+2025-08-16 22:43:57,148 - iot_middleware.demo.demo_manager.DemoManager - INFO -   MODBUS: 50 datos, 10 dispositivos
+2025-08-16 22:43:57,148 - iot_middleware.demo.demo_manager.DemoManager - INFO -   ZIGBEE: 50 datos, 6 dispositivos
+2025-08-16 22:44:27,154 - iot_middleware.demo.demo_manager.DemoManager - INFO - === Estado Demo (4.0 min) ===
+2025-08-16 22:44:27,155 - iot_middleware.demo.demo_manager.DemoManager - INFO - Total generados: 350
+2025-08-16 22:44:27,155 - iot_middleware.demo.demo_manager.DemoManager - INFO - Total procesados: 350
+2025-08-16 22:44:27,155 - iot_middleware.demo.demo_manager.DemoManager - INFO - Pipeline: Rate: 1.45 msg/s
+2025-08-16 22:44:27,155 - iot_middleware.demo.demo_manager.DemoManager - INFO -   MQTT: 50 datos, 19 dispositivos
+2025-08-16 22:44:27,155 - iot_middleware.demo.demo_manager.DemoManager - INFO -   HTTP: 50 datos, 15 dispositivos
+2025-08-16 22:44:27,155 - iot_middleware.demo.demo_manager.DemoManager - INFO -   BLE: 50 datos, 15 dispositivos
+2025-08-16 22:44:27,155 - iot_middleware.demo.demo_manager.DemoManager - INFO -   LORA: 50 datos, 10 dispositivos
+2025-08-16 22:44:27,155 - iot_middleware.demo.demo_manager.DemoManager - INFO -   MIDI: 50 datos, 16 dispositivos
+2025-08-16 22:44:27,155 - iot_middleware.demo.demo_manager.DemoManager - INFO -   MODBUS: 50 datos, 10 dispositivos
+2025-08-16 22:44:27,155 - iot_middleware.demo.demo_manager.DemoManager - INFO -   ZIGBEE: 50 datos, 6 dispositivos
+2025-08-16 22:44:57,165 - iot_middleware.demo.demo_manager.DemoManager - INFO - === Estado Demo (4.5 min) ===
+2025-08-16 22:44:57,166 - iot_middleware.demo.demo_manager.DemoManager - INFO - Total generados: 350
+2025-08-16 22:44:57,166 - iot_middleware.demo.demo_manager.DemoManager - INFO - Total procesados: 350
+2025-08-16 22:44:57,166 - iot_middleware.demo.demo_manager.DemoManager - INFO - Pipeline: Rate: 1.45 msg/s
+2025-08-16 22:44:57,166 - iot_middleware.demo.demo_manager.DemoManager - INFO -   MQTT: 50 datos, 19 dispositivos
+2025-08-16 22:44:57,166 - iot_middleware.demo.demo_manager.DemoManager - INFO -   HTTP: 50 datos, 15 dispositivos
+2025-08-16 22:44:57,166 - iot_middleware.demo.demo_manager.DemoManager - INFO -   BLE: 50 datos, 15 dispositivos
+2025-08-16 22:44:57,166 - iot_middleware.demo.demo_manager.DemoManager - INFO -   LORA: 50 datos, 10 dispositivos
+2025-08-16 22:44:57,166 - iot_middleware.demo.demo_manager.DemoManager - INFO -   MIDI: 50 datos, 16 dispositivos
+2025-08-16 22:44:57,166 - iot_middleware.demo.demo_manager.DemoManager - INFO -   MODBUS: 50 datos, 10 dispositivos
+2025-08-16 22:44:57,166 - iot_middleware.demo.demo_manager.DemoManager - INFO -   ZIGBEE: 50 datos, 6 dispositivos
+2025-08-16 22:45:27,168 - iot_middleware.demo.demo_manager.DemoManager - INFO - === Estado Demo (5.0 min) ===
+2025-08-16 22:45:27,170 - iot_middleware.demo.demo_manager.DemoManager - INFO - Total generados: 350
+2025-08-16 22:45:27,171 - iot_middleware.demo.demo_manager.DemoManager - INFO - Total procesados: 350
+2025-08-16 22:45:27,171 - iot_middleware.demo.demo_manager.DemoManager - INFO - Pipeline: Rate: 1.16 msg/s
+2025-08-16 22:45:27,171 - iot_middleware.demo.demo_manager.DemoManager - INFO -   MQTT: 50 datos, 19 dispositivos
+2025-08-16 22:45:27,171 - iot_middleware.demo.demo_manager.DemoManager - INFO -   HTTP: 50 datos, 15 dispositivos
+2025-08-16 22:45:27,171 - iot_middleware.demo.demo_manager.DemoManager - INFO -   BLE: 50 datos, 15 dispositivos
+2025-08-16 22:45:27,171 - iot_middleware.demo.demo_manager.DemoManager - INFO -   LORA: 50 datos, 10 dispositivos
+2025-08-16 22:45:27,171 - iot_middleware.demo.demo_manager.DemoManager - INFO -   MIDI: 50 datos, 16 dispositivos
+2025-08-16 22:45:27,171 - iot_middleware.demo.demo_manager.DemoManager - INFO -   MODBUS: 50 datos, 10 dispositivos
+2025-08-16 22:45:27,171 - iot_middleware.demo.demo_manager.DemoManager - INFO -   ZIGBEE: 50 datos, 6 dispositivos
+2025-08-16 22:49:12,427 - iot_middleware.demo.demo_manager.DemoManager - INFO - === Estado Demo (8.8 min) ===
+2025-08-16 22:49:12,429 - iot_middleware.demo.demo_manager.DemoManager - INFO - Total generados: 350
+2025-08-16 22:49:12,429 - iot_middleware.demo.demo_manager.DemoManager - INFO - Total procesados: 350
+2025-08-16 22:49:12,429 - iot_middleware.demo.demo_manager.DemoManager - INFO - Pipeline: Rate: 1.16 msg/s
+2025-08-16 22:49:12,429 - iot_middleware.demo.demo_manager.DemoManager - INFO -   MQTT: 50 datos, 19 dispositivos
+2025-08-16 22:49:12,429 - iot_middleware.demo.demo_manager.DemoManager - INFO -   HTTP: 50 datos, 15 dispositivos
+2025-08-16 22:49:12,429 - iot_middleware.demo.demo_manager.DemoManager - INFO -   BLE: 50 datos, 15 dispositivos
+2025-08-16 22:49:12,429 - iot_middleware.demo.demo_manager.DemoManager - INFO -   LORA: 50 datos, 10 dispositivos
+2025-08-16 22:49:12,429 - iot_middleware.demo.demo_manager.DemoManager - INFO -   MIDI: 50 datos, 16 dispositivos
+2025-08-16 22:49:12,429 - iot_middleware.demo.demo_manager.DemoManager - INFO -   MODBUS: 50 datos, 10 dispositivos
+2025-08-16 22:49:12,429 - iot_middleware.demo.demo_manager.DemoManager - INFO -   ZIGBEE: 50 datos, 6 dispositivos
+2025-08-16 22:49:42,440 - iot_middleware.demo.demo_manager.DemoManager - INFO - === Estado Demo (9.3 min) ===
+2025-08-16 22:49:42,442 - iot_middleware.demo.demo_manager.DemoManager - INFO - Total generados: 350
+2025-08-16 22:49:42,442 - iot_middleware.demo.demo_manager.DemoManager - INFO - Total procesados: 350
+2025-08-16 22:49:42,442 - iot_middleware.demo.demo_manager.DemoManager - INFO - Pipeline: Rate: 0.62 msg/s
+2025-08-16 22:49:42,443 - iot_middleware.demo.demo_manager.DemoManager - INFO -   MQTT: 50 datos, 19 dispositivos
+2025-08-16 22:49:42,443 - iot_middleware.demo.demo_manager.DemoManager - INFO -   HTTP: 50 datos, 15 dispositivos
+2025-08-16 22:49:42,443 - iot_middleware.demo.demo_manager.DemoManager - INFO -   BLE: 50 datos, 15 dispositivos
+2025-08-16 22:49:42,443 - iot_middleware.demo.demo_manager.DemoManager - INFO -   LORA: 50 datos, 10 dispositivos
+2025-08-16 22:49:42,443 - iot_middleware.demo.demo_manager.DemoManager - INFO -   MIDI: 50 datos, 16 dispositivos
+2025-08-16 22:49:42,443 - iot_middleware.demo.demo_manager.DemoManager - INFO -   MODBUS: 50 datos, 10 dispositivos
+2025-08-16 22:49:42,443 - iot_middleware.demo.demo_manager.DemoManager - INFO -   ZIGBEE: 50 datos, 6 dispositivos
+2025-08-16 22:50:12,450 - iot_middleware.demo.demo_manager.DemoManager - INFO - === Estado Demo (9.8 min) ===
+2025-08-16 22:50:12,452 - iot_middleware.demo.demo_manager.DemoManager - INFO - Total generados: 350
+2025-08-16 22:50:12,452 - iot_middleware.demo.demo_manager.DemoManager - INFO - Total procesados: 350
+2025-08-16 22:50:12,453 - iot_middleware.demo.demo_manager.DemoManager - INFO - Pipeline: Rate: 0.62 msg/s
+2025-08-16 22:50:12,453 - iot_middleware.demo.demo_manager.DemoManager - INFO -   MQTT: 50 datos, 19 dispositivos
+2025-08-16 22:50:12,453 - iot_middleware.demo.demo_manager.DemoManager - INFO -   HTTP: 50 datos, 15 dispositivos
+2025-08-16 22:50:12,453 - iot_middleware.demo.demo_manager.DemoManager - INFO -   BLE: 50 datos, 15 dispositivos
+2025-08-16 22:50:12,453 - iot_middleware.demo.demo_manager.DemoManager - INFO -   LORA: 50 datos, 10 dispositivos
+2025-08-16 22:50:12,453 - iot_middleware.demo.demo_manager.DemoManager - INFO -   MIDI: 50 datos, 16 dispositivos
+2025-08-16 22:50:12,453 - iot_middleware.demo.demo_manager.DemoManager - INFO -   MODBUS: 50 datos, 10 dispositivos
+2025-08-16 22:50:12,454 - iot_middleware.demo.demo_manager.DemoManager - INFO -   ZIGBEE: 50 datos, 6 dispositivos
+2025-08-16 22:50:42,459 - iot_middleware.demo.demo_manager.DemoManager - INFO - === Estado Demo (10.3 min) ===
+2025-08-16 22:50:42,461 - iot_middleware.demo.demo_manager.DemoManager - INFO - Total generados: 350
+2025-08-16 22:50:42,461 - iot_middleware.demo.demo_manager.DemoManager - INFO - Total procesados: 350
+2025-08-16 22:50:42,461 - iot_middleware.demo.demo_manager.DemoManager - INFO - Pipeline: Rate: 0.56 msg/s
+2025-08-16 22:50:42,461 - iot_middleware.demo.demo_manager.DemoManager - INFO -   MQTT: 50 datos, 19 dispositivos
+2025-08-16 22:50:42,461 - iot_middleware.demo.demo_manager.DemoManager - INFO -   HTTP: 50 datos, 15 dispositivos
+2025-08-16 22:50:42,461 - iot_middleware.demo.demo_manager.DemoManager - INFO -   BLE: 50 datos, 15 dispositivos
+2025-08-16 22:50:42,461 - iot_middleware.demo.demo_manager.DemoManager - INFO -   LORA: 50 datos, 10 dispositivos
+2025-08-16 22:50:42,461 - iot_middleware.demo.demo_manager.DemoManager - INFO -   MIDI: 50 datos, 16 dispositivos
+2025-08-16 22:50:42,461 - iot_middleware.demo.demo_manager.DemoManager - INFO -   MODBUS: 50 datos, 10 dispositivos
+2025-08-16 22:50:42,461 - iot_middleware.demo.demo_manager.DemoManager - INFO -   ZIGBEE: 50 datos, 6 dispositivos
+2025-08-16 22:51:12,468 - iot_middleware.demo.demo_manager.DemoManager - INFO - === Estado Demo (10.8 min) ===
+2025-08-16 22:51:12,469 - iot_middleware.demo.demo_manager.DemoManager - INFO - Total generados: 350
+2025-08-16 22:51:12,469 - iot_middleware.demo.demo_manager.DemoManager - INFO - Total procesados: 350
+2025-08-16 22:51:12,469 - iot_middleware.demo.demo_manager.DemoManager - INFO - Pipeline: Rate: 0.56 msg/s
+2025-08-16 22:51:12,469 - iot_middleware.demo.demo_manager.DemoManager - INFO -   MQTT: 50 datos, 19 dispositivos
+2025-08-16 22:51:12,469 - iot_middleware.demo.demo_manager.DemoManager - INFO -   HTTP: 50 datos, 15 dispositivos
+2025-08-16 22:51:12,469 - iot_middleware.demo.demo_manager.DemoManager - INFO -   BLE: 50 datos, 15 dispositivos
+2025-08-16 22:51:12,469 - iot_middleware.demo.demo_manager.DemoManager - INFO -   LORA: 50 datos, 10 dispositivos
+2025-08-16 22:51:12,470 - iot_middleware.demo.demo_manager.DemoManager - INFO -   MIDI: 50 datos, 16 dispositivos
+2025-08-16 22:51:12,470 - iot_middleware.demo.demo_manager.DemoManager - INFO -   MODBUS: 50 datos, 10 dispositivos
+2025-08-16 22:51:12,470 - iot_middleware.demo.demo_manager.DemoManager - INFO -   ZIGBEE: 50 datos, 6 dispositivos
+2025-08-16 22:51:42,475 - iot_middleware.demo.demo_manager.DemoManager - INFO - === Estado Demo (11.3 min) ===
+2025-08-16 22:51:42,476 - iot_middleware.demo.demo_manager.DemoManager - INFO - Total generados: 350
+2025-08-16 22:51:42,476 - iot_middleware.demo.demo_manager.DemoManager - INFO - Total procesados: 350
+2025-08-16 22:51:42,477 - iot_middleware.demo.demo_manager.DemoManager - INFO - Pipeline: Rate: 0.51 msg/s
+2025-08-16 22:51:42,477 - iot_middleware.demo.demo_manager.DemoManager - INFO -   MQTT: 50 datos, 19 dispositivos
+2025-08-16 22:51:42,477 - iot_middleware.demo.demo_manager.DemoManager - INFO -   HTTP: 50 datos, 15 dispositivos
+2025-08-16 22:51:42,477 - iot_middleware.demo.demo_manager.DemoManager - INFO -   BLE: 50 datos, 15 dispositivos
+2025-08-16 22:51:42,477 - iot_middleware.demo.demo_manager.DemoManager - INFO -   LORA: 50 datos, 10 dispositivos
+2025-08-16 22:51:42,477 - iot_middleware.demo.demo_manager.DemoManager - INFO -   MIDI: 50 datos, 16 dispositivos
+2025-08-16 22:51:42,477 - iot_middleware.demo.demo_manager.DemoManager - INFO -   MODBUS: 50 datos, 10 dispositivos
+2025-08-16 22:51:42,477 - iot_middleware.demo.demo_manager.DemoManager - INFO -   ZIGBEE: 50 datos, 6 dispositivos
+2025-08-16 22:52:12,483 - iot_middleware.demo.demo_manager.DemoManager - INFO - === Estado Demo (11.8 min) ===
+2025-08-16 22:52:12,486 - iot_middleware.demo.demo_manager.DemoManager - INFO - Total generados: 350
+2025-08-16 22:52:12,486 - iot_middleware.demo.demo_manager.DemoManager - INFO - Total procesados: 350
+2025-08-16 22:52:12,486 - iot_middleware.demo.demo_manager.DemoManager - INFO - Pipeline: Rate: 0.51 msg/s
+2025-08-16 22:52:12,486 - iot_middleware.demo.demo_manager.DemoManager - INFO -   MQTT: 50 datos, 19 dispositivos
+2025-08-16 22:52:12,487 - iot_middleware.demo.demo_manager.DemoManager - INFO -   HTTP: 50 datos, 15 dispositivos
+2025-08-16 22:52:12,487 - iot_middleware.demo.demo_manager.DemoManager - INFO -   BLE: 50 datos, 15 dispositivos
+2025-08-16 22:52:12,487 - iot_middleware.demo.demo_manager.DemoManager - INFO -   LORA: 50 datos, 10 dispositivos
+2025-08-16 22:52:12,487 - iot_middleware.demo.demo_manager.DemoManager - INFO -   MIDI: 50 datos, 16 dispositivos
+2025-08-16 22:52:12,488 - iot_middleware.demo.demo_manager.DemoManager - INFO -   MODBUS: 50 datos, 10 dispositivos
+2025-08-16 22:52:12,488 - iot_middleware.demo.demo_manager.DemoManager - INFO -   ZIGBEE: 50 datos, 6 dispositivos
+2025-08-16 22:52:42,494 - iot_middleware.demo.demo_manager.DemoManager - INFO - === Estado Demo (12.3 min) ===
+2025-08-16 22:52:42,496 - iot_middleware.demo.demo_manager.DemoManager - INFO - Total generados: 350
+2025-08-16 22:52:42,496 - iot_middleware.demo.demo_manager.DemoManager - INFO - Total procesados: 350
+2025-08-16 22:52:42,496 - iot_middleware.demo.demo_manager.DemoManager - INFO - Pipeline: Rate: 0.47 msg/s
+2025-08-16 22:52:42,496 - iot_middleware.demo.demo_manager.DemoManager - INFO -   MQTT: 50 datos, 19 dispositivos
+2025-08-16 22:52:42,497 - iot_middleware.demo.demo_manager.DemoManager - INFO -   HTTP: 50 datos, 15 dispositivos
+2025-08-16 22:52:42,497 - iot_middleware.demo.demo_manager.DemoManager - INFO -   BLE: 50 datos, 15 dispositivos
+2025-08-16 22:52:42,497 - iot_middleware.demo.demo_manager.DemoManager - INFO -   LORA: 50 datos, 10 dispositivos
+2025-08-16 22:52:42,497 - iot_middleware.demo.demo_manager.DemoManager - INFO -   MIDI: 50 datos, 16 dispositivos
+2025-08-16 22:52:42,497 - iot_middleware.demo.demo_manager.DemoManager - INFO -   MODBUS: 50 datos, 10 dispositivos
+2025-08-16 22:52:42,497 - iot_middleware.demo.demo_manager.DemoManager - INFO -   ZIGBEE: 50 datos, 6 dispositivos
+2025-08-16 22:53:12,501 - iot_middleware.demo.demo_manager.DemoManager - INFO - === Estado Demo (12.8 min) ===
+2025-08-16 22:53:12,503 - iot_middleware.demo.demo_manager.DemoManager - INFO - Total generados: 350
+2025-08-16 22:53:12,504 - iot_middleware.demo.demo_manager.DemoManager - INFO - Total procesados: 350
+2025-08-16 22:53:12,504 - iot_middleware.demo.demo_manager.DemoManager - INFO - Pipeline: Rate: 0.47 msg/s
+2025-08-16 22:53:12,505 - iot_middleware.demo.demo_manager.DemoManager - INFO -   MQTT: 50 datos, 19 dispositivos
+2025-08-16 22:53:12,505 - iot_middleware.demo.demo_manager.DemoManager - INFO -   HTTP: 50 datos, 15 dispositivos
+2025-08-16 22:53:12,505 - iot_middleware.demo.demo_manager.DemoManager - INFO -   BLE: 50 datos, 15 dispositivos
+2025-08-16 22:53:12,505 - iot_middleware.demo.demo_manager.DemoManager - INFO -   LORA: 50 datos, 10 dispositivos
+2025-08-16 22:53:12,505 - iot_middleware.demo.demo_manager.DemoManager - INFO -   MIDI: 50 datos, 16 dispositivos
+2025-08-16 22:53:12,505 - iot_middleware.demo.demo_manager.DemoManager - INFO -   MODBUS: 50 datos, 10 dispositivos
+2025-08-16 22:53:12,505 - iot_middleware.demo.demo_manager.DemoManager - INFO -   ZIGBEE: 50 datos, 6 dispositivos
+2025-08-16 22:53:42,356 - iot_middleware.demo.demo_manager.DemoManager - INFO - Deteniendo demostración...
+2025-08-16 22:53:42,359 - iot_middleware.demo.demo_manager.DemoManager - INFO - Simulador mqtt detenido
+2025-08-16 22:53:42,360 - iot_middleware.demo.demo_manager.DemoManager - INFO - Simulador http detenido
+2025-08-16 22:53:42,361 - iot_middleware.demo.demo_manager.DemoManager - INFO - Simulador ble detenido
+2025-08-16 22:53:42,361 - iot_middleware.demo.demo_manager.DemoManager - INFO - Simulador lora detenido
+2025-08-16 22:53:42,362 - iot_middleware.demo.demo_manager.DemoManager - INFO - Simulador midi detenido
+2025-08-16 22:53:42,362 - iot_middleware.demo.demo_manager.DemoManager - INFO - Simulador modbus detenido
+2025-08-16 22:53:42,362 - iot_middleware.demo.demo_manager.DemoManager - INFO - Simulador zigbee detenido

@@ -1,0 +1,56 @@
+================================================================================
+INFORME DE DEMOSTRACIÓN - IoT MIDDLEWARE
+================================================================================
+
+CONFIGURACIÓN DE LA DEMOSTRACIÓN
+----------------------------------------
+Nombre: Test Demo
+Duración: 5 minutos
+Protocolos habilitados: mqtt, http, ble
+Intervalo de datos: 2.0 segundos
+Datos por protocolo: 30
+
+MÉTRICAS GENERALES
+----------------------------------------
+Total de datos generados: 90
+Total de datos procesados: 88
+Total de datos persistidos: 88
+Errores: 1
+Advertencias: 1
+
+MÉTRICAS POR PROTOCOLO
+----------------------------------------
+MQTT:
+  Datos generados: 30
+  Datos procesados: 29
+  Dispositivos únicos: 15
+  Último dato: 2025-08-16T19:41:06.973344
+
+HTTP:
+  Datos generados: 30
+  Datos procesados: 30
+  Dispositivos únicos: 12
+  Último dato: 2025-08-16T19:41:06.973345
+
+BLE:
+  Datos generados: 30
+  Datos procesados: 29
+  Dispositivos únicos: 18
+  Último dato: 2025-08-16T19:41:06.973346
+
+MÉTRICAS DEL PIPELINE
+----------------------------------------
+Rate de procesamiento: 1.50 msg/s
+Operaciones PostgreSQL: 88
+Operaciones InfluxDB: 88
+Tamaño de cola: 0
+
+RESUMEN EJECUTIVO
+----------------------------------------
+La demostración procesó exitosamente 0 de 0 datos
+generados por 3 protocolos diferentes.
+Tasa de éxito: 0.0%
+
+================================================================================
+Informe generado el: 2025-08-16 19:41:06
+================================================================================

@@ -1,0 +1,208 @@
+# Configuración del Servicio Unificado de Ingesta Multiprotocolo
+# =============================================================
+
+# Configuración del InputManager (capa multiprotocolo)
+input_manager:
+  enabled_protocols:
+    - mqtt
+    - http
+    - ble
+    - lora
+    - midi
+    - modbus
+    - zigbee
+  
+  # Configuración MQTT
+  mqtt_config:
+    broker: "localhost"
+    port: 1883
+    username: null
+    password: null
+    client_id: "unified_input_mqtt"
+    topics:
+      - "iot/+/+/+/+"
+    qos: 1
+    retain: false
+    clean_session: true
+  
+  # Configuración HTTP
+  http_config:
+    host: "0.0.0.0"
+    port: 8080
+    endpoint: "/ingest"
+    auth_enabled: false
+    username: null
+    password: null
+    rate_limit: 100  # requests per minute
+    cors_enabled: true
+  
+  # Configuración BLE
+  ble_config:
+    bridge_type: "mqtt"  # mqtt o http
+    bridge_config:
+      mqtt_topics:
+        - "ble/+/+/+"
+      http_endpoints:
+        - "http://localhost:8081/ble"
+    device_whitelist: []
+    device_blacklist: []
+    scan_interval: 5.0
+  
+  # Configuración LoRa
+  lora_config:
+    bridge_type: "mqtt"
+    bridge_config:
+      mqtt_topics:
+        - "lora/+/+/+"
+    application_whitelist: []
+    device_whitelist: []
+    gateway_whitelist: []
+  
+  # Configuración MIDI
+  midi_config:
+    bridge_type: "http"
+    bridge_config:
+      http_endpoints:
+        - "http://localhost:8082/midi"
+    channel_filter: []  # Lista de canales MIDI a procesar
+    message_types: ["note_on", "note_off", "control_change"]
+    note_range: [0, 127]
+  
+  # Configuración Modbus
+  modbus_config:
+    bridge_type: "mqtt"
+    bridge_config:
+      mqtt_topics:
+        - "modbus/+/+/+"
+    device_whitelist: []
+    register_ranges: []
+    scan_interval: 10.0
+  
+  # Configuración ZigBee
+  zigbee_config:
+    bridge_type: "mqtt"
+    bridge_config:
+      mqtt_topics:
+        - "zigbee2mqtt/+/+"
+    device_whitelist: []
+    device_blacklist: []
+    device_types: ["sensor", "actuator", "switch", "light"]
+
+# Configuración del middleware core
+core_config:
+  mqtt_broker: "localhost"
+  mqtt_port: 1883
+  mqtt_username: null
+  mqtt_password: null
+  
+  # Configuración de base de datos
+  database_config:
+    postgresql:
+      host: "localhost"
+      port: 5432
+      database: "iot_middleware"
+      username: "postgres"
+      password: "password"
+      ssl_mode: "disable"
+    
+    influxdb:
+      url: "http://localhost:8086"
+      token: "your_influxdb_token"
+      org: "your_org"
+      bucket: "iot_data"
+  
+  # Configuración de procesamiento
+  processing_config:
+    validation_enabled: true
+    alarm_thresholds: {}
+    topic_mapping: {}
+    qos: 1
+    retain: false
+
+# Configuración de integración
+integration:
+  enable_protocol_bridge: true
+  mqtt_topic_prefix: "iot/unified"
+  auto_create_channels: true
+  data_validation: true
+  
+  # Configuración de alarmas
+  alarm_thresholds:
+    temperature:
+      min: -40
+      max: 80
+      critical_min: -50
+      critical_max: 100
+    humidity:
+      min: 0
+      max: 100
+      critical_min: -5
+      critical_max: 105
+  
+  # Configuración de procesamiento por lotes
+  max_queue_size: 1000
+  batch_size: 100
+  batch_timeout: 5.0
+  
+  # Configuración de logging
+  logging:
+    level: "INFO"
+    format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    file: "unified_ingesta.log"
+    max_size: "10MB"
+    backup_count: 5
+  
+  # Configuración de monitoreo
+  monitoring:
+    metrics_interval: 60  # segundos
+    health_check_interval: 30  # segundos
+    status_endpoint: "/status"
+    metrics_endpoint: "/metrics"
+
+# Configuración de seguridad
+security:
+  tls_enabled: false
+  tls_cert_file: null
+  tls_key_file: null
+  tls_ca_file: null
+  
+  authentication:
+    enabled: false
+    jwt_secret: null
+    token_expiry: 3600
+  
+  authorization:
+    enabled: false
+    roles: []
+    permissions: []
+
+# Configuración de escalabilidad
+scalability:
+  max_connections: 1000
+  max_workers: 8
+  connection_pool_size: 20
+  
+  # Configuración de balanceo de carga
+  load_balancing:
+    enabled: false
+    strategy: "round_robin"  # round_robin, least_connections, random
+    health_check_url: null
+  
+  # Configuración de clustering
+  clustering:
+    enabled: false
+    cluster_nodes: []
+    election_timeout: 5000
+    heartbeat_interval: 1000
+
+# Configuración de desarrollo
+development:
+  debug_mode: false
+  hot_reload: false
+  profiling: false
+  
+  # Configuración de testing
+  testing:
+    mock_protocols: false
+    test_data_generation: false
+    performance_testing: false

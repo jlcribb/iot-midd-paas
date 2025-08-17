@@ -1,0 +1,190 @@
+# Configuración del IoT Middleware con PostgreSQL
+# Archivo: config_with_postgresql.yaml
+
+# Configuración del broker MQTT
+mqtt:
+  broker:
+    host: "mosquitto"
+    port: 1883
+    keepalive: 60
+    username: null  # Anónimo por defecto
+    password: null
+  topics:
+    subscribe: ["iot/+/+/data", "iot/+/+/status", "iot/+/+/config"]
+    publish: ["iot/+/+/response", "iot/+/+/command"]
+  qos: 1
+  retain: false
+
+# Configuración de InfluxDB
+influxdb:
+  url: "http://influxdb:8086"
+  token: "dev-token"
+  org: "my-org"
+  bucket: "iot"
+  retention_policy: "30d"
+  batch_size: 1000
+  flush_interval: 10
+
+# Configuración de PostgreSQL
+postgresql:
+  host: "postgresql"
+  port: 5432
+  database: "iot_middleware"
+  username: "iot_user"
+  password: "iot_password_2024"
+  schema: "iot_schema"
+  pool_size: 10
+  max_overflow: 20
+  pool_timeout: 30
+  pool_recycle: 3600
+
+# Configuración de la API
+api:
+  host: "0.0.0.0"
+  port: 8000
+  debug: true
+  cors:
+    origins: ["*"]
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+    headers: ["*"]
+
+# Configuración de logging
+logging:
+  level: "INFO"
+  format: "{time:YYYY-MM-DD HH:mm:ss} | {level} | {name}:{function}:{line} | {message}"
+  file: "/app/logs/iot_middleware.log"
+  max_size: "100MB"
+  backup_count: 5
+
+# Configuración de procesamiento de datos
+processing:
+  batch_size: 100
+  max_workers: 4
+  timeout: 30
+  retry_attempts: 3
+  retry_delay: 5
+
+# Configuración de normalizadores
+normalizers:
+  temperature:
+    unit: "celsius"
+    min_value: -50
+    max_value: 100
+  humidity:
+    unit: "percentage"
+    min_value: 0
+    max_value: 100
+  pressure:
+    unit: "hpa"
+    min_value: 800
+    max_value: 1200
+
+# Configuración de almacenamiento
+storage:
+  # Datos de series temporales van a InfluxDB
+  timeseries:
+    provider: "influxdb"
+    retention_days: 30
+  
+  # Datos relacionales van a PostgreSQL
+  relational:
+    provider: "postgresql"
+    backup_enabled: true
+    backup_interval: "1d"
+  
+  # Datos de configuración y metadatos van a PostgreSQL
+  metadata:
+    provider: "postgresql"
+    cache_enabled: true
+    cache_ttl: 3600
+
+# Configuración de seguridad
+security:
+  mqtt:
+    tls_enabled: false
+    certificate_path: null
+    private_key_path: null
+  
+  api:
+    authentication_enabled: false
+    jwt_secret: "your-secret-key-here"
+    jwt_expiration: 3600
+  
+  database:
+    ssl_mode: "disable"
+    ssl_cert: null
+    ssl_key: null
+    ssl_ca: null
+
+# Configuración de monitoreo
+monitoring:
+  health_check_interval: 30
+  metrics_collection: true
+  alerting:
+    enabled: false
+    webhook_url: null
+    email:
+      smtp_server: null
+      smtp_port: 587
+      username: null
+      password: null
+      from_email: null
+      to_emails: []
+
+# Configuración de dispositivos por defecto
+default_devices:
+  - device_id: "demo_sensor_001"
+    name: "Sensor de Temperatura Demo"
+    type: "temperature"
+    location: "Sala de Servidores"
+    sensors:
+      - sensor_id: "temp_001"
+        name: "Temperatura Ambiente"
+        type: "temperature"
+        unit: "celsius"
+  
+  - device_id: "demo_sensor_002"
+    name: "Sensor de Humedad Demo"
+    type: "humidity"
+    location: "Sala de Servidores"
+    sensors:
+      - sensor_id: "hum_001"
+        name: "Humedad Relativa"
+        type: "humidity"
+        unit: "percentage"
+
+# Configuración de transformaciones de datos
+data_transformations:
+  temperature:
+    celsius_to_fahrenheit:
+      enabled: true
+      output_field: "temp_fahrenheit"
+      formula: "value * 9/5 + 32"
+  
+  humidity:
+    percentage_to_decimal:
+      enabled: true
+      output_field: "humidity_decimal"
+      formula: "value / 100"
+
+# Configuración de alertas
+alerts:
+  temperature_high:
+    enabled: true
+    condition: "value > 30"
+    severity: "warning"
+    message: "Temperatura alta detectada: {value}°C"
+    actions:
+      - type: "log"
+        target: "system_events"
+      - type: "mqtt"
+        topic: "iot/alerts/temperature"
+  
+  humidity_low:
+    enabled: true
+    condition: "value < 20"
+    severity: "info"
+    message: "Humedad baja detectada: {value}%"
+    actions:
+      - type: "log"
+        target: "system_events"

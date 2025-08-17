@@ -1,0 +1,9 @@
+2025-08-16 23:12:47,124 - iot_middleware.services.unified_ingestor - INFO - 🚀 Inicializando servicio unificado de ingesta...
+2025-08-16 23:12:47,124 - iot_middleware.config.config_loader - INFO - Archivo de configuración encontrado: config.yaml
+2025-08-16 23:12:47,125 - iot_middleware.config.config_loader - INFO - Configuración cargada desde: config.yaml
+2025-08-16 23:12:47,126 - iot_middleware.config.config_loader - ERROR - Error de validación en la configuración:
+2025-08-16 23:12:47,126 - iot_middleware.config.config_loader - ERROR -   - ('mqtt', 'broker'): Field required
+2025-08-16 23:12:47,126 - iot_middleware.config.config_loader - ERROR -   - ('mqtt', 'topics'): Field required
+2025-08-16 23:12:47,126 - iot_middleware.config.config_loader - ERROR -   - ('postgresql',): Field required
+2025-08-16 23:12:47,126 - iot_middleware.config.config_loader - ERROR -   - ('storage',): Field required
+2025-08-16 23:12:47,126 - iot_middleware.services.unified_ingestor - ERROR - ❌ Error inicializando servicio: ValidationError.__new__() missing 1 required positional argument: 'line_errors'

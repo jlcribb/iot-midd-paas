@@ -43,10 +43,11 @@ generate_development_doc() {
         echo "### Verificación de Puertos"
         echo "| Puerto | Servicio | Estado |"
         echo "|--------|----------|--------|"
-        for port in 1883 8086 8000; do
+        for port in 1883 5432 8086 8000; do
             local service=""
             case $port in
                 1883) service="MQTT (Mosquitto)" ;;
+                5432) service="PostgreSQL" ;;
                 8086) service="InfluxDB" ;;
                 8000) service="API (FastAPI)" ;;
             esac
@@ -104,7 +105,7 @@ generate_development_doc() {
         echo "## Logs del Sistema"
         echo ""
         
-        for container in mosquitto influxdb iotmw-api iotmw-ingestor; do
+        for container in mosquitto influxdb postgresql iotmw-api iotmw-ingestor; do
             echo "### $container"
             echo "\`\`\`"
             podman logs --tail 5 $container 2>/dev/null

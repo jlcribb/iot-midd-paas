@@ -1,0 +1,361 @@
+# Configuración Multi-Protocolo para IoT Middleware
+# ================================================
+# Este archivo muestra cómo configurar múltiples protocolos de entrada
+# que se traducen al mismo formato unificado antes de entrar al core.
+
+# Configuración del gestor de entrada
+input_manager:
+  enabled: true
+  name: "multi_protocol_manager"
+  max_connectors: 20
+  health_check_interval: 30.0
+  metrics_interval: 60.0
+  data_buffer_size: 10000
+  enable_data_logging: false
+  enable_protocol_logging: true
+  auto_start_connectors: true
+  graceful_shutdown_timeout: 30.0
+
+# Lista de conectores de protocolos
+connectors:
+  # Conector MQTT (protocolo principal)
+  - name: "mqtt_main"
+    protocol: "mqtt"
+    enabled: true
+    broker_host: "localhost"
+    broker_port: 1883
+    username: "iot_user"
+    password: "iot_password"
+    topics_subscribe:
+      - "iot/+/+/+/+"
+      - "sensors/+/data"
+      - "devices/+/status"
+    topics_publish:
+      - "iot/commands/+"
+    qos: 1
+    retain: false
+    auto_reconnect: true
+    reconnect_interval: 5.0
+    max_reconnect_attempts: 10
+    buffer_size: 1000
+    batch_size: 100
+    batch_timeout: 5.0
+
+  # Conector HTTP/REST para dispositivos que envían datos directamente
+  - name: "http_ingest"
+    protocol: "http"
+    enabled: true
+    host: "0.0.0.0"
+    port: 8080
+    endpoint: "/ingest"
+    ssl_enabled: false
+    auth_enabled: true
+    auth_token: "your_auth_token_here"
+    cors_enabled: true
+    rate_limit_enabled: true
+    rate_limit_requests: 100
+    rate_limit_window: 60
+    buffer_size: 2000
+    batch_size: 200
+    batch_timeout: 3.0
+
+  # Conector BLE para dispositivos Bluetooth Low Energy
+  - name: "ble_bridge"
+    protocol: "ble"
+    enabled: true
+    bridge_type: "mqtt"
+    bridge_address: "192.168.1.100"  # Raspberry Pi con dongle BLE
+    bridge_port: 1883
+    mqtt_topic: "ble/data"
+    mqtt_username: "ble_user"
+    mqtt_password: "ble_password"
+    device_whitelist:
+      - "AA:BB:CC:DD:EE:FF"
+      - "11:22:33:44:55:66"
+    auto_discovery: true
+    scan_interval: 10.0
+    parse_manufacturer_data: true
+    parse_service_data: true
+    buffer_size: 500
+    batch_size: 50
+    batch_timeout: 2.0
+
+  # Conector LoRa para dispositivos LoRaWAN
+  - name: "lora_gateway"
+    protocol: "lora"
+    enabled: true
+    gateway_type: "chirpstack"
+    gateway_address: "192.168.1.200"
+    gateway_port: 1883
+    mqtt_topic: "application/+/device/+/event/+"
+    mqtt_username: "lora_user"
+    mqtt_password: "lora_password"
+    application_whitelist:
+      - "app_001"
+      - "app_002"
+    device_whitelist:
+      - "device_001"
+      - "device_002"
+    parse_payload: true
+    decode_base64: true
+    parse_metadata: true
+    parse_rx_info: true
+    buffer_size: 1000
+    batch_size: 100
+    batch_timeout: 5.0
+
+  # Conector MIDI para dispositivos musicales
+  - name: "midi_controller"
+    protocol: "midi"
+    enabled: true
+    port_name: "USB MIDI Controller"
+    virtual_port: false
+    channel_filter: [1, 2, 3, 4]  # Solo canales 1-4
+    message_types:
+      - "note_on"
+      - "note_off"
+      - "control_change"
+      - "program_change"
+    note_range: [21, 108]  # Teclas de piano estándar
+    parse_notes: true
+    parse_controllers: true
+    parse_timing: true
+    velocity_threshold: 10
+    buffer_size: 500
+    batch_size: 50
+    batch_timeout: 1.0
+
+  # Conector Modbus para dispositivos industriales
+  - name: "modbus_plc"
+    protocol: "modbus"
+    enabled: true
+    protocol_type: "tcp"
+    host: "192.168.1.50"
+    port: 502
+    device_id: 1
+    timeout: 3.0
+    retries: 3
+    scan_interval: 5.0
+    registers:
+      - address: 0
+        count: 10
+        type: "holding"
+        name: "temperatures"
+      - address: 10
+        count: 5
+        type: "input"
+        name: "pressures"
+      - address: 20
+        count: 3
+        type: "holding"
+        name: "status"
+      - address: 30
+        count: 2
+        type: "holding"
+        name: "flow_rate"
+    data_types:
+      temperatures: "int16"
+      pressures: "int16"
+      status: "int16"
+      flow_rate: "float32"
+    parse_registers: true
+    scale_values: true
+    buffer_size: 1000
+    batch_size: 100
+    batch_timeout: 5.0
+
+  # Conector ZigBee para dispositivos de domótica
+  - name: "zigbee_home"
+    protocol: "zigbee"
+    enabled: true
+    coordinator_type: "zigbee2mqtt"
+    coordinator_address: "192.168.1.150"
+    coordinator_port: 1883
+    mqtt_topic: "zigbee2mqtt/+/+"
+    mqtt_username: "zigbee_user"
+    mqtt_password: "zigbee_password"
+    device_whitelist:
+      - "living_room_sensor"
+      - "kitchen_switch"
+      - "bedroom_light"
+      - "thermostat"
+    device_types:
+      - "sensor"
+      - "switch"
+      - "light"
+      - "thermostat"
+      - "lock"
+    parse_device_info: true
+    parse_sensor_data: true
+    parse_battery: true
+    parse_availability: true
+    parse_actions: true
+    buffer_size: 1000
+    batch_size: 100
+    batch_timeout: 5.0
+
+# Configuración de procesamiento de datos
+processing:
+  # Normalización de datos
+  normalize:
+    enabled: true
+    default_project: "default"
+    default_unit: "main"
+    auto_create_entities: true
+    
+  # Validación de datos
+  validation:
+    enabled: true
+    check_required_fields: true
+    validate_data_types: true
+    range_validation: true
+    
+  # Transformación de datos
+  transformation:
+    enabled: true
+    unit_conversion: true
+    data_scaling: true
+    timestamp_normalization: true
+
+# Configuración de almacenamiento
+storage:
+  # Base de datos principal
+  database:
+    type: "postgresql"
+    host: "localhost"
+    port: 5432
+    database: "iot_middleware"
+    username: "iot_user"
+    password: "iot_password"
+    schema: "iot_schema"
+    
+  # InfluxDB para series temporales
+  timeseries:
+    type: "influxdb"
+    url: "http://localhost:8086"
+    token: "your_influxdb_token"
+    org: "iot_org"
+    bucket: "iot_data"
+    retention_policy: "30d"
+    batch_size: 1000
+    flush_interval: 10
+
+# Configuración de logging
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  handlers:
+    - type: "console"
+      enabled: true
+    - type: "file"
+      enabled: true
+      filename: "logs/iot_middleware.log"
+      max_bytes: 10485760  # 10MB
+      backup_count: 5
+    - type: "syslog"
+      enabled: false
+      host: "localhost"
+      port: 514
+
+# Configuración de monitoreo
+monitoring:
+  # Métricas del sistema
+  metrics:
+    enabled: true
+    interval: 60
+    export_prometheus: false
+    export_statsd: false
+    
+  # Health checks
+  health_checks:
+    enabled: true
+    interval: 30
+    timeout: 10
+    
+  # Alertas
+  alerts:
+    enabled: true
+    email:
+      smtp_server: "smtp.gmail.com"
+      smtp_port: 587
+      username: "alerts@yourdomain.com"
+      password: "your_password"
+      recipients: ["admin@yourdomain.com"]
+    slack:
+      webhook_url: "https://hooks.slack.com/services/your/webhook/url"
+      channel: "#iot-alerts"
+
+# Configuración de seguridad
+security:
+  # Autenticación
+  authentication:
+    enabled: true
+    method: "jwt"
+    secret_key: "your_secret_key_here"
+    token_expiry: 3600  # 1 hora
+    
+  # Autorización
+  authorization:
+    enabled: true
+    default_role: "user"
+    roles:
+      - name: "admin"
+        permissions: ["*"]
+      - name: "user"
+        permissions: ["read", "write"]
+      - name: "viewer"
+        permissions: ["read"]
+        
+  # Cifrado
+  encryption:
+    enabled: true
+    algorithm: "AES-256-GCM"
+    key_derivation: "PBKDF2"
+    salt_length: 32
+
+# Configuración de integración
+integration:
+  # Webhooks para notificaciones
+  webhooks:
+    enabled: true
+    endpoints:
+      - name: "data_ingested"
+        url: "https://your-api.com/webhooks/data"
+        method: "POST"
+        headers:
+          Authorization: "Bearer your_webhook_token"
+        timeout: 30
+        
+  # APIs externas
+  external_apis:
+    weather:
+      enabled: true
+      base_url: "https://api.openweathermap.org/data/2.5"
+      api_key: "your_weather_api_key"
+      cache_duration: 300  # 5 minutos
+      
+    maps:
+      enabled: true
+      base_url: "https://maps.googleapis.com/maps/api"
+      api_key: "your_google_maps_api_key"
+      cache_duration: 3600  # 1 hora
+
+# Configuración de desarrollo
+development:
+  # Modo debug
+  debug: false
+  
+  # Hot reload
+  hot_reload: false
+  
+  # Testing
+  testing:
+    enabled: false
+    mock_external_services: true
+    test_data_generation: true
+    
+  # Profiling
+  profiling:
+    enabled: false
+    output_file: "profiles/iot_middleware.prof"
+    interval: 1.0

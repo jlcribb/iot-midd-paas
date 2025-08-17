@@ -1,0 +1,432 @@
+# Configuración del IoT Middleware
+# =================================
+
+# Configuración MQTT
+mqtt:
+  broker:
+    host: "localhost"
+    port: 1883
+    username: "iot_user"
+    password: "iot_password"
+    keepalive: 60
+    tls_enabled: false
+    tls_ca_certs: null
+    tls_certfile: null
+    tls_keyfile: null
+    tls_ciphers: null
+    tls_insecure: false
+  
+  topics:
+    subscribe:
+      - "iot/+/+/+/+/+"
+      - "sensors/+/+/+"
+      - "devices/+/status"
+      - "custom/+/data"
+    publish:
+      - "iot/status/ingesta"
+      - "iot/alarms/+"
+      - "iot/health/+"
+  
+  qos:
+    subscribe: 1
+    publish: 1
+  
+  reconnect:
+    enabled: true
+    max_attempts: 10
+    initial_delay: 1.0
+    max_delay: 60.0
+    backoff_multiplier: 2.0
+
+# Configuración de Almacenamiento
+storage:
+  type: "postgresql"  # postgresql, influxdb, hybrid
+  
+  postgresql:
+    host: "localhost"
+    port: 5432
+    database: "iot_middleware"
+    username: "iot_user"
+    password: "iot_password"
+    schema: "iot_schema"
+    pool_size: 10
+    max_overflow: 20
+    pool_timeout: 30
+    pool_recycle: 3600
+    echo: false
+  
+  influxdb:
+    url: "http://localhost:8086"
+    token: "your_influxdb_token"
+    org: "iot_org"
+    bucket: "iot_data"
+    retention_policy: "30d"
+    batch_size: 1000
+    flush_interval: 10
+
+# Configuración de Procesamiento
+processing:
+  enabled: true
+  max_workers: 4
+  queue_size: 1000
+  batch_size: 100
+  batch_timeout: 5.0
+  
+  normalizers:
+    temperature:
+      enabled: true
+      unit_conversion: true
+      range_validation: true
+      min_value: -50.0
+      max_value: 150.0
+    
+    humidity:
+      enabled: true
+      range_validation: true
+      min_value: 0.0
+      max_value: 100.0
+    
+    pressure:
+      enabled: true
+      unit_conversion: true
+      range_validation: true
+      min_value: 800.0
+      max_value: 1200.0
+
+# Configuración de Ingesta
+ingesta:
+  max_queue_size: 1000
+  batch_size: 100
+  batch_timeout: 5.0
+  max_workers: 4
+  validation_enabled: true
+  
+  topic_mapping:
+    "^iot/(?P<proyecto>[^/]+)/(?P<unidad>[^/]+)/(?P<dispositivo>[^/]+)/(?P<canal>[^/]+)$":
+      proyecto_id: "proyecto"
+      unidad_id: "unidad"
+      dispositivo_id: "dispositivo"
+      canal_id: "canal"
+    
+    "^sensors/(?P<tipo>[^/]+)/(?P<ubicacion>[^/]+)/(?P<id>[^/]+)$":
+      proyecto_id: "default"
+      unidad_id: "ubicacion"
+      dispositivo_id: "id"
+      canal_id: "tipo"
+  
+  alarm_thresholds:
+    "canal_temperatura_001":
+      - tipo: "max"
+        valor: 80.0
+        severidad: "ADVERTENCIA"
+        mensaje: "Temperatura alta detectada"
+      
+      - tipo: "min"
+        valor: 0.0
+        severidad: "ADVERTENCIA"
+        mensaje: "Temperatura baja detectada"
+    
+    "canal_humedad_001":
+      - tipo: "max"
+        valor: 90.0
+        severidad: "CRITICA"
+        mensaje: "Humedad crítica detectada"
+  
+  data_quality:
+    enabled: true
+    validation_rules:
+      - campo: "valor"
+        tipo: "numeric"
+        requerido: true
+      
+      - campo: "timestamp"
+        tipo: "datetime"
+        requerido: true
+        formato: "iso8601"
+    
+    quality_metrics:
+      - nombre: "rango_valores"
+        descripcion: "Valor dentro del rango esperado"
+        peso: 0.4
+      
+      - nombre: "frecuencia_muestreo"
+        descripcion: "Frecuencia de muestreo consistente"
+        peso: 0.3
+      
+      - nombre: "completitud_datos"
+        descripcion: "Todos los campos requeridos presentes"
+        peso: 0.3
+
+# Configuración de Auditoría
+auditoria:
+  enabled: true
+  log_level: "INFO"
+  max_records: 10000
+  retention_days: 90
+  
+  entities:
+    - "config_middleware"
+    - "canales"
+    - "eventos_alarmas"
+    - "dispositivos"
+    - "usuarios"
+  
+  sensitive_fields:
+    - "password"
+    - "token"
+    - "api_key"
+    - "private_key"
+    - "secret"
+
+# Configuración de la API REST
+api:
+  host: "0.0.0.0"
+  port: 8000
+  debug: false
+  reload: false
+  
+  cors:
+    enabled: true
+    allow_origins: ["*"]
+    allow_credentials: true
+    allow_methods: ["*"]
+    allow_headers: ["*"]
+  
+  rate_limiting:
+    enabled: true
+    requests_per_minute: 1000
+    burst_size: 100
+  
+  authentication:
+    enabled: false
+    jwt_secret: "your_jwt_secret_here"
+    jwt_algorithm: "HS256"
+    jwt_expiration: 3600
+  
+  documentation:
+    enabled: true
+    title: "IoT Middleware API"
+    description: "API REST para consulta de datos de sensores IoT"
+    version: "1.0.0"
+
+# Configuración de Logging
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  
+  handlers:
+    console:
+      enabled: true
+      level: "INFO"
+    
+    file:
+      enabled: true
+      level: "DEBUG"
+      filename: "iot_middleware.log"
+      max_bytes: 10485760  # 10MB
+      backup_count: 5
+    
+    syslog:
+      enabled: false
+      host: "localhost"
+      port: 514
+      facility: "local0"
+  
+  loggers:
+    iot_middleware:
+      level: "INFO"
+      propagate: false
+    
+    fastapi:
+      level: "WARNING"
+      propagate: false
+    
+    uvicorn:
+      level: "WARNING"
+      propagate: false
+    
+    sqlalchemy:
+      level: "WARNING"
+      propagate: false
+
+# Configuración de Monitoreo
+monitoring:
+  enabled: true
+  metrics_interval: 30  # segundos
+  
+  health_check:
+    enabled: true
+    interval: 60  # segundos
+    timeout: 10   # segundos
+  
+  performance:
+    enabled: true
+    track_response_times: true
+    track_memory_usage: true
+    track_database_queries: true
+  
+  alerts:
+    enabled: true
+    email:
+      smtp_server: "smtp.gmail.com"
+      smtp_port: 587
+      username: "alerts@yourdomain.com"
+      password: "your_email_password"
+      recipients: ["admin@yourdomain.com"]
+    
+    slack:
+      webhook_url: "https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK"
+      channel: "#iot-alerts"
+
+# Configuración de Seguridad
+security:
+  encryption:
+    enabled: true
+    algorithm: "AES-256-GCM"
+    key_derivation: "PBKDF2"
+    iterations: 100000
+  
+  access_control:
+    enabled: true
+    default_role: "lectura"
+    roles:
+      - nombre: "lectura"
+        permisos: ["read:data", "read:topics"]
+      
+      - nombre: "escritura"
+        permisos: ["read:data", "write:data", "read:topics"]
+      
+      - nombre: "admin"
+        permisos: ["*"]
+  
+  network:
+    allowed_ips: []
+    firewall_rules: []
+    ssl_enabled: false
+    ssl_cert_file: null
+    ssl_key_file: null
+
+# Configuración de Desarrollo
+development:
+  debug_mode: false
+  hot_reload: false
+  profiling: false
+  
+  testing:
+    enabled: false
+    mock_services: false
+    test_database: "iot_middleware_test"
+  
+  documentation:
+    auto_generate: true
+    include_examples: true
+    api_docs_url: "/docs"
+    redoc_url: "/redoc"
+
+# Configuración de Escalabilidad
+scalability:
+  clustering:
+    enabled: false
+    nodes: []
+    leader_election: false
+  
+  load_balancing:
+    enabled: false
+    algorithm: "round_robin"
+    health_check: true
+  
+  caching:
+    enabled: true
+    backend: "memory"  # memory, redis
+    ttl: 300  # segundos
+    max_size: 1000
+  
+  queue_management:
+    enabled: true
+    backend: "memory"  # memory, redis, rabbitmq
+    max_queues: 10
+    max_messages_per_queue: 10000
+
+# Configuración de Backup y Recuperación
+backup:
+  enabled: true
+  schedule: "0 2 * * *"  # Cron: 2 AM diario
+  
+  database:
+    enabled: true
+    format: "sql"  # sql, custom
+    compression: true
+    retention_days: 30
+  
+  configuration:
+    enabled: true
+    format: "yaml"
+    compression: false
+    retention_days: 90
+  
+  logs:
+    enabled: true
+    format: "tar.gz"
+    compression: true
+    retention_days: 7
+
+# Configuración de Integración
+integration:
+  external_apis:
+    weather:
+      enabled: false
+      api_key: "your_weather_api_key"
+      base_url: "https://api.openweathermap.org/data/2.5"
+    
+    maps:
+      enabled: false
+      api_key: "your_maps_api_key"
+      base_url: "https://maps.googleapis.com/maps/api"
+  
+  webhooks:
+    enabled: false
+    endpoints: []
+  
+  third_party:
+    grafana:
+      enabled: false
+      url: "http://localhost:3000"
+      api_key: "your_grafana_api_key"
+    
+    prometheus:
+      enabled: false
+      url: "http://localhost:9090"
+      metrics_path: "/metrics"
+
+# Configuración de Notificaciones
+notifications:
+  enabled: true
+  
+  channels:
+    email:
+      enabled: true
+      smtp_server: "smtp.gmail.com"
+      smtp_port: 587
+      username: "notifications@yourdomain.com"
+      password: "your_email_password"
+    
+    sms:
+      enabled: false
+      provider: "twilio"
+      account_sid: "your_twilio_account_sid"
+      auth_token: "your_twilio_auth_token"
+      from_number: "+1234567890"
+    
+    push:
+      enabled: false
+      provider: "firebase"
+      server_key: "your_firebase_server_key"
+  
+  templates:
+    alarm_triggered:
+      subject: "Alarma IoT Activada"
+      body: "Se ha activado una alarma en el sistema IoT"
+    
+    system_status:
+      subject: "Estado del Sistema IoT"
+      body: "Reporte de estado del sistema IoT"

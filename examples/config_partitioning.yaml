@@ -1,0 +1,84 @@
+# Configuración completa para pruebas del sistema de particiones
+mqtt:
+  broker:
+    host: localhost
+    port: 1883
+    username: test
+    password: test
+  topics:
+    subscribe:
+      - test/#
+    publish:
+      - test/response
+  qos: 1
+  retain: false
+
+influxdb:
+  url: http://localhost:8086
+  token: dev-token
+  org: my-org
+  bucket: iot
+  retention_policy: 30d
+  batch_size: 1000
+  flush_interval: 10
+
+postgresql:
+  host: postgresql
+  port: 5432
+  database: iot_middleware
+  username: iot_user
+  password: iot_password_2024
+  db_schema: iot_schema
+  pool_size: 10
+  max_overflow: 20
+  pool_timeout: 30
+  pool_recycle: 3600
+
+api:
+  host: 0.0.0.0
+  port: 8000
+  debug: true
+  cors_origins:
+    - "*"
+  rate_limit:
+    requests_per_minute: 100
+    burst_size: 200
+
+logging:
+  level: INFO
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file: logs/iot_middleware.log
+  max_size: 10MB
+  backup_count: 5
+
+processing:
+  batch_size: 100
+  timeout: 30
+  retry_attempts: 3
+  retry_delay: 5
+
+normalizers:
+  temperature: {}
+  humidity: {}
+  pressure: {}
+
+storage:
+  timeseries:
+    type: influxdb
+    retention: 30d
+  relational:
+    type: postgresql
+    schema: iot_schema
+  metadata:
+    type: postgresql
+    schema: iot_schema
+
+security:
+  mqtt: {}
+  api: {}
+  database: {}
+
+monitoring:
+  health_check_interval: 30
+  metrics_collection: true
+  alerting: {}

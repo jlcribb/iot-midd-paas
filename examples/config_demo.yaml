@@ -1,0 +1,263 @@
+# Configuración de Demostración - IoT Middleware
+# =============================================
+
+# Configuración general de la demostración
+demo:
+  name: "IoT Middleware Demo Completa"
+  duration_minutes: 15
+  output_directory: "demo_outputs"
+  generate_reports: true
+  real_time_monitoring: true
+
+# Protocolos a habilitar en la demostración
+protocols:
+  # MQTT - Protocolo de mensajería
+  mqtt:
+    enabled: true
+    data_interval: 2.0
+    data_count: 100
+    topics:
+      - "sensors/temperature/+/data"
+      - "sensors/humidity/+/data"
+      - "actuators/+/status"
+    device_count: 20
+  
+  # HTTP/REST - Endpoints para ingesta
+  http:
+    enabled: true
+    data_interval: 2.5
+    data_count: 80
+    endpoints:
+      - "/api/v1/sensors"
+      - "/api/v1/actuators"
+      - "/webhook/iot"
+    device_count: 15
+  
+  # BLE - Bluetooth Low Energy
+  ble:
+    enabled: true
+    data_interval: 3.0
+    data_count: 60
+    device_types:
+      - "BLE_Temp_Sensor"
+      - "BLE_Humidity"
+      - "BLE_Beacon"
+    device_count: 12
+  
+  # LoRa - Long Range
+  lora:
+    enabled: true
+    data_interval: 5.0
+    data_count: 40
+    event_types:
+      - "uplink"
+      - "join"
+      - "ack"
+      - "error"
+    device_count: 8
+  
+  # MIDI - Musical Instrument Digital Interface
+  midi:
+    enabled: true
+    data_interval: 1.0
+    data_count: 120
+    message_types:
+      - "note_on"
+      - "note_off"
+      - "control_change"
+      - "program_change"
+      - "pitch_bend"
+    channel_count: 16
+  
+  # Modbus - Protocolo industrial
+  modbus:
+    enabled: true
+    data_interval: 4.0
+    data_count: 50
+    register_types:
+      - "temperature"
+      - "pressure"
+      - "flow_rate"
+      - "status"
+      - "alarm"
+      - "energy"
+    device_count: 10
+  
+  # ZigBee - Protocolo domótico
+  zigbee:
+    enabled: true
+    data_interval: 3.5
+    data_count: 70
+    device_types:
+      - "sensor"
+      - "switch"
+      - "thermostat"
+      - "lock"
+    device_count: 14
+
+# Configuración del pipeline de datos
+pipeline:
+  enabled: true
+  batch_size: 100
+  batch_timeout: 5.0
+  enable_postgresql: true
+  enable_influxdb: true
+  enable_audit: true
+  data_validation: true
+  error_handling: true
+  metrics_collection: true
+
+# Configuración de bases de datos (opcional)
+databases:
+  postgresql:
+    enabled: true
+    host: "localhost"
+    port: 5432
+    database: "iot_middleware"
+    username: "iot_user"
+    password: "iot_password"
+    schema: "iot_schema"
+  
+  influxdb:
+    enabled: true
+    url: "http://localhost:8086"
+    token: "your_influxdb_token"
+    org: "your_org"
+    bucket: "iot_data"
+    measurement: "iot_measurements"
+
+# Configuración de logging
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file: "demo_outputs/demo.log"
+  console: true
+  file_handler: true
+
+# Configuración de métricas
+metrics:
+  collection_interval: 30  # segundos
+  retention_days: 7
+  export_formats:
+    - "json"
+    - "csv"
+    - "prometheus"
+
+# Configuración de informes
+reports:
+  formats:
+    - "json"
+    - "text"
+    - "html"
+  charts:
+    - "protocol_data"
+    - "processing_metrics"
+    - "device_distribution"
+    - "error_analysis"
+  include_raw_data: false
+  include_metadata: true
+
+# Configuración de monitoreo
+monitoring:
+  real_time: true
+  update_interval: 10  # segundos
+  alert_thresholds:
+    error_rate: 5.0  # porcentaje
+    processing_latency: 1000  # milisegundos
+    queue_size: 1000  # mensajes
+
+# Configuración de simulación
+simulation:
+  enable_jitter: true
+  jitter_factor: 0.1
+  quality_variation: true
+  error_simulation: true
+  error_rate: 0.05  # 5% de errores simulados
+
+# Configuración de dispositivos simulados
+devices:
+  mqtt:
+    temperature_range: [15.0, 35.0]
+    humidity_range: [30.0, 80.0]
+    pressure_range: [980.0, 1020.0]
+  
+  ble:
+    battery_range: [20.0, 100.0]
+    rssi_range: [-80, -30]
+    tx_power_range: [-60, -20]
+  
+  lora:
+    frequency_range: [868.0, 870.0]
+    bandwidth_options: [125, 250, 500]
+    spreading_factor_range: [7, 12]
+  
+  midi:
+    note_range: [21, 108]
+    velocity_range: [1, 127]
+    controller_range: [0, 127]
+  
+  modbus:
+    temperature_range: [20.0, 80.0]
+    pressure_range: [1.0, 10.0]
+    flow_range: [0.0, 100.0]
+  
+  zigbee:
+    temperature_range: [18.0, 28.0]
+    humidity_range: [40.0, 70.0]
+    battery_range: [30.0, 100.0]
+
+# Configuración de validación de datos
+validation:
+  required_fields:
+    - "device_id"
+    - "project_id"
+    - "timestamp"
+    - "measurements"
+  
+  data_quality_checks:
+    - "timestamp_future_check"
+    - "measurements_type_check"
+    - "required_fields_check"
+    - "value_range_check"
+  
+  quality_thresholds:
+    min_temperature: -50.0
+    max_temperature: 100.0
+    min_humidity: 0.0
+    max_humidity: 100.0
+    min_pressure: 800.0
+    max_pressure: 1200.0
+
+# Configuración de exportación
+export:
+  formats:
+    - "json"
+    - "csv"
+    - "xml"
+  
+  destinations:
+    - "local_file"
+    - "database"
+    - "api_endpoint"
+  
+  scheduling:
+    enabled: true
+    interval_minutes: 60
+    retention_days: 30
+
+# Configuración de seguridad
+security:
+  enable_authentication: false
+  enable_encryption: false
+  api_keys: []
+  rate_limiting:
+    enabled: true
+    max_requests_per_minute: 1000
+  
+# Configuración de desarrollo
+development:
+  debug_mode: false
+  verbose_logging: false
+  mock_external_services: true
+  enable_test_endpoints: true
+  auto_cleanup: true

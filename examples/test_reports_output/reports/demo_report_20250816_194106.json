@@ -1,0 +1,73 @@
+{
+  "demo_config": {
+    "name": "Test Demo",
+    "duration_minutes": 5,
+    "enabled_protocols": [
+      "mqtt",
+      "http",
+      "ble"
+    ],
+    "data_interval": 2.0,
+    "data_count_per_protocol": 30
+  },
+  "demo_metrics": {
+    "start_time": "2025-08-16T19:41:06.973334",
+    "end_time": "2025-08-16T19:41:06.973342",
+    "total_data_generated": 90,
+    "total_data_processed": 88,
+    "total_data_persisted": 88,
+    "errors": [
+      "Error de conexión temporal"
+    ],
+    "warnings": [
+      "Datos fuera de rango"
+    ]
+  },
+  "protocol_metrics": {
+    "mqtt": {
+      "data_generated": 30,
+      "data_processed": 29,
+      "last_data_time": "2025-08-16T19:41:06.973344",
+      "device_count": 15,
+      "devices": [
+        "mqtt_device_001",
+        "mqtt_device_002"
+      ]
+    },
+    "http": {
+      "data_generated": 30,
+      "data_processed": 30,
+      "last_data_time": "2025-08-16T19:41:06.973345",
+      "device_count": 12,
+      "devices": [
+        "http_device_001",
+        "http_device_002"
+      ]
+    },
+    "ble": {
+      "data_generated": 30,
+      "data_processed": 29,
+      "last_data_time": "2025-08-16T19:41:06.973346",
+      "device_count": 18,
+      "devices": [
+        "ble_device_001",
+        "ble_device_002"
+      ]
+    }
+  },
+  "pipeline_metrics": {
+    "total_messages": 90,
+    "processed_messages": 88,
+    "failed_messages": 2,
+    "postgresql_operations": 88,
+    "influxdb_operations": 88,
+    "processing_rate": 1.5,
+    "error_rate": 2.2,
+    "queue_size": 0
+  },
+  "report_metadata": {
+    "generated_at": "2025-08-16T19:41:06.973363",
+    "report_type": "iot_middleware_demo",
+    "version": "1.0"
+  }
+}

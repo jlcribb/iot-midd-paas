@@ -1,0 +1,31 @@
+# IoT Middleware - Dependencias de Python
+# Framework y utilidades web
+fastapi==0.116.1
+uvicorn[standard]==0.35.0
+pydantic==2.11.7
+pydantic-settings==2.3.0
+
+# Cliente MQTT
+paho-mqtt==2.1.0
+
+# Base de datos PostgreSQL
+sqlalchemy==2.0.35
+psycopg2-binary==2.9.9
+alembic==1.14.1
+
+# InfluxDB
+influxdb-client==1.49.0
+
+# Parser de configuración
+PyYAML==6.0.2
+
+# Utilidades y logging
+python-dotenv==1.1.1
+loguru==0.7.3
+tenacity==9.1.2
+orjson==3.11.2
+
+# Utilidades de desarrollo (opcional)
+pytest==8.2.2
+pytest-asyncio==0.24.0
+httpx==0.28.1

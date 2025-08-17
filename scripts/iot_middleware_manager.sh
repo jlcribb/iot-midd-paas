@@ -127,10 +127,11 @@ check_connectivity() {
     echo ""
     
     echo -e "${YELLOW}Verificando puertos:${NC}"
-    for port in 1883 8086 8000; do
+    for port in 1883 5432 8086 8000; do
         local service=""
         case $port in
             1883) service="MQTT (Mosquitto)" ;;
+            5432) service="PostgreSQL" ;;
             8086) service="InfluxDB" ;;
             8000) service="API (FastAPI)" ;;
         esac

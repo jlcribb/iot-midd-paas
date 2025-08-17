@@ -1,0 +1,80 @@
+================================================================================
+INFORME DE DEMOSTRACIÓN - IoT MIDDLEWARE
+================================================================================
+
+CONFIGURACIÓN DE LA DEMOSTRACIÓN
+----------------------------------------
+Nombre: IoT Middleware Demo Completa
+Duración: 13.3 minutos
+Protocolos habilitados: mqtt, http, ble, lora, midi, modbus, zigbee
+Intervalo de datos: 1.5 segundos
+Datos por protocolo: 50
+
+MÉTRICAS GENERALES
+----------------------------------------
+Total de datos generados: 350
+Total de datos procesados: 350
+Total de datos persistidos: 0
+Errores: 0
+Advertencias: 1
+
+MÉTRICAS POR PROTOCOLO
+----------------------------------------
+MQTT:
+  Datos generados: 50
+  Datos procesados: 50
+  Dispositivos únicos: 19
+  Último dato: 2025-08-16T22:53:42
+
+HTTP:
+  Datos generados: 50
+  Datos procesados: 50
+  Dispositivos únicos: 15
+  Último dato: 2025-08-16T22:53:42
+
+BLE:
+  Datos generados: 50
+  Datos procesados: 50
+  Dispositivos únicos: 15
+  Último dato: 2025-08-16T22:53:42
+
+LORA:
+  Datos generados: 50
+  Datos procesados: 50
+  Dispositivos únicos: 10
+  Último dato: 2025-08-16T22:53:42
+
+MIDI:
+  Datos generados: 50
+  Datos procesados: 50
+  Dispositivos únicos: 16
+  Último dato: 2025-08-16T22:53:42
+
+MODBUS:
+  Datos generados: 50
+  Datos procesados: 50
+  Dispositivos únicos: 10
+  Último dato: 2025-08-16T22:53:42
+
+ZIGBEE:
+  Datos generados: 50
+  Datos procesados: 50
+  Dispositivos únicos: 6
+  Último dato: 2025-08-16T22:53:42
+
+MÉTRICAS DEL PIPELINE
+----------------------------------------
+Rate de procesamiento: 0.47 msg/s
+Operaciones PostgreSQL: 0
+Operaciones InfluxDB: 0
+Tamaño de cola: 0
+
+RESUMEN EJECUTIVO
+----------------------------------------
+La demostración procesó exitosamente 0 de 0 datos
+generados por 7 protocolos diferentes.
+Tasa de éxito: 0.0%
+
+================================================================================
+Informe generado el: 2025-08-16 22:59:42
+================================================================================

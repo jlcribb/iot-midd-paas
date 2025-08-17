@@ -1,0 +1,160 @@
+# Configuración del Servicio de Ingesta MQTT
+# IoT Middleware
+# ==========================================
+
+# Configuración MQTT
+mqtt:
+  broker:
+    host: "localhost"
+    port: 1883
+    username: "iot_user"
+    password: "iot_password"
+    keepalive: 60
+    tls_enabled: false
+    # ca_certs: "/path/to/ca.crt"
+    # certfile: "/path/to/client.crt"
+    # keyfile: "/path/to/client.key"
+  
+  topics:
+    subscribe:
+      - "iot/+/+/+/+/+"  # Patrón: iot/{proyecto}/{unidad}/{dispositivo}/{canal}
+      - "sensors/+/+/+"   # Patrón: sensors/{tipo}/{ubicacion}/{id}
+      - "devices/+/status" # Patrón: devices/{device_id}/status
+      - "custom/+/data"   # Patrón: custom/{topic}/data
+    
+    publish:
+      - "iot/status/ingesta"
+      - "iot/alarms/+"    # Para publicar alarmas
+      - "iot/metrics/+"   # Para publicar métricas
+  
+  qos: 1
+  retain: false
+
+# Configuración de almacenamiento
+storage:
+  type: "postgresql"  # postgresql, influxdb, hybrid
+  
+  postgresql:
+    host: "localhost"
+    port: 5432
+    database: "iot_middleware"
+    username: "iot_user"
+    password: "iot_password"
+    db_schema: "iot_schema"
+    pool_size: 10
+    max_overflow: 20
+    pool_timeout: 30
+    pool_recycle: 3600
+  
+  influxdb:
+    url: "http://localhost:8086"
+    token: "your_influxdb_token"
+    org: "iot_org"
+    bucket: "iot_data"
+    retention_policy: "30d"
+    batch_size: 1000
+    flush_interval: 10
+
+# Configuración de procesamiento
+processing:
+  enabled: true
+  normalizers:
+    temperature:
+      type: "range"
+      min: -50
+      max: 150
+      unit: "celsius"
+    
+    humidity:
+      type: "range"
+      min: 0
+      max: 100
+      unit: "percent"
+    
+    pressure:
+      type: "range"
+      min: 800
+      max: 1200
+      unit: "hpa"
+
+# Configuración específica de ingesta
+ingesta:
+  # Configuración de cola y procesamiento
+  max_queue_size: 1000
+  batch_size: 100
+  batch_timeout: 5.0
+  max_workers: 4
+  
+  # Validación de datos
+  validation_enabled: true
+  
+  # Mapeo de tópicos personalizado
+  topic_mapping:
+    # Patrón regex para tópicos personalizados
+    "^custom/(?P<category>[^/]+)/(?P<subcategory>[^/]+)$":
+      proyecto_id: "default"
+      unidad_id: "category"
+      dispositivo_id: "subcategory"
+      canal_id: "data"
+    
+    "^sensors/(?P<tipo>[^/]+)/(?P<ubicacion>[^/]+)/(?P<id>[^/]+)$":
+      proyecto_id: "sensors"
+      unidad_id: "tipo"
+      dispositivo_id: "ubicacion"
+      canal_id: "id"
+  
+  # Umbrales de alarma por canal
+  alarm_thresholds:
+    "canal_temperatura_001":
+      - tipo: "max"
+        valor: 80
+        severidad: "ADVERTENCIA"
+        mensaje: "Temperatura alta detectada"
+      
+      - tipo: "min"
+        valor: 0
+        severidad: "CRITICO"
+        mensaje: "Temperatura crítica baja"
+    
+    "canal_humedad_001":
+      - tipo: "max"
+        valor: 90
+        severidad: "ADVERTENCIA"
+        mensaje: "Humedad muy alta"
+      
+      - tipo: "min"
+        valor: 10
+        severidad: "ADVERTENCIA"
+        mensaje: "Humedad muy baja"
+    
+    "canal_presion_001":
+      - tipo: "max"
+        valor: 1100
+        severidad: "CRITICO"
+        mensaje: "Presión atmosférica crítica"
+      
+      - tipo: "min"
+        valor: 900
+        severidad: "CRITICO"
+        mensaje: "Presión atmosférica crítica"
+
+# Configuración de logging
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file: "ingesta_service.log"
+  max_size: "10MB"
+  backup_count: 5
+
+# Configuración de monitoreo
+monitoring:
+  metrics_enabled: true
+  health_check_interval: 30
+  alert_on_errors: true
+  max_error_rate: 0.1  # 10% máximo de errores
+
+# Configuración de backpressure
+backpressure:
+  strategy: "drop_oldest"  # drop_oldest, drop_newest, block
+  max_memory_usage: "512MB"
+  alert_threshold: 0.8  # 80% de uso de memoria

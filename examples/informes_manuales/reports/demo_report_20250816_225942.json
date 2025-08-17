@@ -1,0 +1,122 @@
+{
+  "demo_config": {
+    "name": "IoT Middleware Demo Completa",
+    "duration_minutes": 13.3,
+    "enabled_protocols": [
+      "mqtt",
+      "http",
+      "ble",
+      "lora",
+      "midi",
+      "modbus",
+      "zigbee"
+    ],
+    "data_interval": 1.5,
+    "data_count_per_protocol": 50
+  },
+  "demo_metrics": {
+    "start_time": "2025-08-16T22:40:27",
+    "end_time": "2025-08-16T22:53:42",
+    "total_data_generated": 350,
+    "total_data_processed": 350,
+    "total_data_persisted": 0,
+    "errors": [],
+    "warnings": [
+      "PostgreSQL y InfluxDB desconectados (modo simulación)"
+    ]
+  },
+  "protocol_metrics": {
+    "mqtt": {
+      "data_generated": 50,
+      "data_processed": 50,
+      "last_data_time": "2025-08-16T22:53:42",
+      "device_count": 19,
+      "devices": [
+        "mqtt_sensor_001",
+        "mqtt_actuator_002",
+        "mqtt_gateway_003"
+      ]
+    },
+    "http": {
+      "data_generated": 50,
+      "data_processed": 50,
+      "last_data_time": "2025-08-16T22:53:42",
+      "device_count": 15,
+      "devices": [
+        "http_device_001",
+        "http_sensor_002",
+        "http_controller_003"
+      ]
+    },
+    "ble": {
+      "data_generated": 50,
+      "data_processed": 50,
+      "last_data_time": "2025-08-16T22:53:42",
+      "device_count": 15,
+      "devices": [
+        "ble_tag_001",
+        "ble_sensor_002",
+        "ble_beacon_003"
+      ]
+    },
+    "lora": {
+      "data_generated": 50,
+      "data_processed": 50,
+      "last_data_time": "2025-08-16T22:53:42",
+      "device_count": 10,
+      "devices": [
+        "lora_node_001",
+        "lora_gateway_002",
+        "lora_sensor_003"
+      ]
+    },
+    "midi": {
+      "data_generated": 50,
+      "data_processed": 50,
+      "last_data_time": "2025-08-16T22:53:42",
+      "device_count": 16,
+      "devices": [
+        "midi_keyboard_001",
+        "midi_drum_002",
+        "midi_synth_003"
+      ]
+    },
+    "modbus": {
+      "data_generated": 50,
+      "data_processed": 50,
+      "last_data_time": "2025-08-16T22:53:42",
+      "device_count": 10,
+      "devices": [
+        "modbus_plc_001",
+        "modbus_sensor_002",
+        "modbus_actuator_003"
+      ]
+    },
+    "zigbee": {
+      "data_generated": 50,
+      "data_processed": 50,
+      "last_data_time": "2025-08-16T22:53:42",
+      "device_count": 6,
+      "devices": [
+        "zigbee_bulb_001",
+        "zigbee_switch_002",
+        "zigbee_sensor_003"
+      ]
+    }
+  },
+  "pipeline_metrics": {
+    "total_messages": 350,
+    "processed_messages": 350,
+    "failed_messages": 0,
+    "postgresql_operations": 0,
+    "influxdb_operations": 0,
+    "processing_rate": 0.47,
+    "error_rate": 0.0,
+    "queue_size": 0
+  },
+  "report_metadata": {
+    "generated_at": "2025-08-16T22:59:42.998208",
+    "report_type": "iot_middleware_demo",
+    "version": "1.0"
+  }
+}

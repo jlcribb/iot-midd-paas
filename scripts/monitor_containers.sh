@@ -116,8 +116,16 @@ monitor_containers() {
     check_health "http://localhost:8000/health" "API"
     echo ""
     
-    # 4. INGESTOR
-    echo -e "${YELLOW}4. INGESTOR${NC}"
+    # 4. POSTGRESQL
+    echo -e "${YELLOW}4. POSTGRESQL (Base de Datos Relacional)${NC}"
+    echo -e "   📍 Contenedor: postgresql"
+    echo -e "   🏃 Estado: $(get_container_status postgresql)"
+    echo -e "   ⏰ Iniciado: $(get_container_uptime postgresql)"
+    check_port 5432 "PostgreSQL"
+    echo ""
+    
+    # 5. INGESTOR
+    echo -e "${YELLOW}5. INGESTOR${NC}"
     echo -e "   📍 Contenedor: iotmw-ingestor"
     echo -e "   🏃 Estado: $(get_container_status iotmw-ingestor)"
     echo -e "   ⏰ Iniciado: $(get_container_uptime iotmw-ingestor)"
@@ -138,10 +146,10 @@ monitor_containers() {
     
     # 6. RESUMEN DE ESTADO
     echo -e "${YELLOW}6. RESUMEN DE ESTADO${NC}"
-    local total_containers=4
+    local total_containers=5
     local running_containers=0
     
-    for container in mosquitto influxdb iotmw-api iotmw-ingestor; do
+    for container in mosquitto influxdb postgresql iotmw-api iotmw-ingestor; do
         if [ "$(get_container_status $container)" = "running" ]; then
             ((running_containers++))
         fi
