@@ -1,0 +1,247 @@
+# Docker Compose para Pruebas - IoT Middleware
+# ============================================
+#
+# Por defecto solo unitarias (rápido, sin depender de BD/MQTT).
+#
+#   cd tests && docker compose -f docker-compose.test.yml run --rm tests
+#
+# Suite completa (incluye test_auditoria.py; requiere perfil + infra):
+#
+#   cd tests && docker compose -f docker-compose.test.yml --profile full run --rm tests-full
+#
+# Cuando existan tests/integration, tests/performance y tests/security:
+#
+#   docker compose -f docker-compose.test.yml --profile integration run --rm integration-tests
+#   (idem performance, security)
+#
+
+version: '3.8'
+
+services:
+  # Base de datos PostgreSQL para pruebas
+  postgres-test:
+    image: postgres:13
+    profiles:
+      - full
+      - integration
+      - performance
+    environment:
+      POSTGRES_DB: test_db
+      POSTGRES_USER: test_user
+      POSTGRES_PASSWORD: test_pass
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_test_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U test_user -d test_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Base de datos InfluxDB para pruebas
+  influxdb-test:
+    image: influxdb:2.0
+    profiles:
+      - full
+      - integration
+      - performance
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME: admin
+      DOCKER_INFLUXDB_INIT_PASSWORD: admin123
+      DOCKER_INFLUXDB_INIT_ORG: test_org
+      DOCKER_INFLUXDB_INIT_BUCKET: test_bucket
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: test_token
+    ports:
+      - "8087:8086"
+    volumes:
+      - influxdb_test_data:/var/lib/influxdb2
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8086/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Broker MQTT para pruebas
+  mqtt-test:
+    image: eclipse-mosquitto:2.0
+    profiles:
+      - full
+      - integration
+      - performance
+    ports:
+      - "1884:1883"
+      - "9002:9001"
+    volumes:
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf
+    healthcheck:
+      test: ["CMD", "mosquitto_pub", "-h", "localhost", "-t", "test/health", "-m", "test"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis para pruebas
+  redis-test:
+    image: redis:6-alpine
+    profiles:
+      - full
+      - integration
+      - performance
+    ports:
+      - "6380:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Pruebas unitarias (config, rabbitmq, …) — no requieren servicios externos
+  tests:
+    build:
+      context: ..
+      dockerfile: tests/Dockerfile.test
+    volumes:
+      - ../src:/app/src
+      - ../tests:/app/tests
+      - ./reports:/app/reports
+    command:
+      - pytest
+      - -c
+      - tests/pytest.ini
+      - tests/unit/
+      - -v
+      - --tb=short
+      - --cov=src/iot_middleware
+      - --cov-report=term-missing
+      - --cov-report=html:/app/reports/htmlcov
+
+  # Toda la suite bajo tests/ (p. ej. auditoría); activar con --profile full
+  tests-full:
+    profiles:
+      - full
+    build:
+      context: ..
+      dockerfile: tests/Dockerfile.test
+    depends_on:
+      postgres-test:
+        condition: service_healthy
+      influxdb-test:
+        condition: service_healthy
+      mqtt-test:
+        condition: service_healthy
+      redis-test:
+        condition: service_healthy
+    environment:
+      TEST_ENV: true
+      TEST_DB_URL: postgresql://test_user:test_pass@postgres-test:5432/test_db
+      TEST_MQTT_BROKER: mqtt-test:1883
+      TEST_INFLUXDB_URL: http://influxdb-test:8086
+      TEST_REDIS_URL: redis://redis-test:6379
+    volumes:
+      - ../src:/app/src
+      - ../tests:/app/tests
+      - ./reports:/app/reports
+    command:
+      - pytest
+      - -c
+      - tests/pytest.ini
+      - tests/
+      - -v
+      - --cov=src/iot_middleware
+      - --cov-report=html:/app/reports/htmlcov
+      - --cov-report=term-missing
+
+  # Requiere directorio tests/integration/
+  integration-tests:
+    profiles:
+      - integration
+    build:
+      context: ..
+      dockerfile: tests/Dockerfile.test
+    depends_on:
+      postgres-test:
+        condition: service_healthy
+      influxdb-test:
+        condition: service_healthy
+      mqtt-test:
+        condition: service_healthy
+      redis-test:
+        condition: service_healthy
+    environment:
+      TEST_ENV: true
+      TEST_DB_URL: postgresql://test_user:test_pass@postgres-test:5432/test_db
+      TEST_MQTT_BROKER: mqtt-test:1883
+      TEST_INFLUXDB_URL: http://influxdb-test:8086
+      TEST_REDIS_URL: redis://redis-test:6379
+    volumes:
+      - ../src:/app/src
+      - ../tests:/app/tests
+      - ./reports:/app/reports
+    command:
+      - pytest
+      - -c
+      - tests/pytest.ini
+      - tests/integration/
+      - -v
+      - --cov=src/iot_middleware
+      - --cov-append
+      - --cov-report=html:/app/reports/htmlcov
+      - --cov-report=term-missing
+
+  # Requiere directorio tests/performance/
+  performance-tests:
+    profiles:
+      - performance
+    build:
+      context: ..
+      dockerfile: tests/Dockerfile.test
+    depends_on:
+      postgres-test:
+        condition: service_healthy
+      influxdb-test:
+        condition: service_healthy
+      mqtt-test:
+        condition: service_healthy
+      redis-test:
+        condition: service_healthy
+    environment:
+      TEST_ENV: true
+      TEST_DB_URL: postgresql://test_user:test_pass@postgres-test:5432/test_db
+      TEST_MQTT_BROKER: mqtt-test:1883
+      TEST_INFLUXDB_URL: http://influxdb-test:8086
+      TEST_REDIS_URL: redis://redis-test:6379
+    volumes:
+      - ../src:/app/src
+      - ../tests:/app/tests
+      - ./reports:/app/reports
+    command:
+      - pytest
+      - -c
+      - tests/pytest.ini
+      - tests/performance/
+      - -v
+      - --benchmark-only
+      - --benchmark-save=performance_results
+
+  # Requiere directorio tests/security/
+  security-tests:
+    profiles:
+      - security
+    build:
+      context: ..
+      dockerfile: tests/Dockerfile.test
+    volumes:
+      - ../src:/app/src
+      - ../tests:/app/tests
+      - ./reports:/app/reports
+    command:
+      - pytest
+      - -c
+      - tests/pytest.ini
+      - tests/security/
+      - -v
+
+volumes:
+  postgres_test_data:
+  influxdb_test_data:

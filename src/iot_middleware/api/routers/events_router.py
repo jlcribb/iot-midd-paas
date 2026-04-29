@@ -8,6 +8,7 @@ con control de acceso basado en roles y scoping automático.
 
 from fastapi import APIRouter, Depends, HTTPException, status, Request, Query
 from typing import Optional, List
+from datetime import datetime
 import logging
 
 from ..models.common_models import (
@@ -17,13 +18,58 @@ from ..models.common_models import (
 )
 from ..models.data_models import EventFilterRequest, EventsListResponse
 from ..auth import AuthMiddleware, RoleChecker, ScopeHandler
-from ...storage.db_handler import DatabaseHandler
+from ..auth.jwt_handler import JWTHandler
+from ...storage.db_handler import create_database_handler
 from ...storage.repositories import EventoAlarmaRepository
 from ...models.entities import Usuario, EventoAlarma
 from ...models.enums import RolUsuario, SeveridadEvento
 
 # Configurar logging
 logger = logging.getLogger(__name__)
+
+
+def _get_db_handler(request: Request):
+    return create_database_handler(config=request.app.state.config)
+
+
+def _event_metadata(evento: EventoAlarma):
+    return evento.metadatos or {}
+
+
+def _serialize_event(evento: EventoAlarma):
+    return {
+        "id": str(evento.id),
+        "tipo": evento.codigo or "evento",
+        "severidad": evento.severidad,
+        "mensaje": evento.titulo,
+        "timestamp": evento.ts,
+        "activo": evento.estado == "activa",
+        "metadata": _event_metadata(evento),
+        "dispositivo_id": str(evento.dispositivo_id) if evento.dispositivo_id else None,
+        "canal_id": str(evento.canal_id) if evento.canal_id else None,
+        "proyecto_id": str(evento.proyecto_id) if evento.proyecto_id else None,
+        "valor_anterior": None,
+        "valor_actual": None,
+        "umbral": None,
+    }
+
+
+def _normalize_event_payload(event_data: dict) -> dict:
+    """Adapta payloads legacy al modelo actual EventoAlarma."""
+    normalized = dict(event_data)
+
+    if "tipo" in normalized and "codigo" not in normalized:
+        normalized["codigo"] = normalized.pop("tipo")
+    if "mensaje" in normalized and "titulo" not in normalized:
+        normalized["titulo"] = normalized.pop("mensaje")
+    if "timestamp" in normalized and "ts" not in normalized:
+        normalized["ts"] = normalized.pop("timestamp")
+    if "metadata" in normalized and "metadatos" not in normalized:
+        normalized["metadatos"] = normalized.pop("metadata")
+    if "activo" in normalized and "estado" not in normalized:
+        normalized["estado"] = "activa" if normalized.pop("activo") else "cerrada"
+
+    return normalized
 
 # Crear router
 events_router = APIRouter(
@@ -68,7 +114,6 @@ async def get_events(
     - **offset**: Desplazamiento para paginación
     """
     try:
-        from datetime import datetime
         
         # Parsear fechas si están presentes
         desde_dt = None
@@ -100,8 +145,7 @@ async def get_events(
             )
         
         # Obtener configuración y repositorios
-        config = request.app.state.config
-        db_handler = DatabaseHandler(config['postgresql'])
+        db_handler = _get_db_handler(request)
         evento_repo = EventoAlarmaRepository(db_handler)
         scope_handler = ScopeHandler()
         
@@ -127,56 +171,23 @@ async def get_events(
             base_filters['canal_id'] = canal_id
         if activo is not None:
             base_filters['activo'] = activo
+        if desde_dt:
+            base_filters["desde"] = desde_dt
+        if hasta_dt:
+            base_filters["hasta"] = hasta_dt
         
         # Aplicar scope del usuario
-        scope_filters = scope_handler.get_user_scope_filters(current_user)
         combined_filters = scope_handler.apply_scope_to_filters(base_filters, current_user)
         
-        # Obtener eventos con filtros aplicados
-        eventos = evento_repo.find_by_criteria(
-            combined_filters,
-            limit=limit
+        total = evento_repo.count_events(combined_filters)
+        eventos_paginados = evento_repo.list_events(
+            filters=combined_filters,
+            limit=limit,
+            offset=offset,
         )
         
-        # Aplicar filtros de fecha si están presentes
-        eventos_filtrados = []
-        for evento in eventos:
-            # Filtrar por fecha desde
-            if desde_dt and evento.timestamp < desde_dt:
-                continue
-            
-            # Filtrar por fecha hasta
-            if hasta_dt and evento.timestamp > hasta_dt:
-                continue
-            
-            eventos_filtrados.append(evento)
-        
-        # Aplicar paginación
-        start_idx = offset
-        end_idx = start_idx + limit
-        eventos_paginados = eventos_filtrados[start_idx:end_idx]
-        
-        # Contar total de eventos que coinciden con los filtros
-        total = len(eventos_filtrados)
-        
         # Convertir a formato de respuesta
-        eventos_data = []
-        for evento in eventos_paginados:
-            eventos_data.append({
-                "id": str(evento.id),
-                "tipo": evento.tipo,
-                "severidad": evento.severidad,
-                "mensaje": evento.mensaje,
-                "timestamp": evento.timestamp.isoformat(),
-                "activo": evento.activo,
-                "metadata": evento.metadata,
-                "dispositivo_id": str(evento.dispositivo_id) if evento.dispositivo_id else None,
-                "canal_id": str(evento.canal_id) if evento.canal_id else None,
-                "proyecto_id": str(evento.proyecto_id) if evento.proyecto_id else None,
-                "valor_anterior": evento.valor_anterior,
-                "valor_actual": evento.valor_actual,
-                "umbral": evento.umbral
-            })
+        eventos_data = [_serialize_event(evento) for evento in eventos_paginados]
         
         # Crear respuesta
         return {
@@ -221,8 +232,7 @@ async def get_event(
     """
     try:
         # Obtener configuración y repositorios
-        config = request.app.state.config
-        db_handler = DatabaseHandler(config['postgresql'])
+        db_handler = _get_db_handler(request)
         evento_repo = EventoAlarmaRepository(db_handler)
         scope_handler = ScopeHandler()
         
@@ -245,19 +255,7 @@ async def get_event(
         
         # Convertir a formato de respuesta
         evento_data = {
-            "id": str(evento.id),
-            "tipo": evento.tipo,
-            "severidad": evento.severidad,
-            "mensaje": evento.mensaje,
-            "timestamp": evento.timestamp.isoformat(),
-            "activo": evento.activo,
-            "metadata": evento.metadata,
-            "dispositivo_id": str(evento.dispositivo_id) if evento.dispositivo_id else None,
-            "canal_id": str(evento.canal_id) if evento.canal_id else None,
-            "proyecto_id": str(evento.proyecto_id) if evento.proyecto_id else None,
-            "valor_anterior": evento.valor_anterior,
-            "valor_actual": evento.valor_actual,
-            "umbral": evento.umbral,
+            **_serialize_event(evento),
             "creado_en": evento.creado_en.isoformat() if evento.creado_en else None,
             "actualizado_en": evento.actualizado_en.isoformat() if evento.actualizado_en else None
         }
@@ -291,7 +289,7 @@ async def create_event(
     """
     try:
         # Verificar permisos
-        role_checker = RoleChecker(AuthMiddleware(JWTHandler(), DatabaseHandler({})))
+        role_checker = RoleChecker(AuthMiddleware(JWTHandler(), _get_db_handler(request)))
         if not role_checker.check_permission(current_user, "event_management"):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -299,12 +297,11 @@ async def create_event(
             )
         
         # Obtener configuración y repositorios
-        config = request.app.state.config
-        db_handler = DatabaseHandler(config['postgresql'])
+        db_handler = _get_db_handler(request)
         evento_repo = EventoAlarmaRepository(db_handler)
         
         # Crear evento
-        evento_creado = evento_repo.create(event_data)
+        evento_creado = evento_repo.create(_normalize_event_payload(event_data))
         
         if not evento_creado:
             raise HTTPException(
@@ -317,7 +314,7 @@ async def create_event(
             "message": "Evento creado exitosamente",
             "data": {
                 "id": str(evento_creado.id),
-                "tipo": evento_creado.tipo,
+                "tipo": evento_creado.codigo or "evento",
                 "severidad": evento_creado.severidad
             }
         }
@@ -347,8 +344,7 @@ async def update_event(
     """
     try:
         # Obtener configuración y repositorios
-        config = request.app.state.config
-        db_handler = DatabaseHandler(config['postgresql'])
+        db_handler = _get_db_handler(request)
         evento_repo = EventoAlarmaRepository(db_handler)
         scope_handler = ScopeHandler()
         
@@ -361,7 +357,7 @@ async def update_event(
             )
         
         # Verificar permisos
-        role_checker = RoleChecker(AuthMiddleware(JWTHandler(), DatabaseHandler({})))
+        role_checker = RoleChecker(AuthMiddleware(JWTHandler(), _get_db_handler(request)))
         if not role_checker.check_permission(current_user, "event_management", evento_id):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -378,7 +374,7 @@ async def update_event(
             )
         
         # Actualizar evento
-        evento_actualizado = evento_repo.update(evento_id, event_data)
+        evento_actualizado = evento_repo.update(evento_id, _normalize_event_payload(event_data))
         
         if not evento_actualizado:
             raise HTTPException(
@@ -391,7 +387,7 @@ async def update_event(
             "message": "Evento actualizado exitosamente",
             "data": {
                 "id": str(evento_actualizado.id),
-                "tipo": evento_actualizado.tipo,
+                "tipo": evento_actualizado.codigo or "evento",
                 "severidad": evento_actualizado.severidad
             }
         }
@@ -426,8 +422,7 @@ async def delete_event(
             )
         
         # Obtener configuración y repositorios
-        config = request.app.state.config
-        db_handler = DatabaseHandler(config['postgresql'])
+        db_handler = _get_db_handler(request)
         evento_repo = EventoAlarmaRepository(db_handler)
         
         # Verificar que el evento existe
@@ -476,8 +471,7 @@ async def acknowledge_event(
     """
     try:
         # Obtener configuración y repositorios
-        config = request.app.state.config
-        db_handler = DatabaseHandler(config['postgresql'])
+        db_handler = _get_db_handler(request)
         evento_repo = EventoAlarmaRepository(db_handler)
         scope_handler = ScopeHandler()
         
@@ -499,12 +493,14 @@ async def acknowledge_event(
             )
         
         # Actualizar evento como reconocido
+        # Preparar metadata existente
+        existing_metadata = _event_metadata(evento)
         update_data = {
-            "activo": False,
-            "metadata": {
-                **evento.metadata or {},
+            "estado": "reconocida",
+            "metadatos": {
+                **existing_metadata,
                 "acknowledged_by": str(current_user.id),
-                "acknowledged_at": datetime.utcnow().isoformat(),
+                "acknowledged_at": datetime.now().isoformat(),
                 "acknowledged_by_name": current_user.nombre
             }
         }
@@ -523,7 +519,7 @@ async def acknowledge_event(
             "data": {
                 "id": str(evento_actualizado.id),
                 "acknowledged_by": current_user.nombre,
-                "acknowledged_at": update_data["metadata"]["acknowledged_at"]
+                "acknowledged_at": update_data["metadatos"]["acknowledged_at"]
             }
         }
         
@@ -542,8 +538,7 @@ async def get_current_user(request: Request) -> Usuario:
     """Obtener usuario actual desde el request"""
     try:
         # Obtener configuración
-        config = request.app.state.config
-        db_handler = DatabaseHandler(config['postgresql'])
+        db_handler = _get_db_handler(request)
         
         # Inicializar manejadores
         jwt_handler = JWTHandler()

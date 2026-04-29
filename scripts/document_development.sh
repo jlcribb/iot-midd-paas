@@ -36,7 +36,7 @@ generate_development_doc() {
         echo ""
         echo "### Contenedores"
         echo "\`\`\`bash"
-        podman ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+        docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
         echo "\`\`\`"
         echo ""
         
@@ -108,7 +108,7 @@ generate_development_doc() {
         for container in mosquitto influxdb postgresql iotmw-api iotmw-ingestor; do
             echo "### $container"
             echo "\`\`\`"
-            podman logs --tail 5 $container 2>/dev/null
+            docker logs --tail 5 $container 2>/dev/null
             echo "\`\`\`"
             echo ""
         done
@@ -178,16 +178,16 @@ generate_development_doc() {
         echo "./scripts/monitor_containers.sh -r"
         echo ""
         echo "# Ver logs de un contenedor específico"
-        echo "podman logs -f [nombre_contenedor]"
+        echo "docker logs -f [nombre_contenedor]"
         echo ""
         echo "# Reiniciar un servicio"
-        echo "podman restart [nombre_contenedor]"
+        echo "docker restart [nombre_contenedor]"
         echo ""
         echo "# Detener todos los servicios"
-        echo "podman-compose down"
+        echo "docker compose -f infra/containers/docker-compose.yaml down"
         echo ""
         echo "# Levantar todos los servicios"
-        echo "podman-compose up -d"
+        echo "docker compose -f infra/containers/docker-compose.yaml up -d"
         echo "\`\`\`"
         echo ""
         

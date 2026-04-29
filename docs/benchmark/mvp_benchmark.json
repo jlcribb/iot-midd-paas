@@ -1,0 +1,378 @@
+{
+  "benchmark_name": "closed-loop-mvp-benchmark",
+  "executive_summary": "Executive summary:\n- Proportional achieved lower cumulative absolute error in 1 of 3 benchmark scenarios.\n- Threshold achieved lower cumulative absolute error in 2 of 3 benchmark scenarios.\n- Proportional delivered lower total applied effort in 3 of 3 scenarios.\n- The benchmark shows a clear MVP tradeoff: threshold can reduce error faster in some scenarios, while proportional is generally smoother and more effort-efficient.",
+  "markdown_table": "| Scenario | Strategy | Abs Error | Sq Error | Effort | Avg Dist | Action Changes | Holds |\n| --- | --- | --- | --- | --- | --- | --- | --- |\n| Large Initial Error | threshold | 82.361 | 1459.783 | 64.0 | 8.236 | 4 | 2 |\n| Large Initial Error | proportional | 80.913 | 1325.565 | 58.633 | 8.091 | 0 | 0 |\n| Sustained Disturbance | threshold | 28.362 | 109.231 | 56.0 | 2.836 | 5 | 3 |\n| Sustained Disturbance | proportional | 45.497 | 209.808 | 45.497 | 4.55 | 0 | 0 |\n| Near Setpoint Operation | threshold | 25.117 | 83.417 | 40.0 | 2.512 | 8 | 5 |\n| Near Setpoint Operation | proportional | 35.835 | 135.948 | 34.835 | 3.583 | 1 | 1 |",
+  "scenario_breakdown": [
+    {
+      "assessment": {
+        "better_absolute_error": "proportional",
+        "better_squared_error": "proportional",
+        "lower_effort": "proportional",
+        "scenario_id": "large_initial_error",
+        "scenario_label": "Large Initial Error"
+      },
+      "comparison_overview": [
+        {
+          "action_change_count": 4,
+          "average_distance_to_setpoint": 8.236,
+          "cumulative_absolute_error": 82.361,
+          "cumulative_squared_error": 1459.783,
+          "strategy": "threshold",
+          "total_applied_effort": 64.0,
+          "unique_nonzero_signals": [
+            8.0
+          ]
+        },
+        {
+          "action_change_count": 0,
+          "average_distance_to_setpoint": 8.091,
+          "cumulative_absolute_error": 80.913,
+          "cumulative_squared_error": 1325.565,
+          "strategy": "proportional",
+          "total_applied_effort": 58.633,
+          "unique_nonzero_signals": [
+            3.846,
+            3.849,
+            3.875,
+            4.163,
+            7.362,
+            12.0
+          ]
+        }
+      ],
+      "scenario": {
+        "description": "Empieza muy por debajo del setpoint, sin perturbaciones.",
+        "label": "Large Initial Error",
+        "plant_config": {
+          "baseline_level": 45.0,
+          "control_gain": 1.6,
+          "max_value": 100.0,
+          "min_value": 0.0,
+          "response_rate": 0.35
+        },
+        "scenario_id": "large_initial_error",
+        "setpoint_value": 55.0,
+        "simulation_config": {
+          "disturbance_sequence": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "horizon": 10,
+          "initial_value": 25.0
+        }
+      },
+      "summary_metrics": {
+        "proportional": {
+          "action_change_count": 0,
+          "average_abs_signal": 5.863,
+          "average_distance_to_setpoint": 8.091,
+          "cumulative_absolute_error": 80.913,
+          "cumulative_squared_error": 1325.565,
+          "hold_count": 0,
+          "steps": 10,
+          "strategy": "proportional",
+          "total_applied_effort": 58.633,
+          "unique_nonzero_signals": [
+            3.846,
+            3.849,
+            3.875,
+            4.163,
+            7.362,
+            12.0
+          ]
+        },
+        "threshold": {
+          "action_change_count": 4,
+          "average_abs_signal": 6.4,
+          "average_distance_to_setpoint": 8.236,
+          "cumulative_absolute_error": 82.361,
+          "cumulative_squared_error": 1459.783,
+          "hold_count": 2,
+          "steps": 10,
+          "strategy": "threshold",
+          "total_applied_effort": 64.0,
+          "unique_nonzero_signals": [
+            8.0
+          ]
+        }
+      }
+    },
+    {
+      "assessment": {
+        "better_absolute_error": "threshold",
+        "better_squared_error": "threshold",
+        "lower_effort": "proportional",
+        "scenario_id": "sustained_disturbance",
+        "scenario_label": "Sustained Disturbance"
+      },
+      "comparison_overview": [
+        {
+          "action_change_count": 5,
+          "average_distance_to_setpoint": 2.836,
+          "cumulative_absolute_error": 28.362,
+          "cumulative_squared_error": 109.231,
+          "strategy": "threshold",
+          "total_applied_effort": 56.0,
+          "unique_nonzero_signals": [
+            8.0
+          ]
+        },
+        {
+          "action_change_count": 0,
+          "average_distance_to_setpoint": 4.55,
+          "cumulative_absolute_error": 45.497,
+          "cumulative_squared_error": 209.808,
+          "strategy": "proportional",
+          "total_applied_effort": 45.497,
+          "unique_nonzero_signals": [
+            3.855,
+            3.95,
+            4.897,
+            4.991,
+            4.999,
+            5.0
+          ]
+        }
+      ],
+      "scenario": {
+        "description": "Opera cerca del objetivo pero recibe perturbaciones negativas sostenidas.",
+        "label": "Sustained Disturbance",
+        "plant_config": {
+          "baseline_level": 45.0,
+          "control_gain": 1.6,
+          "max_value": 100.0,
+          "min_value": 0.0,
+          "response_rate": 0.35
+        },
+        "scenario_id": "sustained_disturbance",
+        "setpoint_value": 55.0,
+        "simulation_config": {
+          "disturbance_sequence": [
+            0.0,
+            0.0,
+            -3.0,
+            -3.0,
+            -3.0,
+            -3.0,
+            -3.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "horizon": 10,
+          "initial_value": 50.0
+        }
+      },
+      "summary_metrics": {
+        "proportional": {
+          "action_change_count": 0,
+          "average_abs_signal": 4.55,
+          "average_distance_to_setpoint": 4.55,
+          "cumulative_absolute_error": 45.497,
+          "cumulative_squared_error": 209.808,
+          "hold_count": 0,
+          "steps": 10,
+          "strategy": "proportional",
+          "total_applied_effort": 45.497,
+          "unique_nonzero_signals": [
+            3.855,
+            3.95,
+            4.897,
+            4.991,
+            4.999,
+            5.0
+          ]
+        },
+        "threshold": {
+          "action_change_count": 5,
+          "average_abs_signal": 5.6,
+          "average_distance_to_setpoint": 2.836,
+          "cumulative_absolute_error": 28.362,
+          "cumulative_squared_error": 109.231,
+          "hold_count": 3,
+          "steps": 10,
+          "strategy": "threshold",
+          "total_applied_effort": 56.0,
+          "unique_nonzero_signals": [
+            8.0
+          ]
+        }
+      }
+    },
+    {
+      "assessment": {
+        "better_absolute_error": "threshold",
+        "better_squared_error": "threshold",
+        "lower_effort": "proportional",
+        "scenario_id": "near_setpoint_operation",
+        "scenario_label": "Near Setpoint Operation"
+      },
+      "comparison_overview": [
+        {
+          "action_change_count": 8,
+          "average_distance_to_setpoint": 2.512,
+          "cumulative_absolute_error": 25.117,
+          "cumulative_squared_error": 83.417,
+          "strategy": "threshold",
+          "total_applied_effort": 40.0,
+          "unique_nonzero_signals": [
+            8.0
+          ]
+        },
+        {
+          "action_change_count": 1,
+          "average_distance_to_setpoint": 3.583,
+          "cumulative_absolute_error": 35.835,
+          "cumulative_squared_error": 135.948,
+          "strategy": "proportional",
+          "total_applied_effort": 34.835,
+          "unique_nonzero_signals": [
+            3.714,
+            3.716,
+            3.791,
+            3.834,
+            3.841,
+            3.934,
+            3.951,
+            4.009,
+            4.045
+          ]
+        }
+      ],
+      "scenario": {
+        "description": "Opera muy cerca del setpoint con perturbaciones peque\u00f1as.",
+        "label": "Near Setpoint Operation",
+        "plant_config": {
+          "baseline_level": 45.0,
+          "control_gain": 1.6,
+          "max_value": 100.0,
+          "min_value": 0.0,
+          "response_rate": 0.35
+        },
+        "scenario_id": "near_setpoint_operation",
+        "setpoint_value": 55.0,
+        "simulation_config": {
+          "disturbance_sequence": [
+            0.3,
+            -0.2,
+            0.4,
+            -0.5,
+            0.2,
+            0.0,
+            -0.3,
+            0.4,
+            0.0,
+            -0.2
+          ],
+          "horizon": 10,
+          "initial_value": 54.0
+        }
+      },
+      "summary_metrics": {
+        "proportional": {
+          "action_change_count": 1,
+          "average_abs_signal": 3.484,
+          "average_distance_to_setpoint": 3.583,
+          "cumulative_absolute_error": 35.835,
+          "cumulative_squared_error": 135.948,
+          "hold_count": 1,
+          "steps": 10,
+          "strategy": "proportional",
+          "total_applied_effort": 34.835,
+          "unique_nonzero_signals": [
+            3.714,
+            3.716,
+            3.791,
+            3.834,
+            3.841,
+            3.934,
+            3.951,
+            4.009,
+            4.045
+          ]
+        },
+        "threshold": {
+          "action_change_count": 8,
+          "average_abs_signal": 4.0,
+          "average_distance_to_setpoint": 2.512,
+          "cumulative_absolute_error": 25.117,
+          "cumulative_squared_error": 83.417,
+          "hold_count": 5,
+          "steps": 10,
+          "strategy": "threshold",
+          "total_applied_effort": 40.0,
+          "unique_nonzero_signals": [
+            8.0
+          ]
+        }
+      }
+    }
+  ],
+  "scorecard": [
+    {
+      "proportional": {
+        "average_distance_to_setpoint": 8.091,
+        "cumulative_absolute_error": 80.913,
+        "cumulative_squared_error": 1325.565,
+        "total_applied_effort": 58.633
+      },
+      "scenario_id": "large_initial_error",
+      "scenario_label": "Large Initial Error",
+      "threshold": {
+        "average_distance_to_setpoint": 8.236,
+        "cumulative_absolute_error": 82.361,
+        "cumulative_squared_error": 1459.783,
+        "total_applied_effort": 64.0
+      },
+      "winner_absolute_error": "proportional",
+      "winner_lower_effort": "proportional",
+      "winner_squared_error": "proportional"
+    },
+    {
+      "proportional": {
+        "average_distance_to_setpoint": 4.55,
+        "cumulative_absolute_error": 45.497,
+        "cumulative_squared_error": 209.808,
+        "total_applied_effort": 45.497
+      },
+      "scenario_id": "sustained_disturbance",
+      "scenario_label": "Sustained Disturbance",
+      "threshold": {
+        "average_distance_to_setpoint": 2.836,
+        "cumulative_absolute_error": 28.362,
+        "cumulative_squared_error": 109.231,
+        "total_applied_effort": 56.0
+      },
+      "winner_absolute_error": "threshold",
+      "winner_lower_effort": "proportional",
+      "winner_squared_error": "threshold"
+    },
+    {
+      "proportional": {
+        "average_distance_to_setpoint": 3.583,
+        "cumulative_absolute_error": 35.835,
+        "cumulative_squared_error": 135.948,
+        "total_applied_effort": 34.835
+      },
+      "scenario_id": "near_setpoint_operation",
+      "scenario_label": "Near Setpoint Operation",
+      "threshold": {
+        "average_distance_to_setpoint": 2.512,
+        "cumulative_absolute_error": 25.117,
+        "cumulative_squared_error": 83.417,
+        "total_applied_effort": 40.0
+      },
+      "winner_absolute_error": "threshold",
+      "winner_lower_effort": "proportional",
+      "winner_squared_error": "threshold"
+    }
+  ]
+}

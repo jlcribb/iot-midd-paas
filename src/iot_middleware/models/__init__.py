@@ -12,7 +12,9 @@ from .enums import (
     ProtocoloComunicacion,
     TipoDato,
     RolSistema,
+    RolUsuario,  # Alias para compatibilidad
     CalidadDato,
+    CalidadDatoPy,  # Versión Python para Pydantic
     SeveridadEvento,
     EstadoDispositivo
 )
@@ -38,7 +40,9 @@ __all__ = [
     'ProtocoloComunicacion', 
     'TipoDato',
     'RolSistema',
+    'RolUsuario',  # Alias para compatibilidad
     'CalidadDato',
+    'CalidadDatoPy',  # Versión Python para Pydantic
     'SeveridadEvento',
     'EstadoDispositivo',
     'Cliente',

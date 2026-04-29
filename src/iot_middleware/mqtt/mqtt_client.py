@@ -167,6 +167,8 @@ class IoTMQTTClient:
             protocol=mqtt_client.MQTTv311
         )
         
+        self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
+        
         # Configurar callbacks
         self._setup_callbacks()
         
@@ -176,8 +178,6 @@ class IoTMQTTClient:
         # Thread para reconexión automática
         self._reconnect_thread = None
         self._stop_reconnect = False
-        
-        self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
     
     def _setup_callbacks(self):
         """Configurar callbacks del cliente MQTT"""

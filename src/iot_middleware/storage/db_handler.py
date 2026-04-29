@@ -5,27 +5,105 @@ Módulo de Manejo de Base de Datos - IoT Middleware
 Este módulo proporciona funcionalidades para la persistencia de datos IoT
 en diferentes tipos de bases de datos (PostgreSQL e InfluxDB), incluyendo
 manejo de conexiones, reconexión automática y funciones de inserción.
+
+Segmentación interna actual:
+
+- official runtime infrastructure:
+  - configuración, conexiones, sesiones, métricas y health checks
+- transition telemetry write path:
+  - escritura de telemetría híbrida PostgreSQL + InfluxDB
+- legacy bootstrap/compatibility:
+  - bootstrap de esquema en runtime
+  - helper module-level `insert_sensor_data(...)`
 """
 
 import json
 import logging
+import os
 import time
+import uuid
 from datetime import datetime, timezone
-from typing import Dict, Any, Optional, List, Union, Tuple
+from typing import Dict, Any, Optional, List, Tuple
 from dataclasses import dataclass, field
 from enum import Enum
+from functools import lru_cache
 import threading
 from contextlib import contextmanager
 
 # Importar configuración
 try:
-    from ..config import PostgreSQLConfig, InfluxDBConfig, StorageConfig
+    from ..config import IoTMiddlewareConfig, PostgreSQLConfig, InfluxDBConfig, StorageConfig
 except ImportError:
     # Fallback para importación directa
-    from iot_middleware.config import PostgreSQLConfig, InfluxDBConfig, StorageConfig
+    from iot_middleware.config import IoTMiddlewareConfig, PostgreSQLConfig, InfluxDBConfig, StorageConfig
 
 # Configurar logging
 logger = logging.getLogger(__name__)
+
+DEFAULT_SCHEMA_BOOTSTRAP_MODE = "alembic"
+
+OFFICIAL_RUNTIME_SURFACE = (
+    "DatabaseType",
+    "ConnectionStatus",
+    "DatabaseMetrics",
+    "PostgreSQLHandler._connect",
+    "PostgreSQLHandler.get_session",
+    "PostgreSQLHandler.get_connection_status",
+    "PostgreSQLHandler.get_metrics",
+    "PostgreSQLHandler.close",
+    "InfluxDBHandler._connect",
+    "InfluxDBHandler.get_connection_status",
+    "InfluxDBHandler.get_metrics",
+    "InfluxDBHandler.close",
+    "DatabaseHandler._determine_database_type",
+    "DatabaseHandler.get_connection_status",
+    "DatabaseHandler.get_metrics",
+    "DatabaseHandler.health_check",
+    "DatabaseHandler.get_session",
+    "DatabaseHandler.is_connected",
+    "DatabaseHandler.close",
+    "_resolve_database_configs",
+    "create_database_handler",
+    "get_project_control_settings",
+    "list_project_control_policies",
+    "persist_control_audit_record",
+)
+
+TRANSITION_TELEMETRY_SURFACE = (
+    "PostgreSQLHandler.write_legacy_sensor_record",
+    "PostgreSQLHandler.insert_sensor_data",
+    "InfluxDBHandler.write_telemetry_point",
+    "InfluxDBHandler.insert_influxdb",
+    "DatabaseHandler.write_telemetry",
+    "DatabaseHandler.insert_sensor_data",
+)
+
+LEGACY_COMPATIBILITY_SURFACE = (
+    "get_schema_bootstrap_mode",
+    "PostgreSQLHandler._bootstrap_schema_if_needed",
+    "PostgreSQLHandler._create_tables",
+    "_build_legacy_default_configs",
+    "insert_sensor_data",
+)
+
+
+def get_schema_bootstrap_mode() -> str:
+    """Retorna el modo de bootstrap de esquema para PostgreSQL.
+
+    Modos soportados:
+    - `alembic`: no crea tablas en runtime, se asume migración previa.
+    - `legacy`: mantiene el comportamiento histórico (create tables/create_all).
+    - `none`: no inicializa esquema automáticamente.
+    """
+    mode = os.getenv("IOT_MW_SCHEMA_BOOTSTRAP_MODE", DEFAULT_SCHEMA_BOOTSTRAP_MODE).strip().lower()
+    if mode in {"alembic", "legacy", "none"}:
+        return mode
+    logger.warning(
+        "Modo IOT_MW_SCHEMA_BOOTSTRAP_MODE inválido: %s. Usando %s",
+        mode,
+        DEFAULT_SCHEMA_BOOTSTRAP_MODE,
+    )
+    return DEFAULT_SCHEMA_BOOTSTRAP_MODE
 
 
 class DatabaseType(Enum):
@@ -84,7 +162,6 @@ class PostgreSQLHandler:
             try:
                 from sqlalchemy import create_engine, text
                 from sqlalchemy.orm import sessionmaker
-                from sqlalchemy.exc import SQLAlchemyError
             except ImportError as e:
                 self.logger.error(f"SQLAlchemy no está instalado: {e}")
                 self.logger.error("Instalar con: pip install sqlalchemy psycopg2-binary")
@@ -107,8 +184,8 @@ class PostgreSQLHandler:
                 echo=False  # Deshabilitar logging SQL
             )
             
-            # Crear session factory
-            self.session_factory = sessionmaker(bind=self.engine)
+            # Crear session factory (no expirar objetos tras commit)
+            self.session_factory = sessionmaker(bind=self.engine, expire_on_commit=False)
             
             # Probar conexión
             with self.engine.connect() as conn:
@@ -120,8 +197,8 @@ class PostgreSQLHandler:
             
             self.logger.info("✅ Conexión exitosa a PostgreSQL")
             
-            # Crear tablas si no existen
-            self._create_tables()
+            # Bootstrap de esquema en modo explícito.
+            self._bootstrap_schema_if_needed()
             
             return True
             
@@ -130,12 +207,90 @@ class PostgreSQLHandler:
             self.logger.error(f"❌ Error conectando a PostgreSQL: {e}")
             return False
     
+    def _bootstrap_schema_if_needed(self):
+        """Inicializa esquema según el modo configurado.
+
+        Legacy/bootstrap boundary:
+        este comportamiento existe para compatibilidad transicional y no
+        representa la estrategia canonica del runtime, que debe apoyarse en Alembic.
+        """
+        mode = get_schema_bootstrap_mode()
+        if mode in {"alembic", "none"}:
+            self.logger.info(
+                "⏭️  Bootstrap de esquema omitido (modo=%s). "
+                "Asegúrate de aplicar migraciones Alembic.",
+                mode,
+            )
+            return
+        self._create_tables()
+
     def _create_tables(self):
-        """Crear tablas necesarias si no existen"""
+        """Crear tablas necesarias en modo legacy.
+
+        Legacy/bootstrap boundary:
+        incluye tablas historicas (`sensor_data`, `devices`, `sensors`) y
+        `Base.metadata.create_all(...)` para compatibilidad con entornos previos.
+        """
         try:
+            from sqlalchemy import text
+            from ..models.base import Base
+            from ..models import entities  # noqa: F401
+            from ..models.enums import (
+                EstadoProyecto,
+                ProtocoloComunicacion,
+                TipoDato,
+                RolSistema,
+                CalidadDato,
+                SeveridadEvento,
+                EstadoDispositivo,
+            )
+            
+            def enum_values(enum_class: Any) -> List[str]:
+                values: List[str] = []
+                for attr_name in dir(enum_class):
+                    if not attr_name.startswith('_') and attr_name.isupper():
+                        attr_value = getattr(enum_class, attr_name)
+                        if not callable(attr_value):
+                            values.append(str(attr_value))
+                return values
+            
             with self.engine.connect() as conn:
                 # Crear esquema si no existe
                 conn.execute(text(f"CREATE SCHEMA IF NOT EXISTS {self.config.db_schema}"))
+                
+                # Extensiones necesarias (citext para emails)
+                conn.execute(text("CREATE EXTENSION IF NOT EXISTS citext"))
+                
+                # Crear enums de PostgreSQL requeridos por los modelos ORM
+                for enum_class in (
+                    EstadoProyecto,
+                    ProtocoloComunicacion,
+                    TipoDato,
+                    RolSistema,
+                    CalidadDato,
+                    SeveridadEvento,
+                    EstadoDispositivo,
+                ):
+                    enum_name = enum_class.__name__
+                    values = enum_values(enum_class)
+                    def _escape_enum_value(value: str) -> str:
+                        return "'" + value.replace("'", "''") + "'"
+                    
+                    values_sql = ", ".join([_escape_enum_value(value) for value in values])
+                    conn.execute(text(f"""
+                        DO $$
+                        BEGIN
+                            IF NOT EXISTS (
+                                SELECT 1
+                                FROM pg_type t
+                                JOIN pg_namespace n ON n.oid = t.typnamespace
+                                WHERE t.typname = '{enum_name}'
+                                  AND n.nspname = '{self.config.db_schema}'
+                            ) THEN
+                                CREATE TYPE {self.config.db_schema}."{enum_name}" AS ENUM ({values_sql});
+                            END IF;
+                        END $$;
+                    """))
                 
                 # Crear tabla sensor_data
                 conn.execute(text(f"""
@@ -197,6 +352,10 @@ class PostgreSQLHandler:
                 
                 conn.commit()
                 self.logger.info("✅ Tablas creadas/verificadas en PostgreSQL")
+            
+            # Crear tablas definidas por los modelos ORM (proyectos, clientes, etc.)
+            Base.metadata.create_all(self.engine)
+            self.logger.info("✅ Tablas ORM creadas/verificadas en PostgreSQL")
                 
         except Exception as e:
             self.logger.error(f"❌ Error creando tablas: {e}")
@@ -246,10 +405,10 @@ class PostgreSQLHandler:
         finally:
             session.close()
     
-    def insert_sensor_data(self, data_dict: Dict[str, Any]) -> bool:
+    def write_legacy_sensor_record(self, data_dict: Dict[str, Any]) -> bool:
         """
-        Insertar datos de sensor en PostgreSQL
-        
+        Transition telemetry boundary: persistencia legacy de telemetría en PostgreSQL.
+
         Args:
             data_dict: Diccionario con datos del sensor
             
@@ -312,6 +471,10 @@ class PostgreSQLHandler:
                 self.start_reconnect_monitor()
             
             return False
+
+    def insert_sensor_data(self, data_dict: Dict[str, Any]) -> bool:
+        """Alias transicional preservado para el runtime actual de ingesta."""
+        return self.write_legacy_sensor_record(data_dict)
     
     def get_connection_status(self) -> ConnectionStatus:
         """Obtener estado de la conexión"""
@@ -392,10 +555,10 @@ class InfluxDBHandler:
             self.logger.error(f"❌ Error conectando a InfluxDB: {e}")
             return False
     
-    def insert_influxdb(self, data_dict: Dict[str, Any]) -> bool:
+    def write_telemetry_point(self, data_dict: Dict[str, Any]) -> bool:
         """
-        Insertar datos en InfluxDB
-        
+        Transition telemetry boundary: persistencia de telemetría en InfluxDB.
+
         Args:
             data_dict: Diccionario con datos a insertar
             
@@ -424,19 +587,89 @@ class InfluxDBHandler:
             
             # Preparar punto para InfluxDB
             from influxdb_client import Point
-            
+
+            # Evitar conflictos de tipo en Influx:
+            # el campo legacy "value" pudo quedar tipado booleano en datos anteriores.
+            # Escribimos nuevo campo estable por tipo.
+            field_name = "value_num"
+            field_value: Any
+            if isinstance(value, bool):
+                field_value = 1.0 if value else 0.0
+            elif isinstance(value, (int, float)):
+                field_value = float(value)
+            elif isinstance(value, str):
+                text = value.strip()
+                try:
+                    field_value = float(text)
+                    field_name = "value_num"
+                except ValueError:
+                    field_name = "value_text"
+                    field_value = value
+            else:
+                field_name = "value_text"
+                field_value = str(value)
+
             point = Point("sensor_data") \
                 .tag("device_id", device_id) \
                 .tag("sensor_type", sensor_type) \
                 .tag("topic", topic) \
-                .field("value", value) \
+                .field(field_name, field_value) \
                 .time(timestamp)
             
-            # Agregar campos adicionales si están disponibles
+            # Agregar metadatos como tags y sólo valores escalares numéricos como fields
+            # para evitar mezclar series textuales con la telemetría principal.
+            base_keys = {'device_id', 'sensor_type', 'value', 'timestamp', 'topic'}
+            metadata_tag_keys = {
+                'project_id',
+                'project_name',
+                'unit_id',
+                'unit_name',
+                'device_ref_id',
+                'device_name',
+                'kind',
+                'signal',
+                'quality',
+            }
+
             for key, val in data_dict.items():
-                if key not in ['device_id', 'sensor_type', 'value', 'timestamp', 'topic']:
-                    if isinstance(val, (int, float, str, bool)):
-                        point = point.field(key, val)
+                if key in base_keys or val is None:
+                    continue
+
+                if key in metadata_tag_keys:
+                    point = point.tag(key, str(val))
+                    continue
+
+                if key == "tick":
+                    try:
+                        point = point.field(key, int(val))
+                    except (TypeError, ValueError):
+                        pass
+                    continue
+
+                if isinstance(val, bool):
+                    point = point.field(key, 1 if val else 0)
+                    continue
+
+                if isinstance(val, int):
+                    point = point.field(key, int(val))
+                    continue
+
+                if isinstance(val, float):
+                    point = point.field(key, float(val))
+                    continue
+
+                if isinstance(val, str):
+                    text = val.strip()
+                    if not text:
+                        continue
+                    try:
+                        if text.isdigit() or (text.startswith("-") and text[1:].isdigit()):
+                            point = point.field(key, int(text))
+                        else:
+                            point = point.field(key, float(text))
+                    except ValueError:
+                        # Ignorar strings libres para mantener esquema de fields numérico.
+                        continue
             
             # Escribir punto
             self.write_api.write(bucket=self.config.bucket, record=point)
@@ -455,6 +688,10 @@ class InfluxDBHandler:
                 self.connection_status = ConnectionStatus.ERROR
             
             return False
+
+    def insert_influxdb(self, data_dict: Dict[str, Any]) -> bool:
+        """Alias transicional preservado para compatibilidad con el runtime actual."""
+        return self.write_telemetry_point(data_dict)
     
     def get_connection_status(self) -> ConnectionStatus:
         """Obtener estado de la conexión"""
@@ -479,7 +716,15 @@ class InfluxDBHandler:
 
 
 class DatabaseHandler:
-    """Manejador principal de bases de datos"""
+    """Manejador principal de bases de datos.
+
+    Official runtime boundary:
+    conexiones, sesiones, health checks y métricas.
+
+    Transition boundary:
+    mantiene el fan-out de escritura de telemetría hacia PostgreSQL e InfluxDB
+    mediante aliases conservados por compatibilidad.
+    """
     
     def __init__(self, postgresql_config: PostgreSQLConfig, 
                  influxdb_config: InfluxDBConfig, 
@@ -519,9 +764,9 @@ class DatabaseHandler:
             # Por defecto, usar PostgreSQL
             return DatabaseType.POSTGRESQL
     
-    def insert_sensor_data(self, data_dict: Dict[str, Any]) -> bool:
+    def write_telemetry(self, data_dict: Dict[str, Any]) -> bool:
         """
-        Insertar datos de sensor en la base de datos apropiada
+        Transition telemetry boundary: escritura híbrida de telemetría.
         
         Args:
             data_dict: Diccionario con datos del sensor
@@ -534,7 +779,7 @@ class DatabaseHandler:
         # Insertar en PostgreSQL si está disponible
         if self.postgresql_handler and self.postgresql_handler.get_connection_status() == ConnectionStatus.CONNECTED:
             try:
-                if self.postgresql_handler.insert_sensor_data(data_dict):
+                if self.postgresql_handler.write_legacy_sensor_record(data_dict):
                     success = True
                     self.logger.debug("✅ Datos insertados en PostgreSQL")
             except Exception as e:
@@ -543,7 +788,7 @@ class DatabaseHandler:
         # Insertar en InfluxDB si está disponible
         if self.influxdb_handler and self.influxdb_handler.get_connection_status() == ConnectionStatus.CONNECTED:
             try:
-                if self.influxdb_handler.insert_influxdb(data_dict):
+                if self.influxdb_handler.write_telemetry_point(data_dict):
                     success = True
                     self.logger.debug("✅ Datos insertados en InfluxDB")
             except Exception as e:
@@ -555,6 +800,10 @@ class DatabaseHandler:
             self.logger.error("❌ No se pudo insertar en ninguna base de datos")
         
         return success
+
+    def insert_sensor_data(self, data_dict: Dict[str, Any]) -> bool:
+        """Alias transicional preservado para api.py, ingestor y callers existentes."""
+        return self.write_telemetry(data_dict)
     
     def get_connection_status(self) -> Dict[str, ConnectionStatus]:
         """Obtener estado de todas las conexiones"""
@@ -632,6 +881,29 @@ class DatabaseHandler:
         
         return health
     
+    def get_session(self):
+        """
+        Obtener sesión de base de datos PostgreSQL
+        
+        Returns:
+            Context manager para la sesión de base de datos
+        """
+        if not self.postgresql_handler:
+            raise ConnectionError("PostgreSQL handler no está inicializado")
+        
+        return self.postgresql_handler.get_session()
+    
+    def is_connected(self) -> bool:
+        """
+        Verificar si hay conexión activa a la base de datos
+        
+        Returns:
+            True si PostgreSQL está conectado, False en caso contrario
+        """
+        if self.postgresql_handler:
+            return self.postgresql_handler.get_connection_status() == ConnectionStatus.CONNECTED
+        return False
+    
     def close(self):
         """Cerrar todas las conexiones"""
         if self.postgresql_handler:
@@ -643,14 +915,43 @@ class DatabaseHandler:
         self.logger.info("🔌 Todas las conexiones de base de datos cerradas")
 
 
+# ============================================================================
+# OFFICIAL RUNTIME INFRASTRUCTURE FACTORY
+# ============================================================================
+
 # Función de conveniencia para crear manejador de base de datos
-def create_database_handler(postgresql_config: PostgreSQLConfig, 
-                           influxdb_config: InfluxDBConfig,
-                           storage_config: StorageConfig) -> DatabaseHandler:
+def _resolve_database_configs(
+    config: Optional[IoTMiddlewareConfig] = None,
+    postgresql_config: Optional[PostgreSQLConfig] = None,
+    influxdb_config: Optional[InfluxDBConfig] = None,
+    storage_config: Optional[StorageConfig] = None,
+) -> Tuple[PostgreSQLConfig, InfluxDBConfig, StorageConfig]:
+    """Normaliza las variantes de configuración soportadas por el factory."""
+    if config is not None:
+        postgresql_config = config.postgresql
+        influxdb_config = config.influxdb
+        storage_config = config.storage
+
+    if not all([postgresql_config, influxdb_config, storage_config]):
+        raise ValueError(
+            "Se requiere IoTMiddlewareConfig completo o postgresql_config, "
+            "influxdb_config y storage_config explícitos"
+        )
+
+    return postgresql_config, influxdb_config, storage_config
+
+
+def create_database_handler(
+    config: Optional[IoTMiddlewareConfig] = None,
+    postgresql_config: Optional[PostgreSQLConfig] = None,
+    influxdb_config: Optional[InfluxDBConfig] = None,
+    storage_config: Optional[StorageConfig] = None,
+) -> DatabaseHandler:
     """
     Crear una instancia del manejador de base de datos
     
     Args:
+        config: Configuración completa del middleware
         postgresql_config: Configuración de PostgreSQL
         influxdb_config: Configuración de InfluxDB
         storage_config: Configuración de almacenamiento
@@ -658,13 +959,373 @@ def create_database_handler(postgresql_config: PostgreSQLConfig,
     Returns:
         Instancia del manejador de base de datos
     """
-    return DatabaseHandler(postgresql_config, influxdb_config, storage_config)
+    resolved_postgresql, resolved_influxdb, resolved_storage = _resolve_database_configs(
+        config=config,
+        postgresql_config=postgresql_config,
+        influxdb_config=influxdb_config,
+        storage_config=storage_config,
+    )
+
+    return DatabaseHandler(resolved_postgresql, resolved_influxdb, resolved_storage)
+
+
+def _resolve_runtime_config_path() -> Optional[str]:
+    """Resuelve la ruta de configuración para lecturas runtime livianas."""
+    config_path = (
+        os.getenv("IOT_MW_CONFIG_PATH")
+        or os.getenv("CONTROL_WORKER_CONFIG_PATH")
+    )
+    if config_path:
+        return config_path
+
+    repo_root = os.getenv("REPO_ROOT")
+    if repo_root:
+        candidate = os.path.join(repo_root, "config.yaml")
+        if os.path.exists(candidate):
+            return candidate
+
+    return None
+
+
+def _resolve_runtime_postgres_value(
+    configured_value: Any,
+    *,
+    env_names: Tuple[str, ...],
+    cast=None,
+):
+    """Permite que el runtime local sobrescriba PostgreSQL vía env vars."""
+    for env_name in env_names:
+        raw_value = os.getenv(env_name)
+        if raw_value is None or str(raw_value).strip() == "":
+            continue
+        if cast is None:
+            return raw_value
+        return cast(raw_value)
+    return configured_value
+
+
+@lru_cache(maxsize=1)
+def _get_control_settings_connection_url() -> str:
+    """Construye una URL PostgreSQL cacheada para lecturas de feature flags."""
+    try:
+        from ..config import load_config
+    except ImportError:
+        from iot_middleware.config import load_config
+
+    config = load_config(_resolve_runtime_config_path())
+    postgres = config.postgresql
+    host = _resolve_runtime_postgres_value(
+        postgres.host,
+        env_names=("DB_HOST", "POSTGRES_HOST"),
+    )
+    port = _resolve_runtime_postgres_value(
+        postgres.port,
+        env_names=("DB_PORT", "POSTGRES_PORT"),
+        cast=int,
+    )
+    database = _resolve_runtime_postgres_value(
+        postgres.database,
+        env_names=("DB_NAME", "POSTGRES_DB"),
+    )
+    username = _resolve_runtime_postgres_value(
+        postgres.username,
+        env_names=("DB_USER", "POSTGRES_USER"),
+    )
+    password = _resolve_runtime_postgres_value(
+        postgres.password,
+        env_names=("DB_PASSWORD", "POSTGRES_PASSWORD"),
+    )
+    return (
+        f"postgresql://{username}:{password}"
+        f"@{host}:{port}/{database}"
+    )
+
+
+@lru_cache(maxsize=1)
+def _get_control_settings_engine(connection_url: str):
+    """Crea un engine liviano y reutilizable para lecturas runtime de proyectos."""
+    from sqlalchemy import create_engine
+
+    return create_engine(
+        connection_url,
+        pool_pre_ping=True,
+        pool_size=1,
+        max_overflow=0,
+        echo=False,
+    )
+
+
+@lru_cache(maxsize=1)
+def _get_control_runtime_session_factory(connection_url: str):
+    """Session factory reutilizable para lecturas/escrituras runtime livianas."""
+    from sqlalchemy.orm import sessionmaker
+
+    engine = _get_control_settings_engine(connection_url)
+    return sessionmaker(bind=engine, expire_on_commit=False)
+
+
+def get_project_control_settings(project_id: str) -> Dict[str, Any]:
+    """
+    Return project-level control settings from the official operational-domain table.
+
+    Safe default:
+    parametric_control_enabled = False
+    """
+    default_settings = {
+        "project_id": project_id,
+        "parametric_control_enabled": False,
+    }
+
+    try:
+        uuid.UUID(str(project_id))
+    except (TypeError, ValueError):
+        logger.warning(
+            "project_id inválido para get_project_control_settings: %s",
+            project_id,
+        )
+        return default_settings
+
+    try:
+        from sqlalchemy import text
+
+        engine = _get_control_settings_engine(_get_control_settings_connection_url())
+        query = text(
+            """
+            SELECT
+                id::text AS project_id,
+                COALESCE(parametric_control_enabled, FALSE) AS parametric_control_enabled
+            FROM public.projects
+            WHERE id = CAST(:project_id AS uuid)
+            LIMIT 1
+            """
+        )
+
+        with engine.connect() as connection:
+            row = connection.execute(
+                query,
+                {"project_id": str(project_id)},
+            ).mappings().first()
+
+        if not row:
+            logger.info(
+                "Proyecto no encontrado en public.projects para feature flag de control: %s",
+                project_id,
+            )
+            return default_settings
+
+        return {
+            "project_id": row["project_id"],
+            "parametric_control_enabled": bool(row["parametric_control_enabled"]),
+        }
+
+    except Exception as exc:
+        logger.warning(
+            "No se pudo leer parametric_control_enabled para project_id=%s: %s",
+            project_id,
+            exc,
+        )
+        return default_settings
+
+
+def list_project_control_policies(project_id: str, variable_id: str) -> List[Dict[str, Any]]:
+    """Carga políticas persistidas candidatas para un proyecto y variable."""
+    try:
+        project_uuid = str(uuid.UUID(str(project_id)))
+    except (TypeError, ValueError):
+        logger.warning(
+            "project_id inválido para list_project_control_policies: %s",
+            project_id,
+        )
+        return []
+
+    if not variable_id or not str(variable_id).strip():
+        logger.warning("variable_id inválido para list_project_control_policies: %s", variable_id)
+        return []
+
+    try:
+        from sqlalchemy import text
+
+        engine = _get_control_settings_engine(_get_control_settings_connection_url())
+        query = text(
+            """
+            SELECT
+                id::text AS id,
+                project_id::text AS project_id,
+                variable,
+                context_selector,
+                policy_type,
+                params,
+                priority,
+                enabled,
+                version,
+                created_at,
+                updated_at
+            FROM public.project_control_policies
+            WHERE project_id = CAST(:project_id AS uuid)
+              AND variable = :variable
+              AND enabled = TRUE
+            ORDER BY priority DESC, version DESC, updated_at DESC, created_at DESC
+            """
+        )
+
+        with engine.connect() as connection:
+            rows = connection.execute(
+                query,
+                {
+                    "project_id": project_uuid,
+                    "variable": str(variable_id),
+                },
+            ).mappings().all()
+
+        return [dict(row) for row in rows]
+    except Exception as exc:
+        logger.warning(
+            "No se pudieron cargar project_control_policies project_id=%s variable=%s: %s",
+            project_id,
+            variable_id,
+            exc,
+        )
+        return []
+
+
+def _parse_runtime_audit_timestamp(raw_timestamp: Optional[Any]) -> datetime:
+    """Normaliza timestamps ISO del worker para persistencia en auditoría."""
+    if isinstance(raw_timestamp, datetime):
+        return raw_timestamp.astimezone(timezone.utc)
+    if isinstance(raw_timestamp, str) and raw_timestamp.strip():
+        return datetime.fromisoformat(raw_timestamp.replace("Z", "+00:00")).astimezone(timezone.utc)
+    return datetime.now(timezone.utc)
+
+
+def _json_safe_runtime_value(value: Any) -> Any:
+    """Convierte payloads runtime a una estructura segura para JSONB."""
+    if isinstance(value, datetime):
+        return value.astimezone(timezone.utc).isoformat()
+    if isinstance(value, dict):
+        return {key: _json_safe_runtime_value(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_json_safe_runtime_value(item) for item in value]
+    if isinstance(value, tuple):
+        return [_json_safe_runtime_value(item) for item in value]
+    return value
+
+
+def persist_control_audit_record(
+    audit_envelope: Dict[str, Any],
+    *,
+    action: str,
+    entity: str = "control_engine_worker",
+) -> bool:
+    """
+    Persiste el audit envelope del worker en `iot_schema.auditoria`.
+
+    Este helper reutiliza la infraestructura runtime liviana ya usada para
+    feature flags y evita acoplar el worker a servicios de auditoría HTTP/UI.
+    """
+    try:
+        from ..models.entities import Auditoria
+    except ImportError:
+        from iot_middleware.models.entities import Auditoria
+
+    payload = audit_envelope.get("payload") if isinstance(audit_envelope, dict) else None
+    payload = payload if isinstance(payload, dict) else {}
+
+    project_id = (
+        payload.get("project_id")
+        or audit_envelope.get("project_id")
+        or payload.get("input_event", {}).get("project_id")
+    )
+    variable_id = (
+        payload.get("variable_id")
+        or audit_envelope.get("variable")
+        or payload.get("input_event", {}).get("variable")
+    )
+    event_id = (
+        payload.get("event_id")
+        or payload.get("input_event", {}).get("event_id")
+    )
+    timestamp = _parse_runtime_audit_timestamp(
+        payload.get("evaluated_at")
+        or audit_envelope.get("timestamp")
+    )
+
+    entity_id = None
+    if project_id:
+        try:
+            entity_id = uuid.UUID(str(project_id))
+        except (TypeError, ValueError):
+            entity_id = None
+
+    audit_context = {
+        "source": "control_engine_worker",
+        "action": action,
+        "project_id": project_id,
+        "variable_id": variable_id,
+        "event_id": event_id,
+        "message_type": audit_envelope.get("message_type"),
+    }
+    safe_audit_envelope = _json_safe_runtime_value(audit_envelope)
+
+    session_factory = _get_control_runtime_session_factory(_get_control_settings_connection_url())
+    with session_factory() as session:
+        session.add(
+            Auditoria(
+                usuario_id=None,
+                entidad=entity,
+                entidad_id=entity_id,
+                accion=action,
+                cambios=safe_audit_envelope,
+                contexto={k: v for k, v in audit_context.items() if v is not None},
+                ts=timestamp,
+            )
+        )
+        session.commit()
+
+    return True
+
+
+# ============================================================================
+# LEGACY BOOTSTRAP / COMPATIBILITY HELPERS
+# ============================================================================
+
+def _build_legacy_default_configs() -> Tuple[PostgreSQLConfig, InfluxDBConfig, StorageConfig]:
+    """Construye configuración legacy por defecto para helpers de compatibilidad.
+
+    Legacy boundary:
+    estos defaults hardcodeados no deben considerarse parte del runtime oficial.
+    """
+    default_postgresql_config = PostgreSQLConfig(
+        host="localhost",
+        port=5432,
+        database="iot_middleware",
+        username="iot_user",
+        password="iot_password"
+    )
+
+    default_influxdb_config = InfluxDBConfig(
+        url="http://localhost:8086",
+        token="dev-token",
+        org="my-org",
+        bucket="iot"
+    )
+
+    default_storage_config = StorageConfig(
+        timeseries={"provider": "influxdb"},
+        relational={"provider": "postgresql"},
+        metadata={"provider": "postgresql"}
+    )
+
+    return default_postgresql_config, default_influxdb_config, default_storage_config
 
 
 # Función principal insert_sensor_data para compatibilidad
 def insert_sensor_data(data_dict: Dict[str, Any], **kwargs) -> bool:
     """
-    Función principal para insertar datos de sensor (compatibilidad con código existente)
+    Función principal para insertar datos de sensor (compatibilidad con código existente).
+
+    Legacy boundary:
+    usa configuración local hardcodeada y se conserva solo para callers viejos
+    o pruebas manuales.
     
     Args:
         data_dict: Datos del sensor a insertar
@@ -673,34 +1334,7 @@ def insert_sensor_data(data_dict: Dict[str, Any], **kwargs) -> bool:
     Returns:
         True si la inserción fue exitosa, False en caso contrario
     """
-    # Crear configuración por defecto si no se proporciona
-    try:
-        from iot_middleware.config import PostgreSQLConfig, InfluxDBConfig, StorageConfig
-    except ImportError:
-        # Fallback para importación directa
-        from iot_middleware.config import PostgreSQLConfig, InfluxDBConfig, StorageConfig
-    
-    # Configuración por defecto
-    default_postgresql_config = PostgreSQLConfig(
-        host="localhost",
-        port=5432,
-        database="iot_middleware",
-        username="iot_user",
-        password="iot_password"
-    )
-    
-    default_influxdb_config = InfluxDBConfig(
-        url="http://localhost:8086",
-        token="dev-token",
-        org="my-org",
-        bucket="iot"
-    )
-    
-    default_storage_config = StorageConfig(
-        timeseries={"provider": "influxdb"},
-        relational={"provider": "postgresql"},
-        metadata={"provider": "postgresql"}
-    )
+    default_postgresql_config, default_influxdb_config, default_storage_config = _build_legacy_default_configs()
     
     # Crear manejador
     handler = create_database_handler(
@@ -723,29 +1357,8 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     
     try:
-        # Crear configuración por defecto
-        from iot_middleware.config import PostgreSQLConfig, InfluxDBConfig, StorageConfig
-        
-        postgresql_config = PostgreSQLConfig(
-            host="localhost",
-            port=5432,
-            database="iot_middleware",
-            username="iot_user",
-            password="iot_password"
-        )
-        
-        influxdb_config = InfluxDBConfig(
-            url="http://localhost:8086",
-            token="dev-token",
-            org="my-org",
-            bucket="iot"
-        )
-        
-        storage_config = StorageConfig(
-            timeseries={"provider": "influxdb"},
-            relational={"provider": "postgresql"},
-            metadata={"provider": "postgresql"}
-        )
+        # Crear configuración legacy por defecto para la demo manual del módulo.
+        postgresql_config, influxdb_config, storage_config = _build_legacy_default_configs()
         
         # Crear manejador
         handler = create_database_handler(postgresql_config, influxdb_config, storage_config)

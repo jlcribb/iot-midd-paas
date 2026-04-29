@@ -251,7 +251,7 @@ class RegistroDatosRepository(BaseRepository[RegistroDatos]):
             
             return {
                 **valor_fields,
-                'metadata': enriched_metadata
+                'metadatos': enriched_metadata
             }
             
         except Exception as e:

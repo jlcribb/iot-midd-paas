@@ -1,0 +1,163 @@
+# Configuración de Pruebas - IoT Middleware
+# =========================================
+
+# Configuración MQTT para pruebas
+mqtt:
+  broker: localhost
+  port: 1883
+  username: null
+  password: null
+  topics:
+    - "test/+/+"
+    - "iot/+/+/+/+"
+  qos: 1
+  retain: false
+  clean_session: true
+  client_id: "test_client"
+  keepalive: 60
+  will_topic: "test/will"
+  will_payload: "offline"
+  will_qos: 1
+  will_retain: false
+
+# Configuración InfluxDB para pruebas
+influxdb:
+  url: "http://localhost:8086"
+  token: "test_token"
+  org: "test_org"
+  bucket: "test_bucket"
+  timeout: 30
+  retries: 3
+  verify_ssl: false
+
+# Configuración PostgreSQL para pruebas
+postgresql:
+  host: localhost
+  port: 5432
+  database: "test_db"
+  username: "test_user"
+  password: "test_pass"
+  ssl_mode: "disable"
+  pool_size: 10
+  max_overflow: 20
+  pool_timeout: 30
+  pool_recycle: 3600
+
+# Configuración API para pruebas
+api:
+  host: "0.0.0.0"
+  port: 8000
+  debug: false
+  cors_enabled: true
+  cors_origins:
+    - "*"
+  cors_methods:
+    - "GET"
+    - "POST"
+    - "PUT"
+    - "DELETE"
+  cors_headers:
+    - "*"
+  rate_limit:
+    enabled: true
+    requests_per_minute: 100
+  authentication:
+    enabled: true
+    jwt_secret: "test_secret"
+    token_expiry: 3600
+
+# Configuración de logging para pruebas
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file: "test.log"
+  max_size: "10MB"
+  backup_count: 5
+  console: true
+  console_level: "DEBUG"
+  console_format: "%(levelname)s - %(message)s"
+
+# Configuración de procesamiento para pruebas
+processing:
+  batch_size: 100
+  batch_timeout: 5.0
+  max_workers: 4
+  validation_enabled: true
+  retry_attempts: 3
+  retry_delay: 1.0
+  queue_size: 1000
+  processing_timeout: 30.0
+
+# Configuración de normalizadores para pruebas
+normalizers:
+  enabled: true
+  default_normalizer: "json"
+  custom_normalizers: {}
+
+# Configuración de almacenamiento para pruebas
+storage:
+  providers:
+    - "postgresql"
+    - "influxdb"
+  default_provider: "postgresql"
+  backup_enabled: false
+  compression_enabled: false
+
+# Configuración de seguridad para pruebas
+security:
+  tls_enabled: false
+  tls_cert_file: null
+  tls_key_file: null
+  tls_ca_file: null
+  authentication:
+    enabled: true
+    jwt_secret: "test_secret"
+    token_expiry: 3600
+    refresh_token_expiry: 86400
+  authorization:
+    enabled: true
+    roles:
+      - "admin"
+      - "user"
+      - "viewer"
+    permissions:
+      admin:
+        - "read"
+        - "write"
+        - "delete"
+      user:
+        - "read"
+        - "write"
+      viewer:
+        - "read"
+  encryption:
+    enabled: false
+    algorithm: "AES-256-GCM"
+    key: "test_encryption_key"
+
+# Configuración de monitoreo para pruebas
+monitoring:
+  health_check_interval: 30
+  metrics_interval: 60
+  alerting:
+    enabled: true
+    email:
+      enabled: false
+      smtp_server: "localhost"
+      smtp_port: 587
+      username: "test@example.com"
+      password: "test_password"
+      recipients:
+        - "admin@example.com"
+    webhook:
+      enabled: false
+      url: "http://localhost:8080/webhook"
+      timeout: 10
+  metrics:
+    enabled: true
+    endpoint: "/metrics"
+    format: "prometheus"
+  logging:
+    enabled: true
+    level: "INFO"
+    file: "monitoring.log"

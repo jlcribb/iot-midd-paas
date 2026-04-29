@@ -22,6 +22,11 @@ logger = logging.getLogger(__name__)
 security = HTTPBearer()
 
 
+def _role_value(role):
+    """Normaliza roles a string para comparar payload JWT y modelo."""
+    return role.value if hasattr(role, "value") else role
+
+
 class AuthMiddleware:
     """
     Middleware de autenticación JWT para FastAPI
@@ -71,7 +76,7 @@ class AuthMiddleware:
                     return None
                 
                 # Verificar que el rol en el token coincida con el de la BD
-                if usuario.rol != payload.get("rol"):
+                if _role_value(usuario.rol) != payload.get("rol"):
                     logger.warning(f"Rol del token no coincide con el de la BD para usuario {user_id}")
                     return None
                 
@@ -189,7 +194,7 @@ class AuthMiddleware:
                         "id": str(usuario.id),
                         "email": usuario.email,
                         "nombre": usuario.nombre,
-                        "rol": usuario.rol,
+                        "rol": _role_value(usuario.rol),
                         "cliente_id": str(usuario.cliente_id) if usuario.cliente_id else None,
                         "proyecto_id": str(usuario.proyecto_id) if usuario.proyecto_id else None,
                         "unidad_id": str(usuario.unidad_id) if usuario.unidad_id else None,

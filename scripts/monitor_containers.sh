@@ -54,7 +54,7 @@ check_health() {
 # Función para obtener estado del contenedor
 get_container_status() {
     local container=$1
-    local status=$(podman inspect $container --format '{{.State.Status}}' 2>/dev/null)
+    local status=$(docker inspect $container --format '{{.State.Status}}' 2>/dev/null)
     if [ $? -eq 0 ]; then
         echo $status
     else
@@ -65,7 +65,7 @@ get_container_status() {
 # Función para obtener uptime del contenedor
 get_container_uptime() {
     local container=$1
-    local uptime=$(podman inspect $container --format '{{.State.StartedAt}}' 2>/dev/null)
+    local uptime=$(docker inspect $container --format '{{.State.StartedAt}}' 2>/dev/null)
     if [ $? -eq 0 ]; then
         echo $uptime
     else
@@ -78,7 +78,7 @@ check_recent_logs() {
     local container=$1
     local lines=${2:-5}
     echo -e "   📋 Últimos $lines logs:"
-    podman logs --tail $lines $container 2>/dev/null | while IFS= read -r line; do
+    docker logs --tail $lines $container 2>/dev/null | while IFS= read -r line; do
         echo -e "      $line"
     done
 }
@@ -136,7 +136,7 @@ monitor_containers() {
     echo -e "   🌐 Verificando conectividad entre servicios..."
     
     # Verificar que todos los contenedores estén en la misma red
-    local network=$(podman inspect mosquitto --format '{{range $net, $config := .NetworkSettings.Networks}}{{$net}}{{end}}' 2>/dev/null)
+    local network=$(docker inspect mosquitto --format '{{range $net, $config := .NetworkSettings.Networks}}{{$net}}{{end}}' 2>/dev/null)
     if [ -n "$network" ]; then
         echo -e "   ✅ Red compartida: $network"
     else
@@ -184,7 +184,7 @@ generate_report() {
         echo ""
         
         # Ejecutar monitoreo sin colores para el archivo
-        podman ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+        docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
         echo ""
         
         echo "VERIFICACIÓN DE PUERTOS:"
@@ -208,7 +208,7 @@ generate_report() {
         echo "----------------"
         for container in mosquitto influxdb iotmw-api iotmw-ingestor; do
             echo "=== $container ==="
-            podman logs --tail 3 $container 2>/dev/null
+            docker logs --tail 3 $container 2>/dev/null
             echo ""
         done
         

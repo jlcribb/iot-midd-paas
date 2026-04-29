@@ -8,14 +8,13 @@ almacenados en la base de datos, con filtros por tópico y rango de fechas.
 
 import logging
 from datetime import datetime, timezone
-from typing import List, Optional, Dict, Any, Union
+from typing import List, Optional, Dict, Any
 from fastapi import FastAPI, HTTPException, Query, Depends, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, ConfigDict
 from sqlalchemy.orm import Session
-from sqlalchemy import and_, or_, desc, func
-import json
+from sqlalchemy import desc, func, text
 
 # Importar módulos del proyecto
 try:
@@ -24,6 +23,7 @@ try:
     from ..storage.db_handler import DatabaseHandler, create_database_handler
     from ..config import load_config
     from ..utils.auditoria import create_auditoria_service, ContextoAuditoria
+    from .routers import dashboard_router
 except ImportError:
     # Fallback para importación directa
     from iot_middleware.models.entities import RegistroDatos, Canal, Dispositivo, UnidadProyecto, Proyecto
@@ -31,6 +31,7 @@ except ImportError:
     from iot_middleware.storage.db_handler import DatabaseHandler, create_database_handler
     from iot_middleware.config import load_config
     from iot_middleware.utils.auditoria import create_auditoria_service, ContextoAuditoria
+    from iot_middleware.api.routers import dashboard_router
 
 # Configurar logging
 logger = logging.getLogger(__name__)
@@ -53,6 +54,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Registrar routers
+app.include_router(dashboard_router.router)
+
 # Variables globales
 db_handler: Optional[DatabaseHandler] = None
 auditoria_service = None
@@ -70,8 +74,8 @@ class SensorDataResponse(BaseModel):
     pagination: Optional[Dict[str, Any]] = Field(None, description="Información de paginación")
     error: Optional[str] = Field(None, description="Mensaje de error si success=False")
 
-    class Config:
-        schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "success": True,
                 "data": [
@@ -104,6 +108,7 @@ class SensorDataResponse(BaseModel):
                 }
             }
         }
+    )
 
 
 class ErrorResponse(BaseModel):
@@ -114,8 +119,8 @@ class ErrorResponse(BaseModel):
     timestamp: str = Field(..., description="Timestamp del error")
     details: Optional[Dict[str, Any]] = Field(None, description="Detalles adicionales del error")
 
-    class Config:
-        schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "success": False,
                 "error": "Parámetros de consulta inválidos",
@@ -127,6 +132,7 @@ class ErrorResponse(BaseModel):
                 }
             }
         }
+    )
 
 
 class HealthResponse(BaseModel):
@@ -373,7 +379,7 @@ async def health_check():
         if db_handler:
             try:
                 with db_handler.get_session() as session:
-                    session.execute("SELECT 1")
+                    session.execute(text("SELECT 1"))
                     db_status = "healthy"
             except Exception:
                 db_status = "unhealthy"
@@ -881,8 +887,11 @@ def initialize_api(config_path: str = None):
         else:
             config = load_config()
         
+        # Exponer configuración para los routers que dependen de app.state
+        app.state.config = config
+
         # Crear manejador de base de datos
-        db_handler = create_database_handler(config.storage)
+        db_handler = create_database_handler(config=config)
         logger.info("✅ Base de datos inicializada")
         
         # Crear servicio de auditoría

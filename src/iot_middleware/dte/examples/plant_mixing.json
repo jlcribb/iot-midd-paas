@@ -1,0 +1,56 @@
+{
+  "plant_id": "plant_1",
+  "units": [
+    {
+      "type": "mixing_unit",
+      "id": "mix_1",
+      "config": {
+        "target_ratio": 0.6,
+        "ratio_tolerance": 0.04,
+        "mix_rate": 1.4,
+        "feed_rate": 1.2,
+        "overflow_threshold": 94.0
+      },
+      "state": {
+        "levels": {
+          "blue": 60.0,
+          "red": 40.0,
+          "mix": 10.0
+        }
+      }
+    },
+    {
+      "type": "tank",
+      "id": "tank_1",
+      "config": {
+        "capacity": 120.0,
+        "high_threshold": 100.0
+      },
+      "state": {
+        "level": 20.0
+      }
+    },
+    {
+      "type": "energy_node",
+      "id": "energy_1",
+      "config": {
+        "target_kw": 8.0,
+        "max_kw": 30.0
+      }
+    },
+    {
+      "type": "conveyor",
+      "id": "conv_1",
+      "config": {
+        "default_speed": 0.3,
+        "max_speed": 1.2
+      }
+    }
+  ],
+  "connections": [
+    {
+      "from": "mix_1.mix",
+      "to": "tank_1.inflow"
+    }
+  ]
+}

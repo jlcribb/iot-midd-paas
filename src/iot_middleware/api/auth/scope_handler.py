@@ -18,6 +18,10 @@ from ...models.enums import RolUsuario
 logger = logging.getLogger(__name__)
 
 
+def _role_value(role: Any) -> str:
+    return role.value if hasattr(role, "value") else str(role)
+
+
 class ScopeHandler:
     """
     Manejador de scope para filtrado automático de consultas
@@ -26,6 +30,12 @@ class ScopeHandler:
     def __init__(self):
         """Inicializar manejador de scope"""
         pass
+
+    def _is_unrestricted(self, usuario: Usuario) -> bool:
+        return _role_value(usuario.rol) in {RolUsuario.ADMIN.value, RolUsuario.TECNICO.value}
+
+    def _is_scoped_user(self, usuario: Usuario) -> bool:
+        return _role_value(usuario.rol) in {RolUsuario.CLIENTE.value, RolUsuario.LECTURA.value}
     
     def get_user_scope(self, usuario: Usuario) -> Dict[str, Any]:
         """
@@ -48,13 +58,15 @@ class ScopeHandler:
             }
             
             # Determinar restricciones según el rol
-            if usuario.rol == RolUsuario.ADMIN:
+            role = _role_value(usuario.rol)
+
+            if role == RolUsuario.ADMIN.value:
                 scope['restrictions'] = ['none']
                 scope['description'] = 'Acceso completo a todos los recursos'
-            elif usuario.rol == RolUsuario.TECNICO:
+            elif role == RolUsuario.TECNICO.value:
                 scope['restrictions'] = ['none']
                 scope['description'] = 'Acceso completo a todos los recursos'
-            elif usuario.rol == RolUsuario.CLIENTE:
+            elif role == RolUsuario.CLIENTE.value:
                 if usuario.cliente_id:
                     scope['restrictions'].append('cliente_scope')
                 if usuario.proyecto_id:
@@ -62,7 +74,7 @@ class ScopeHandler:
                 if usuario.unidad_id:
                     scope['restrictions'].append('unidad_scope')
                 scope['description'] = 'Acceso limitado a recursos del cliente/proyecto/unidad'
-            elif usuario.rol == RolUsuario.LECTURA:
+            elif role == RolUsuario.LECTURA.value:
                 if usuario.cliente_id:
                     scope['restrictions'].append('cliente_scope')
                 if usuario.proyecto_id:
@@ -173,16 +185,11 @@ class ScopeHandler:
         """
         try:
             # Administradores y técnicos no tienen restricciones
-            if usuario.rol in [RolUsuario.ADMIN, RolUsuario.TECNICO]:
+            if self._is_unrestricted(usuario):
                 return query
             
             # Aplicar scope según el rol del usuario
-            if usuario.rol == RolUsuario.CLIENTE:
-                query = self.apply_client_scope(query, usuario, table_alias)
-                query = self.apply_project_scope(query, usuario, table_alias)
-                query = self.apply_unit_scope(query, usuario, table_alias)
-            
-            elif usuario.rol == RolUsuario.LECTURA:
+            if self._is_scoped_user(usuario):
                 query = self.apply_client_scope(query, usuario, table_alias)
                 query = self.apply_project_scope(query, usuario, table_alias)
                 query = self.apply_unit_scope(query, usuario, table_alias)
@@ -207,11 +214,11 @@ class ScopeHandler:
             filters = {}
             
             # Administradores y técnicos no tienen restricciones
-            if usuario.rol in [RolUsuario.ADMIN, RolUsuario.TECNICO]:
+            if self._is_unrestricted(usuario):
                 return filters
             
             # Aplicar filtros según el rol
-            if usuario.rol in [RolUsuario.CLIENTE, RolUsuario.LECTURA]:
+            if self._is_scoped_user(usuario):
                 if usuario.cliente_id:
                     filters['cliente_id'] = str(usuario.cliente_id)
                 if usuario.proyecto_id:
@@ -224,6 +231,10 @@ class ScopeHandler:
         except Exception as e:
             logger.error(f"Error al obtener filtros de scope: {e}")
             return {}
+
+    def get_user_scope_filters(self, usuario: Usuario) -> Dict[str, Any]:
+        """Alias explícito usado por los routers."""
+        return self.get_scope_filters(usuario)
     
     def apply_scope_to_filters(self, base_filters: Dict[str, Any], usuario: Usuario) -> Dict[str, Any]:
         """
@@ -263,11 +274,11 @@ class ScopeHandler:
         """
         try:
             # Administradores y técnicos pueden acceder a todo
-            if usuario.rol in [RolUsuario.ADMIN, RolUsuario.TECNICO]:
+            if self._is_unrestricted(usuario):
                 return True
             
             # Validar acceso según el rol
-            if usuario.rol in [RolUsuario.CLIENTE, RolUsuario.LECTURA]:
+            if self._is_scoped_user(usuario):
                 # Verificar cliente_id
                 if usuario.cliente_id and 'cliente_id' in resource_data:
                     if str(usuario.cliente_id) != str(resource_data['cliente_id']):
@@ -304,12 +315,12 @@ class ScopeHandler:
         """
         try:
             # Administradores y técnicos pueden acceder a todos los proyectos
-            if usuario.rol in [RolUsuario.ADMIN, RolUsuario.TECNICO]:
+            if self._is_unrestricted(usuario):
                 proyectos = session.query(Proyecto.id).all()
                 return [str(p.id) for p in proyectos]
             
             # Clientes y usuarios de lectura solo pueden acceder a sus proyectos
-            if usuario.rol in [RolUsuario.CLIENTE, RolUsuario.LECTURA]:
+            if self._is_scoped_user(usuario):
                 if usuario.proyecto_id:
                     return [str(usuario.proyecto_id)]
                 elif usuario.cliente_id:
@@ -338,12 +349,12 @@ class ScopeHandler:
         """
         try:
             # Administradores y técnicos pueden acceder a todos los clientes
-            if usuario.rol in [RolUsuario.ADMIN, RolUsuario.TECNICO]:
+            if self._is_unrestricted(usuario):
                 clientes = session.query(Cliente.id).all()
                 return [str(c.id) for c in clientes]
             
             # Clientes y usuarios de lectura solo pueden acceder a su propio cliente
-            if usuario.rol in [RolUsuario.CLIENTE, RolUsuario.LECTURA]:
+            if self._is_scoped_user(usuario):
                 if usuario.cliente_id:
                     return [str(usuario.cliente_id)]
             

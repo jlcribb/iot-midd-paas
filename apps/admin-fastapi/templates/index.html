@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IoT Middleware - Panel de Administración</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <h1 class="nav-title">🔧 IoT Middleware Admin</h1>
+            <ul class="nav-menu">
+                <li><a href="#" onclick="showSection('dashboard')" class="nav-link active">Dashboard</a></li>
+                <li><a href="#" onclick="showSection('proyectos')" class="nav-link">Proyectos</a></li>
+                <li><a href="#" onclick="showSection('unidades')" class="nav-link">Sectores</a></li>
+                <li><a href="#" onclick="showSection('dispositivos')" class="nav-link">Assets</a></li>
+                <li><a href="#" onclick="openTopologyCanvasFromCurrentContext(); return false;" class="nav-link">Canvas</a></li>
+                <li><a href="#" onclick="showSection('usuarios')" class="nav-link">Usuarios</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <main class="main-content">
+        <!-- Dashboard Section -->
+        <section id="dashboard" class="content-section active">
+            <h2>📊 Dashboard de Estados</h2>
+            <div id="dashboard-stats" class="stats-grid">
+                <div class="stat-card">
+                    <h3>Total Proyectos</h3>
+                    <p class="stat-value" id="total-proyectos">-</p>
+                </div>
+                <div class="stat-card">
+                    <h3>Proyectos Activos</h3>
+                    <p class="stat-value" id="proyectos-activos">-</p>
+                </div>
+                <div class="stat-card">
+                    <h3>Proyectos Archivados</h3>
+                    <p class="stat-value" id="proyectos-en-curso">-</p>
+                </div>
+                <div class="stat-card">
+                    <h3>Total Sectores</h3>
+                    <p class="stat-value" id="total-unidades">-</p>
+                </div>
+            </div>
+            <div class="table-container">
+                <h3>Estado de Proyectos</h3>
+                <table id="proyectos-table" class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Nombre</th>
+                            <th>Estado</th>
+                            <th>Sectores</th>
+                            <th>Assets</th>
+                            <th>Legacy Project ID</th>
+                            <th>Core Project ID</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="proyectos-tbody">
+                        <tr><td colspan="7">Cargando...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Proyectos Section -->
+        <section id="proyectos" class="content-section">
+            <div class="section-header">
+                <h2>📁 Proyectos</h2>
+                <div class="section-actions">
+                    <button class="btn btn-secondary" onclick="openTopologyCanvasFromCurrentContext()">🧭 Abrir Canvas</button>
+                    <button class="btn btn-primary" onclick="openModal('proyecto')">+ Nuevo Proyecto</button>
+                </div>
+            </div>
+            <div class="table-container">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Nombre</th>
+                            <th>Estado</th>
+                            <th>Sectores</th>
+                            <th>Assets</th>
+                            <th>Legacy Project ID</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="proyectos-list-tbody">
+                        <tr><td colspan="6">Cargando...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Unidades Section -->
+        <section id="unidades" class="content-section">
+            <div class="section-header">
+                <h2>🏗️ Sectores</h2>
+                <div class="section-actions">
+                    <button class="btn btn-secondary" onclick="openTopologyCanvasFromCurrentContext()">🧭 Abrir Canvas</button>
+                    <button class="btn btn-primary" onclick="openModal('unidad')">+ Nuevo Sector</button>
+                </div>
+            </div>
+            <div class="filters-row">
+                <div class="filter-control">
+                    <label for="unidades-proyecto-filter">Filtrar por Proyecto</label>
+                    <select id="unidades-proyecto-filter" onchange="onUnidadesProyectoFilterChange()">
+                        <option value="">Todos los proyectos</option>
+                    </select>
+                </div>
+            </div>
+            <div class="table-container">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Nombre</th>
+                            <th>Proyecto</th>
+                            <th>Código</th>
+                            <th>Activo</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="unidades-list-tbody">
+                        <tr><td colspan="5">Cargando...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Dispositivos Section -->
+        <section id="dispositivos" class="content-section">
+            <div class="section-header">
+                <h2>🧩 Assets</h2>
+                <div class="section-actions">
+                    <button class="btn btn-secondary" onclick="openTopologyCanvasFromCurrentContext()">🧭 Abrir Canvas</button>
+                    <button class="btn btn-primary" onclick="openModal('dispositivo')">+ Nuevo Asset</button>
+                </div>
+            </div>
+            <div class="filters-row">
+                <div class="filter-control">
+                    <label for="dispositivos-unidad-filter">Filtrar por Sector</label>
+                    <select id="dispositivos-unidad-filter" onchange="onDispositivosUnidadFilterChange()">
+                        <option value="">Todos los sectores</option>
+                    </select>
+                </div>
+            </div>
+            <div class="table-container">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Nombre</th>
+                            <th>Proyecto</th>
+                            <th>Sector</th>
+                            <th>Tipo</th>
+                            <th>Estado</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="dispositivos-list-tbody">
+                        <tr><td colspan="6">Cargando...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Usuarios Section -->
+        <section id="usuarios" class="content-section">
+            <div class="section-header">
+                <h2>👥 Usuarios</h2>
+                <button class="btn btn-primary" onclick="openModal('usuario')">+ Nuevo Usuario</button>
+            </div>
+            <div class="table-container">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Email</th>
+                            <th>Nombre</th>
+                            <th>Rol</th>
+                            <th>Activo</th>
+                            <th>Último Login</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="usuarios-list-tbody">
+                        <tr><td colspan="6">Cargando...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </main>
+
+    <!-- Modal para formularios -->
+    <div id="modal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal()">&times;</span>
+            <h2 id="modal-title">Formulario</h2>
+            <form id="modal-form" onsubmit="handleSubmit(event)">
+                <div id="modal-form-content"></div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Guardar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="/static/js/app.js?v=8"></script>
+</body>
+</html>

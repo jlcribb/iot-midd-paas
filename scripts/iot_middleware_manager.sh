@@ -47,37 +47,77 @@ show_menu() {
 monitor_containers() {
     log "Ejecutando monitoreo de contenedores..."
     echo ""
-    ../scripts/monitor_containers.sh
+    local script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+    if [ -f "$script_dir/monitor_containers.sh" ]; then
+        "$script_dir/monitor_containers.sh"
+    else
+        echo -e "${RED}❌ Error: No se encontró monitor_containers.sh${NC}"
+    fi
 }
 
 # Función para generar reporte
 generate_report() {
     log "Generando reporte de estado..."
     echo ""
-    ../scripts/monitor_containers.sh -r
+    local script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+    if [ -f "$script_dir/monitor_containers.sh" ]; then
+        "$script_dir/monitor_containers.sh" -r
+    else
+        echo -e "${RED}❌ Error: No se encontró monitor_containers.sh${NC}"
+    fi
 }
 
 # Función para generar documentación
 generate_documentation() {
     log "Generando documentación del desarrollo..."
     echo ""
-    ../scripts/document_development.sh
+    local script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+    if [ -f "$script_dir/document_development.sh" ]; then
+        "$script_dir/document_development.sh"
+    else
+        echo -e "${RED}❌ Error: No se encontró document_development.sh${NC}"
+    fi
+}
+
+# Función para detectar docker compose
+detect_docker_compose() {
+    if command -v docker &> /dev/null && docker compose version &> /dev/null; then
+        echo "docker compose"
+    else
+        echo ""
+    fi
 }
 
 # Función para levantar servicios
 start_services() {
     log "Levantando servicios..."
     echo ""
-    if podman-compose up -d; then
+    
+    local compose_cmd=$(detect_docker_compose)
+    if [ -z "$compose_cmd" ]; then
+        echo -e "${RED}❌ Error: 'docker compose' no está disponible${NC}"
+        echo "Por favor, instala Docker Desktop primero"
+        return 1
+    fi
+    
+    local script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+    local compose_file="$script_dir/../infra/containers/docker-compose.yaml"
+    if [ ! -f "$compose_file" ]; then
+        echo -e "${RED}❌ Error: No se encontró un archivo docker-compose válido${NC}"
+        return 1
+    fi
+    
+    if $compose_cmd -f "$compose_file" up -d; then
         echo -e "${GREEN}✅ Servicios levantados correctamente${NC}"
         echo ""
         echo "Esperando 10 segundos para que los servicios se inicialicen..."
         sleep 10
         echo ""
         echo "Estado actual de los contenedores:"
-        podman ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+        docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
     else
         echo -e "${RED}❌ Error al levantar los servicios${NC}"
+        return 1
     fi
 }
 
@@ -85,10 +125,26 @@ start_services() {
 stop_services() {
     log "Deteniendo servicios..."
     echo ""
-    if podman-compose down; then
+    
+    local compose_cmd=$(detect_docker_compose)
+    if [ -z "$compose_cmd" ]; then
+        echo -e "${RED}❌ Error: 'docker compose' no está disponible${NC}"
+        echo "Por favor, instala Docker Desktop primero"
+        return 1
+    fi
+    
+    local script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+    local compose_file="$script_dir/../infra/containers/docker-compose.yaml"
+    if [ ! -f "$compose_file" ]; then
+        echo -e "${RED}❌ Error: No se encontró un archivo docker-compose válido${NC}"
+        return 1
+    fi
+    
+    if $compose_cmd -f "$compose_file" down; then
         echo -e "${GREEN}✅ Servicios detenidos correctamente${NC}"
     else
         echo -e "${RED}❌ Error al detener los servicios${NC}"
+        return 1
     fi
 }
 
@@ -105,17 +161,17 @@ restart_services() {
 view_logs() {
     echo ""
     echo -e "${YELLOW}Contenedores disponibles:${NC}"
-    podman ps --format "{{.Names}}" | nl
+    docker ps --format "{{.Names}}" | nl
     echo ""
     read -p "Selecciona el número del contenedor: " container_num
     
-    local containers=($(podman ps --format "{{.Names}}"))
+    local containers=($(docker ps --format "{{.Names}}"))
     if [ $container_num -ge 1 ] && [ $container_num -le ${#containers[@]} ]; then
         local container=${containers[$((container_num-1))]}
         echo ""
         echo -e "${YELLOW}Mostrando logs de: $container${NC}"
         echo ""
-        podman logs -f "$container"
+        docker logs -f "$container"
     else
         echo -e "${RED}❌ Número de contenedor inválido${NC}"
     fi
@@ -186,10 +242,10 @@ show_system_status() {
     echo "   IP local: $(hostname -I 2>/dev/null || echo 'No disponible')"
     echo ""
     
-    echo -e "${YELLOW}Podman:${NC}"
-    echo "   Versión: $(podman --version)"
-    echo "   Contenedores ejecutándose: $(podman ps -q | wc -l)"
-    echo "   Imágenes disponibles: $(podman images -q | wc -l)"
+    echo -e "${YELLOW}Docker:${NC}"
+    echo "   Versión: $(docker --version)"
+    echo "   Contenedores ejecutándose: $(docker ps -q | wc -l)"
+    echo "   Imágenes disponibles: $(docker images -q | wc -l)"
 }
 
 # Función para procesar opción del menú
@@ -237,20 +293,17 @@ process_option() {
 
 # Función principal
 main() {
-    # Verificar si estamos en el directorio correcto
-    if [ ! -f "podman-compose.yaml" ]; then
-        echo -e "${RED}❌ Error: Este script debe ejecutarse desde el directorio 'containers'${NC}"
-        echo "Por favor, navega al directorio 'containers' y ejecuta el script desde ahí."
+    # Detectar comando docker compose
+    local compose_cmd=$(detect_docker_compose)
+    if [ -z "$compose_cmd" ]; then
+        echo -e "${RED}❌ Error: Docker no está disponible${NC}"
+        echo ""
+        echo "Por favor, instala Docker Desktop primero."
         exit 1
     fi
     
-    # Verificar si podman-compose está disponible
-    if ! command -v podman-compose &> /dev/null; then
-        echo -e "${RED}❌ Error: podman-compose no está instalado${NC}"
-        echo "Por favor, instala podman-compose primero:"
-        echo "pip3 install podman-compose"
-        exit 1
-    fi
+    echo -e "${CYAN}Usando: $compose_cmd${NC}"
+    echo ""
     
     # Bucle principal del menú
     while true; do

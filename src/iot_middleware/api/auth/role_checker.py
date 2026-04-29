@@ -23,6 +23,10 @@ logger = logging.getLogger(__name__)
 security = HTTPBearer()
 
 
+def _role_value(role) -> str:
+    return role.value if hasattr(role, "value") else str(role)
+
+
 class RoleChecker:
     """
     Verificador de roles y permisos para autorización
@@ -36,6 +40,21 @@ class RoleChecker:
             auth_middleware: Middleware de autenticación
         """
         self.auth_middleware = auth_middleware
+
+    def _is_admin(self, usuario: Usuario) -> bool:
+        return _role_value(usuario.rol) == RolUsuario.ADMIN.value
+
+    def _is_tecnico(self, usuario: Usuario) -> bool:
+        return _role_value(usuario.rol) == RolUsuario.TECNICO.value
+
+    def _is_cliente(self, usuario: Usuario) -> bool:
+        return _role_value(usuario.rol) == RolUsuario.CLIENTE.value
+
+    def _is_lectura(self, usuario: Usuario) -> bool:
+        return _role_value(usuario.rol) == RolUsuario.LECTURA.value
+
+    def _is_operator(self, usuario: Usuario) -> bool:
+        return self._is_admin(usuario) or self._is_tecnico(usuario)
     
     def require_roles(self, allowed_roles: List[RolUsuario]):
         """
@@ -69,7 +88,8 @@ class RoleChecker:
                 usuario = await self.auth_middleware.get_current_active_user(request)
                 
                 # Verificar rol
-                if usuario.rol not in allowed_roles:
+                allowed_values = {_role_value(role) for role in allowed_roles}
+                if _role_value(usuario.rol) not in allowed_values:
                     logger.warning(f"Usuario {usuario.email} con rol {usuario.rol} intentó acceder a endpoint que requiere roles: {allowed_roles}")
                     raise HTTPException(
                         status_code=status.HTTP_403_FORBIDDEN,
@@ -130,38 +150,40 @@ class RoleChecker:
         """
         try:
             # Administradores tienen todos los permisos
-            if usuario.rol == RolUsuario.ADMIN:
+            if self._is_admin(usuario):
                 return True
             
             # Verificar permisos según el rol
             if required_permission == "users_management":
                 # Solo administradores pueden gestionar usuarios
-                return usuario.rol == RolUsuario.ADMIN
+                return self._is_admin(usuario)
             
             elif required_permission == "roles_management":
                 # Solo administradores pueden gestionar roles
-                return usuario.rol == RolUsuario.ADMIN
+                return self._is_admin(usuario)
             
             elif required_permission == "system_config":
                 # Solo administradores y técnicos pueden configurar el sistema
-                return usuario.rol in [RolUsuario.ADMIN, RolUsuario.TECNICO]
+                return self._is_operator(usuario)
             
             elif required_permission == "project_management":
                 # Administradores y técnicos pueden gestionar todos los proyectos
-                if usuario.rol in [RolUsuario.ADMIN, RolUsuario.TECNICO]:
+                if self._is_operator(usuario):
                     return True
                 # Clientes solo pueden gestionar sus propios proyectos
-                elif usuario.rol == RolUsuario.CLIENTE:
-                    return resource_id and str(usuario.cliente_id) == resource_id
+                elif self._is_cliente(usuario):
+                    if usuario.proyecto_id:
+                        return resource_id and str(usuario.proyecto_id) == str(resource_id)
+                    return resource_id and str(usuario.cliente_id) == str(resource_id)
                 return False
             
             elif required_permission == "client_management":
                 # Administradores y técnicos pueden gestionar todos los clientes
-                if usuario.rol in [RolUsuario.ADMIN, RolUsuario.TECNICO]:
+                if self._is_operator(usuario):
                     return True
                 # Clientes solo pueden ver su propia información
-                elif usuario.rol == RolUsuario.CLIENTE:
-                    return resource_id and str(usuario.cliente_id) == resource_id
+                elif self._is_cliente(usuario):
+                    return resource_id and str(usuario.cliente_id) == str(resource_id)
                 return False
             
             elif required_permission == "data_read":
@@ -170,24 +192,24 @@ class RoleChecker:
             
             elif required_permission == "data_write":
                 # Solo administradores, técnicos y clientes pueden escribir datos
-                return usuario.rol in [RolUsuario.ADMIN, RolUsuario.TECNICO, RolUsuario.CLIENTE]
+                return self._is_operator(usuario) or self._is_cliente(usuario)
             
             elif required_permission == "session_management":
                 # Administradores y técnicos pueden gestionar todas las sesiones
-                if usuario.rol in [RolUsuario.ADMIN, RolUsuario.TECNICO]:
+                if self._is_operator(usuario):
                     return True
                 # Clientes solo pueden gestionar sus propias sesiones
-                elif usuario.rol == RolUsuario.CLIENTE:
-                    return resource_id and str(usuario.cliente_id) == resource_id
+                elif self._is_cliente(usuario):
+                    return resource_id and str(usuario.cliente_id) == str(resource_id)
                 return False
             
             elif required_permission == "event_management":
                 # Administradores y técnicos pueden gestionar todos los eventos
-                if usuario.rol in [RolUsuario.ADMIN, RolUsuario.TECNICO]:
+                if self._is_operator(usuario):
                     return True
                 # Clientes solo pueden gestionar eventos de sus proyectos
-                elif usuario.rol == RolUsuario.CLIENTE:
-                    return resource_id and str(usuario.proyecto_id) == resource_id
+                elif self._is_cliente(usuario):
+                    return resource_id and str(usuario.proyecto_id) == str(resource_id)
                 return False
             
             # Por defecto, denegar acceso
@@ -257,11 +279,11 @@ class RoleChecker:
             scope_filters = {}
             
             # Administradores y técnicos no tienen restricciones de scope
-            if usuario.rol in [RolUsuario.ADMIN, RolUsuario.TECNICO]:
+            if self._is_operator(usuario):
                 return scope_filters
             
             # Clientes solo pueden acceder a sus propios recursos
-            if usuario.rol == RolUsuario.CLIENTE:
+            if self._is_cliente(usuario):
                 if usuario.cliente_id:
                     scope_filters['cliente_id'] = str(usuario.cliente_id)
                 if usuario.proyecto_id:
@@ -270,7 +292,7 @@ class RoleChecker:
                     scope_filters['unidad_id'] = str(usuario.unidad_id)
             
             # Usuarios de solo lectura tienen las mismas restricciones que los clientes
-            elif usuario.rol == RolUsuario.LECTURA:
+            elif self._is_lectura(usuario):
                 if usuario.cliente_id:
                     scope_filters['cliente_id'] = str(usuario.cliente_id)
                 if usuario.proyecto_id:

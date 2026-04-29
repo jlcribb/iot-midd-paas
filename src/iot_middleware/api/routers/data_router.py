@@ -23,14 +23,22 @@ from ..models.data_models import (
     AggregationRequest,
     AggregationResponse
 )
-from ..auth import AuthMiddleware, RoleChecker, ScopeHandler
-from ...storage.db_handler import DatabaseHandler
+from ..auth import AuthMiddleware, RoleChecker, ScopeHandler, JWTHandler
+from ...storage.db_handler import create_database_handler
 from ...storage.repositories import RegistroDatosRepository, CanalRepository
 from ...models.entities import Usuario, RegistroDatos
 from ...models.enums import RolUsuario, CalidadDato
 
 # Configurar logging
 logger = logging.getLogger(__name__)
+
+
+def _get_db_handler(request: Request):
+    return create_database_handler(config=request.app.state.config)
+
+
+def _metadata_value(record):
+    return getattr(record, "metadatos", getattr(record, "metadata", None))
 
 # Crear router
 data_router = APIRouter(
@@ -58,7 +66,7 @@ async def insert_data(
     """
     try:
         # Verificar permisos
-        role_checker = RoleChecker(AuthMiddleware(JWTHandler(), DatabaseHandler({})))
+        role_checker = RoleChecker(AuthMiddleware(JWTHandler(), _get_db_handler(request)))
         if not role_checker.check_permission(current_user, "data_write"):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -66,8 +74,7 @@ async def insert_data(
             )
         
         # Obtener configuración y repositorios
-        config = request.app.state.config
-        db_handler = DatabaseHandler(config['postgresql'])
+        db_handler = _get_db_handler(request)
         registro_repo = RegistroDatosRepository(db_handler)
         canal_repo = CanalRepository(db_handler)
         scope_handler = ScopeHandler()
@@ -147,7 +154,7 @@ async def insert_data(
                 "tipo_valor": tipo_valor,
                 "calidad": registro.calidad,
                 "calidad_porcentaje": registro.calidad_porcentaje,
-                "metadata": registro.metadata
+                "metadata": _metadata_value(registro)
             }
         }
         
@@ -215,8 +222,7 @@ async def get_channel_data(
             )
         
         # Obtener configuración y repositorios
-        config = request.app.state.config
-        db_handler = DatabaseHandler(config['postgresql'])
+        db_handler = _get_db_handler(request)
         registro_repo = RegistroDatosRepository(db_handler)
         canal_repo = CanalRepository(db_handler)
         scope_handler = ScopeHandler()
@@ -291,7 +297,7 @@ async def get_channel_data(
                 "tipo_valor": tipo_valor,
                 "calidad": registro.calidad,
                 "calidad_porcentaje": registro.calidad_porcentaje,
-                "metadata": registro.metadata,
+                "metadata": _metadata_value(registro),
                 "procesado": registro.procesado,
                 "validado": registro.validado
             })
@@ -331,8 +337,7 @@ async def get_channel_statistics(
     """
     try:
         # Obtener configuración y repositorios
-        config = request.app.state.config
-        db_handler = DatabaseHandler(config['postgresql'])
+        db_handler = _get_db_handler(request)
         registro_repo = RegistroDatosRepository(db_handler)
         canal_repo = CanalRepository(db_handler)
         scope_handler = ScopeHandler()
@@ -407,7 +412,7 @@ async def aggregate_channel_data(
     """
     try:
         # Verificar permisos
-        role_checker = RoleChecker(AuthMiddleware(JWTHandler(), DatabaseHandler({})))
+        role_checker = RoleChecker(AuthMiddleware(JWTHandler(), _get_db_handler(request)))
         if not role_checker.check_permission(current_user, "data_read"):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -415,8 +420,7 @@ async def aggregate_channel_data(
             )
         
         # Obtener configuración y repositorios
-        config = request.app.state.config
-        db_handler = DatabaseHandler(config['postgresql'])
+        db_handler = _get_db_handler(request)
         canal_repo = CanalRepository(db_handler)
         scope_handler = ScopeHandler()
         
@@ -487,8 +491,7 @@ async def get_current_user(request: Request) -> Usuario:
     """Obtener usuario actual desde el request"""
     try:
         # Obtener configuración
-        config = request.app.state.config
-        db_handler = DatabaseHandler(config['postgresql'])
+        db_handler = _get_db_handler(request)
         
         # Inicializar manejadores
         jwt_handler = JWTHandler()

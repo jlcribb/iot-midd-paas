@@ -6,9 +6,8 @@ Este archivo contiene la configuración base de SQLAlchemy
 y la clase Base para todos los modelos.
 """
 
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import declarative_base
 from sqlalchemy import MetaData
-from sqlalchemy.dialects.postgresql import UUID
 import uuid
 
 # Configuración de metadatos para PostgreSQL
@@ -28,7 +27,7 @@ Base = declarative_base(metadata=metadata)
 # Función helper para generar UUIDs
 def generate_uuid():
     """Genera un UUID v4 para usar como valor por defecto"""
-    return str(uuid.uuid4())
+    return uuid.uuid4()
 
 # Función helper para UUID con uuid_generate_v4() de PostgreSQL
 def uuid_generate_v4():

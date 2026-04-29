@@ -1,0 +1,651 @@
+# Configuración de CodeClimate para Pruebas - IoT Middleware
+# ========================================================
+
+version: "2"
+
+# Configuración de archivos
+exclude_patterns:
+  - "**/tests/**"
+  - "**/migrations/**"
+  - "**/venv/**"
+  - "**/node_modules/**"
+  - "**/__pycache__/**"
+  - "**/*.pyc"
+  - "**/.pytest_cache/**"
+  - "**/htmlcov/**"
+  - "**/reports/**"
+  - "**/.benchmarks/**"
+
+# Configuración de motores
+engines:
+  # Análisis de duplicación
+  duplication:
+    enabled: true
+    config:
+      languages:
+        python:
+          mass_threshold: 100
+
+  # Análisis de complejidad
+  complexity:
+    enabled: true
+    config:
+      languages:
+        python:
+          mass_threshold: 100
+
+  # Análisis de mantenibilidad
+  maintainability:
+    enabled: true
+    config:
+      languages:
+        python:
+          mass_threshold: 100
+
+  # Análisis de confiabilidad
+  reliability:
+    enabled: true
+    config:
+      languages:
+        python:
+          mass_threshold: 100
+
+  # Análisis de seguridad
+  security:
+    enabled: true
+    config:
+      languages:
+        python:
+          mass_threshold: 100
+
+  # Análisis de portabilidad
+  portability:
+    enabled: true
+    config:
+      languages:
+        python:
+          mass_threshold: 100
+
+  # Análisis de usabilidad
+  usability:
+    enabled: true
+    config:
+      languages:
+        python:
+          mass_threshold: 100
+
+  # Análisis de eficiencia
+  efficiency:
+    enabled: true
+    config:
+      languages:
+        python:
+          mass_threshold: 100
+
+  # Análisis de documentación
+  documentation:
+    enabled: true
+    config:
+      languages:
+        python:
+          mass_threshold: 100
+
+  # Análisis de comentarios
+  comments:
+    enabled: true
+    config:
+      languages:
+        python:
+          mass_threshold: 100
+
+  # Análisis de líneas de código
+  lines:
+    enabled: true
+    config:
+      languages:
+        python:
+          mass_threshold: 100
+
+  # Análisis de funciones
+  functions:
+    enabled: true
+    config:
+      languages:
+        python:
+          mass_threshold: 100
+
+  # Análisis de clases
+  classes:
+    enabled: true
+    config:
+      languages:
+        python:
+          mass_threshold: 100
+
+  # Análisis de archivos
+  files:
+    enabled: true
+    config:
+      languages:
+        python:
+          mass_threshold: 100
+
+  # Análisis de directorios
+  directories:
+    enabled: true
+    config:
+      languages:
+        python:
+          mass_threshold: 100
+
+  # Análisis de extensiones
+  extensions:
+    enabled: true
+    config:
+      languages:
+        python:
+          mass_threshold: 100
+
+  # Análisis de patrones
+  patterns:
+    enabled: true
+    config:
+      languages:
+        python:
+          mass_threshold: 100
+
+  # Análisis de filtros
+  filters:
+    enabled: true
+    config:
+      languages:
+        python:
+          mass_threshold: 100
+
+  # Análisis de transformaciones
+  transformations:
+    enabled: true
+    config:
+      languages:
+        python:
+          mass_threshold: 100
+
+  # Análisis de validaciones
+  validations:
+    enabled: true
+    config:
+      languages:
+        python:
+          mass_threshold: 100
+
+  # Análisis de reglas personalizadas
+  custom_rules:
+    enabled: true
+    config:
+      languages:
+        python:
+          mass_threshold: 100
+
+  # Análisis de plugins
+  plugins:
+    enabled: true
+    config:
+      languages:
+        python:
+          mass_threshold: 100
+
+  # Análisis de módulos
+  modules:
+    enabled: true
+    config:
+      languages:
+        python:
+          mass_threshold: 100
+
+  # Análisis de componentes
+  components:
+    enabled: true
+    config:
+      languages:
+        python:
+          mass_threshold: 100
+
+  # Análisis de dependencias
+  dependencies:
+    enabled: true
+    config:
+      languages:
+        python:
+          mass_threshold: 100
+
+  # Análisis de interfaces
+  interfaces:
+    enabled: true
+    config:
+      languages:
+        python:
+          mass_threshold: 100
+
+  # Análisis de implementaciones
+  implementations:
+    enabled: true
+    config:
+      languages:
+        python:
+          mass_threshold: 100
+
+  # Análisis de abstracciones
+  abstractions:
+    enabled: true
+    config:
+      languages:
+        python:
+          mass_threshold: 100
+
+  # Análisis de herencia
+  inheritance:
+    enabled: true
+    config:
+      languages:
+        python:
+          mass_threshold: 100
+
+  # Análisis de polimorfismo
+  polymorphism:
+    enabled: true
+    config:
+      languages:
+        python:
+          mass_threshold: 100
+
+  # Análisis de encapsulación
+  encapsulation:
+    enabled: true
+    config:
+      languages:
+        python:
+          mass_threshold: 100
+
+  # Análisis de cohesión
+  cohesion:
+    enabled: true
+    config:
+      languages:
+        python:
+          mass_threshold: 100
+
+  # Análisis de acoplamiento
+  coupling:
+    enabled: true
+    config:
+      languages:
+        python:
+          mass_threshold: 100
+
+  # Análisis de responsabilidad
+  responsibility:
+    enabled: true
+    config:
+      languages:
+        python:
+          mass_threshold: 100
+
+  # Análisis de principio único
+  single_responsibility:
+    enabled: true
+    config:
+      languages:
+        python:
+          mass_threshold: 100
+
+  # Análisis de principio abierto/cerrado
+  open_closed:
+    enabled: true
+    config:
+      languages:
+        python:
+          mass_threshold: 100
+
+  # Análisis de principio de sustitución
+  liskov_substitution:
+    enabled: true
+    config:
+      languages:
+        python:
+          mass_threshold: 100
+
+  # Análisis de principio de segregación
+  interface_segregation:
+    enabled: true
+    config:
+      languages:
+        python:
+          mass_threshold: 100
+
+  # Análisis de principio de inversión
+  dependency_inversion:
+    enabled: true
+    config:
+      languages:
+        python:
+          mass_threshold: 100
+
+# Configuración de reglas
+rules:
+  # Reglas de duplicación
+  duplication:
+    enabled: true
+    config:
+      languages:
+        python:
+          mass_threshold: 100
+
+  # Reglas de complejidad
+  complexity:
+    enabled: true
+    config:
+      languages:
+        python:
+          mass_threshold: 100
+
+  # Reglas de mantenibilidad
+  maintainability:
+    enabled: true
+    config:
+      languages:
+        python:
+          mass_threshold: 100
+
+  # Reglas de confiabilidad
+  reliability:
+    enabled: true
+    config:
+      languages:
+        python:
+          mass_threshold: 100
+
+  # Reglas de seguridad
+  security:
+    enabled: true
+    config:
+      languages:
+        python:
+          mass_threshold: 100
+
+  # Reglas de portabilidad
+  portability:
+    enabled: true
+    config:
+      languages:
+        python:
+          mass_threshold: 100
+
+  # Reglas de usabilidad
+  usability:
+    enabled: true
+    config:
+      languages:
+        python:
+          mass_threshold: 100
+
+  # Reglas de eficiencia
+  efficiency:
+    enabled: true
+    config:
+      languages:
+        python:
+          mass_threshold: 100
+
+  # Reglas de documentación
+  documentation:
+    enabled: true
+    config:
+      languages:
+        python:
+          mass_threshold: 100
+
+  # Reglas de comentarios
+  comments:
+    enabled: true
+    config:
+      languages:
+        python:
+          mass_threshold: 100
+
+  # Reglas de líneas de código
+  lines:
+    enabled: true
+    config:
+      languages:
+        python:
+          mass_threshold: 100
+
+  # Reglas de funciones
+  functions:
+    enabled: true
+    config:
+      languages:
+        python:
+          mass_threshold: 100
+
+  # Reglas de clases
+  classes:
+    enabled: true
+    config:
+      languages:
+        python:
+          mass_threshold: 100
+
+  # Reglas de archivos
+  files:
+    enabled: true
+    config:
+      languages:
+        python:
+          mass_threshold: 100
+
+  # Reglas de directorios
+  directories:
+    enabled: true
+    config:
+      languages:
+        python:
+          mass_threshold: 100
+
+  # Reglas de extensiones
+  extensions:
+    enabled: true
+    config:
+      languages:
+        python:
+          mass_threshold: 100
+
+  # Reglas de patrones
+  patterns:
+    enabled: true
+    config:
+      languages:
+        python:
+          mass_threshold: 100
+
+  # Reglas de filtros
+  filters:
+    enabled: true
+    config:
+      languages:
+        python:
+          mass_threshold: 100
+
+  # Reglas de transformaciones
+  transformations:
+    enabled: true
+    config:
+      languages:
+        python:
+          mass_threshold: 100
+
+  # Reglas de validaciones
+  validations:
+    enabled: true
+    config:
+      languages:
+        python:
+          mass_threshold: 100
+
+  # Reglas de reglas personalizadas
+  custom_rules:
+    enabled: true
+    config:
+      languages:
+        python:
+          mass_threshold: 100
+
+  # Reglas de plugins
+  plugins:
+    enabled: true
+    config:
+      languages:
+        python:
+          mass_threshold: 100
+
+  # Reglas de módulos
+  modules:
+    enabled: true
+    config:
+      languages:
+        python:
+          mass_threshold: 100
+
+  # Reglas de componentes
+  components:
+    enabled: true
+    config:
+      languages:
+        python:
+          mass_threshold: 100
+
+  # Reglas de dependencias
+  dependencies:
+    enabled: true
+    config:
+      languages:
+        python:
+          mass_threshold: 100
+
+  # Reglas de interfaces
+  interfaces:
+    enabled: true
+    config:
+      languages:
+        python:
+          mass_threshold: 100
+
+  # Reglas de implementaciones
+  implementations:
+    enabled: true
+    config:
+      languages:
+        python:
+          mass_threshold: 100
+
+  # Reglas de abstracciones
+  abstractions:
+    enabled: true
+    config:
+      languages:
+        python:
+          mass_threshold: 100
+
+  # Reglas de herencia
+  inheritance:
+    enabled: true
+    config:
+      languages:
+        python:
+          mass_threshold: 100
+
+  # Reglas de polimorfismo
+  polymorphism:
+    enabled: true
+    config:
+      languages:
+        python:
+          mass_threshold: 100
+
+  # Reglas de encapsulación
+  encapsulation:
+    enabled: true
+    config:
+      languages:
+        python:
+          mass_threshold: 100
+
+  # Reglas de cohesión
+  cohesion:
+    enabled: true
+    config:
+      languages:
+        python:
+          mass_threshold: 100
+
+  # Reglas de acoplamiento
+  coupling:
+    enabled: true
+    config:
+      languages:
+        python:
+          mass_threshold: 100
+
+  # Reglas de responsabilidad
+  responsibility:
+    enabled: true
+    config:
+      languages:
+        python:
+          mass_threshold: 100
+
+  # Reglas de principio único
+  single_responsibility:
+    enabled: true
+    config:
+      languages:
+        python:
+          mass_threshold: 100
+
+  # Reglas de principio abierto/cerrado
+  open_closed:
+    enabled: true
+    config:
+      languages:
+        python:
+          mass_threshold: 100
+
+  # Reglas de principio de sustitución
+  liskov_substitution:
+    enabled: true
+    config:
+      languages:
+        python:
+          mass_threshold: 100
+
+  # Reglas de principio de segregación
+  interface_segregation:
+    enabled: true
+    config:
+      languages:
+        python:
+          mass_threshold: 100
+
+  # Reglas de principio de inversión
+  dependency_inversion:
+    enabled: true
+    config:
+      languages:
+        python:
+          mass_threshold: 100
+
+
+
+
+
+

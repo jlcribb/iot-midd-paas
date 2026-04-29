@@ -1,0 +1,11 @@
+# Dependencias Opcionales para Pruebas - IoT Middleware
+# =====================================================
+# Estas dependencias son opcionales y solo se necesitan para tests específicos
+
+# Base de datos de prueba (requiere psycopg-binary)
+# Instalar solo si necesitas tests de integración con PostgreSQL
+psycopg-binary>=3.0.0
+pytest-postgresql>=5.0.0
+
+# Redis de prueba
+pytest-redis>=3.0.0

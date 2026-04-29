@@ -1,0 +1,55 @@
+# Dependencias para pruebas - IoT Middleware
+# ==========================================
+
+# Framework de pruebas
+pytest>=7.4.0
+pytest-cov>=4.1.0
+pytest-mock>=3.11.1
+pytest-asyncio>=0.21.1
+pytest-xdist>=3.3.1
+
+# Mocks y fixtures
+# unittest.mock está incluido en Python 3.3+, no necesita instalación
+responses>=0.23.1
+freezegun>=1.2.2
+
+# Cobertura de código
+coverage>=7.2.7
+coverage-badge>=1.1.0
+
+# Análisis de código
+pylint>=2.17.5
+black>=23.7.0
+isort>=5.12.0
+flake8>=6.0.0
+
+# Pruebas de rendimiento
+pytest-benchmark>=4.0.0
+memory-profiler>=0.61.0
+
+# Pruebas de seguridad
+bandit>=1.7.5
+safety>=2.3.5
+
+# Utilidades de prueba
+faker>=19.3.1
+factory-boy>=3.3.0
+hypothesis>=6.82.1
+
+# Reportes
+pytest-html>=3.2.0
+pytest-json-report>=1.5.0
+allure-pytest>=2.13.2
+
+# Base de datos de prueba
+# pytest-postgresql y pytest-redis son opcionales
+# Solo instalar si necesitas tests de integración con BD
+# pytest-postgresql>=5.0.0  # Requiere psycopg-binary>=3.0.0
+# pytest-redis>=3.0.0
+
+# MQTT de prueba
+paho-mqtt>=1.6.1
+
+# HTTP de prueba
+httpx>=0.24.1
+requests-mock>=1.11.0

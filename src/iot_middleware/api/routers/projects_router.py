@@ -17,14 +17,22 @@ from ..models.common_models import (
     PaginationParams
 )
 from ..models.data_models import TimeSeriesRequest, TimeSeriesResponse
-from ..auth import AuthMiddleware, RoleChecker, ScopeHandler
-from ...storage.db_handler import DatabaseHandler
+from ..auth import AuthMiddleware, RoleChecker, ScopeHandler, JWTHandler
+from ...storage.db_handler import create_database_handler
 from ...storage.repositories import ProyectoRepository, CanalRepository, RegistroDatosRepository
 from ...models.entities import Usuario, Proyecto
 from ...models.enums import RolUsuario
 
 # Configurar logging
 logger = logging.getLogger(__name__)
+
+
+def _get_db_handler(request: Request):
+    return create_database_handler(config=request.app.state.config)
+
+
+def _metadata_value(record):
+    return getattr(record, "metadatos", getattr(record, "metadata", None))
 
 # Crear router
 projects_router = APIRouter(
@@ -60,8 +68,7 @@ async def get_projects(
     """
     try:
         # Obtener configuración y repositorios
-        config = request.app.state.config
-        db_handler = DatabaseHandler(config['postgresql'])
+        db_handler = _get_db_handler(request)
         proyecto_repo = ProyectoRepository(db_handler)
         scope_handler = ScopeHandler()
         
@@ -141,8 +148,7 @@ async def get_project(
     """
     try:
         # Obtener configuración y repositorios
-        config = request.app.state.config
-        db_handler = DatabaseHandler(config['postgresql'])
+        db_handler = _get_db_handler(request)
         proyecto_repo = ProyectoRepository(db_handler)
         scope_handler = ScopeHandler()
         
@@ -225,8 +231,7 @@ async def get_project_time_series(
             )
         
         # Obtener configuración y repositorios
-        config = request.app.state.config
-        db_handler = DatabaseHandler(config['postgresql'])
+        db_handler = _get_db_handler(request)
         proyecto_repo = ProyectoRepository(db_handler)
         canal_repo = CanalRepository(db_handler)
         registro_repo = RegistroDatosRepository(db_handler)
@@ -300,7 +305,7 @@ async def get_project_time_series(
                 "valor": valor,
                 "calidad": registro.calidad,
                 "calidad_porcentaje": registro.calidad_porcentaje,
-                "metadata": registro.metadata
+                "metadata": _metadata_value(registro)
             })
         
         # Crear respuesta
@@ -345,7 +350,7 @@ async def create_project(
     """
     try:
         # Verificar permisos
-        role_checker = RoleChecker(AuthMiddleware(JWTHandler(), DatabaseHandler({})))
+        role_checker = RoleChecker(AuthMiddleware(JWTHandler(), _get_db_handler(request)))
         if not role_checker.check_permission(current_user, "project_management"):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -353,8 +358,7 @@ async def create_project(
             )
         
         # Obtener configuración y repositorios
-        config = request.app.state.config
-        db_handler = DatabaseHandler(config['postgresql'])
+        db_handler = _get_db_handler(request)
         proyecto_repo = ProyectoRepository(db_handler)
         
         # Crear proyecto
@@ -400,8 +404,7 @@ async def update_project(
     """
     try:
         # Obtener configuración y repositorios
-        config = request.app.state.config
-        db_handler = DatabaseHandler(config['postgresql'])
+        db_handler = _get_db_handler(request)
         proyecto_repo = ProyectoRepository(db_handler)
         scope_handler = ScopeHandler()
         
@@ -414,7 +417,7 @@ async def update_project(
             )
         
         # Verificar permisos
-        role_checker = RoleChecker(AuthMiddleware(JWTHandler(), DatabaseHandler({})))
+        role_checker = RoleChecker(AuthMiddleware(JWTHandler(), _get_db_handler(request)))
         if not role_checker.check_permission(current_user, "project_management", proyecto_id):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -469,8 +472,7 @@ async def delete_project(
             )
         
         # Obtener configuración y repositorios
-        config = request.app.state.config
-        db_handler = DatabaseHandler(config['postgresql'])
+        db_handler = _get_db_handler(request)
         proyecto_repo = ProyectoRepository(db_handler)
         
         # Verificar que el proyecto existe
@@ -511,8 +513,7 @@ async def get_current_user(request: Request) -> Usuario:
     """Obtener usuario actual desde el request"""
     try:
         # Obtener configuración
-        config = request.app.state.config
-        db_handler = DatabaseHandler(config['postgresql'])
+        db_handler = _get_db_handler(request)
         
         # Inicializar manejadores
         jwt_handler = JWTHandler()

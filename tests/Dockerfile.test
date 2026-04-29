@@ -1,0 +1,56 @@
+# Dockerfile para Pruebas - IoT Middleware
+# =======================================
+
+FROM python:3.9-slim
+
+# Metadatos
+LABEL maintainer="IoT Middleware Team"
+LABEL description="Imagen Docker para ejecutar pruebas del IoT Middleware"
+LABEL version="1.0.0"
+
+# Variables de entorno
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV TEST_ENV=true
+ENV PYTHONPATH=/app/src
+
+# Instalar dependencias del sistema
+RUN apt-get update && apt-get install -y \
+    postgresql-client \
+    redis-tools \
+    curl \
+    wget \
+    git \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Crear directorio de trabajo
+WORKDIR /app
+
+# Copiar archivos de dependencias
+COPY requirements.txt .
+COPY tests/requirements-test.txt tests/
+
+# Instalar dependencias de Python
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt && \
+    pip install --no-cache-dir -r tests/requirements-test.txt
+
+# Copiar código fuente
+COPY src/ src/
+COPY tests/ tests/
+COPY config.yaml .
+COPY alembic.ini .
+COPY alembic/ alembic/
+
+# Crear directorio para reportes
+RUN mkdir -p reports
+
+# Configurar permisos
+RUN chmod +x tests/install_test_dependencies.sh
+
+# Comando por defecto
+CMD ["pytest", "tests/", "-v", "--cov=src/iot_middleware", "--cov-report=html", "--cov-report=term-missing"]
+
+
+

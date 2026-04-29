@@ -4,7 +4,7 @@
 # Configuración MQTT
 mqtt:
   broker:
-    host: "localhost"
+    host: "mosquitto"
     port: 1883
     username: "iot_user"
     password: "iot_password"
@@ -27,9 +27,7 @@ mqtt:
       - "iot/alarms/+"
       - "iot/health/+"
   
-  qos:
-    subscribe: 1
-    publish: 1
+  qos: 1
   
   reconnect:
     enabled: true
@@ -38,31 +36,40 @@ mqtt:
     max_delay: 60.0
     backoff_multiplier: 2.0
 
+# Configuración de PostgreSQL (requerido)
+postgresql:
+  host: "postgresql"
+  port: 5432
+  database: "iot_middleware"
+  username: "iot_user"
+  password: "iot_password_2024"
+  db_schema: "iot_schema"
+  pool_size: 10
+  max_overflow: 20
+  pool_timeout: 30
+  pool_recycle: 3600
+
+# Configuración de InfluxDB (requerido)
+influxdb:
+  url: "http://influxdb:8086"
+  token: "dev-token"
+  org: "my-org"
+  bucket: "iot"
+  retention_policy: "30d"
+  batch_size: 1000
+  flush_interval: 10
+
 # Configuración de Almacenamiento
 storage:
-  type: "postgresql"  # postgresql, influxdb, hybrid
-  
-  postgresql:
-    host: "localhost"
-    port: 5432
-    database: "iot_middleware"
-    username: "iot_user"
-    password: "iot_password"
-    schema: "iot_schema"
-    pool_size: 10
-    max_overflow: 20
-    pool_timeout: 30
-    pool_recycle: 3600
-    echo: false
-  
-  influxdb:
-    url: "http://localhost:8086"
-    token: "your_influxdb_token"
-    org: "iot_org"
-    bucket: "iot_data"
-    retention_policy: "30d"
-    batch_size: 1000
-    flush_interval: 10
+  timeseries:
+    provider: "influxdb"
+    enabled: true
+  relational:
+    provider: "postgresql"
+    enabled: true
+  metadata:
+    provider: "postgresql"
+    enabled: true
 
 # Configuración de Procesamiento
 processing:
@@ -252,7 +259,8 @@ logging:
 # Configuración de Monitoreo
 monitoring:
   enabled: true
-  metrics_interval: 30  # segundos
+  health_check_interval: 30
+  metrics_collection: true
   
   health_check:
     enabled: true
@@ -277,6 +285,20 @@ monitoring:
     slack:
       webhook_url: "https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK"
       channel: "#iot-alerts"
+
+# Configuración de RabbitMQ para comunicación asíncrona
+rabbitmq:
+  host: "rabbitmq"
+  port: 5672
+  username: "guest"
+  password: "guest"
+  virtual_host: "/"
+  exchange: "iot_middleware"
+  queue_prefix: "iot"
+  heartbeat: 600
+  connection_attempts: 3
+  retry_delay: 5
+  enable_monitoring: true
 
 # Configuración de Seguridad
 security:

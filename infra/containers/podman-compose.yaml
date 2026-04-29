@@ -1,0 +1,185 @@
+# Alias deprecated de compatibilidad.
+# No usar este archivo como entrypoint operativo.
+# Ruta canónica:
+# docker compose -f infra/containers/docker-compose.yaml up -d
+# (Las rutas relativas son respecto al directorio de este archivo: infra/containers/)
+# Pipeline de estado / arranque / recreación: scripts/docker-stack.sh help
+# Instructivo para constatación académica: docs/INSTRUCTIVO_DOCKER_JURADO.md
+# Checklist de capturas para memoria/informe: docs/ANEXO_CAPTURAS_DOCKER_JURADO.md
+services:
+  mosquitto:
+    image: docker.io/eclipse-mosquitto:2
+    container_name: mosquitto
+    volumes:
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf
+      # Volumen explícito: la imagen ya declara VOLUME /mosquitto/data; no usar tmpfs
+      # adicional en la misma ruta.
+      - mosquitto_data:/mosquitto/data
+    ports:
+      - "1883:1883"
+
+  influxdb:
+    image: docker.io/influxdb:2
+    container_name: influxdb
+    environment:
+      - DOCKER_INFLUXDB_INIT_MODE=setup
+      - DOCKER_INFLUXDB_INIT_USERNAME=admin
+      - DOCKER_INFLUXDB_INIT_PASSWORD=admin123
+      - DOCKER_INFLUXDB_INIT_ORG=my-org
+      - DOCKER_INFLUXDB_INIT_BUCKET=iot
+      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=dev-token
+    volumes:
+      - influxdb_data:/var/lib/influxdb2
+    ports:
+      - "8086:8086"
+
+  postgresql:
+    image: docker.io/postgis/postgis:16-3.4
+    container_name: postgresql
+    environment:
+      - POSTGRES_DB=iot_middleware
+      - POSTGRES_USER=iot_user
+      - POSTGRES_PASSWORD=iot_password_2024
+      - POSTGRES_INITDB_ARGS=--encoding=UTF-8 --lc-collate=C --lc-ctype=C
+    volumes:
+      - postgresql_data:/var/lib/postgresql/data
+      - ./postgresql/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U iot_user -d iot_middleware"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    image: docker.io/python:3.12-slim
+    working_dir: /app
+    container_name: iotmw-api
+    command: bash -lc "pip install --no-cache-dir -r /app/requirements.txt && PYTHONPATH=/app/src python -m alembic upgrade head && PYTHONPATH=/app/src uvicorn iot_middleware.api.api:app --host 0.0.0.0 --port 8000 --reload"
+    environment:
+      - INFLUX_TOKEN=dev-token
+      - MQTT_PASSWORD=secret
+      - POSTGRES_HOST=postgresql
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=iot_middleware
+      - POSTGRES_USER=iot_user
+      - POSTGRES_PASSWORD=iot_password_2024
+      - DB_HOST=postgresql
+      - DB_PORT=5432
+      - DB_NAME=iot_middleware
+      - DB_USER=iot_user
+      - DB_PASSWORD=iot_password_2024
+    volumes:
+      - ../..:/app
+      - ../../config.yaml:/config/config.yaml
+    ports:
+      - "8000:8000"
+    depends_on:
+      - influxdb
+      - mosquitto
+      - postgresql
+
+  ingestor:
+    image: docker.io/python:3.12-slim
+    working_dir: /app
+    container_name: iotmw-ingestor
+    command: bash -lc "pip install --no-cache-dir -r /app/requirements.txt && PYTHONPATH=/app/src python -m iot_middleware.services.ingestor"
+    environment:
+      - INFLUX_TOKEN=dev-token
+      - MQTT_PASSWORD=secret
+      - POSTGRES_HOST=postgresql
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=iot_middleware
+      - POSTGRES_USER=iot_user
+      - POSTGRES_PASSWORD=iot_password_2024
+    volumes:
+      - ../..:/app
+      - ../../config.yaml:/config/config.yaml
+    depends_on:
+      - influxdb
+      - mosquitto
+      - postgresql
+
+  rabbitmq:
+    image: docker.io/rabbitmq:3-management
+    container_name: rabbitmq
+    environment:
+      - RABBITMQ_DEFAULT_USER=guest
+      - RABBITMQ_DEFAULT_PASS=guest
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+
+  dashboard:
+    image: docker.io/python:3.12-slim
+    working_dir: /app
+    container_name: iotmw-dashboard
+    command: bash -lc "pip install --no-cache-dir -r /app/apps/monitoring-dashboard/requirements.txt && PYTHONPATH=/app/src python -m containers.dashboard.main"
+    environment:
+      - DASHBOARD_PORT=8080
+      - DASHBOARD_HOST=0.0.0.0
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+      - RABBITMQ_USERNAME=guest
+      - RABBITMQ_PASSWORD=guest
+      - RABBITMQ_EXCHANGE=iot_middleware
+      - RABBITMQ_QUEUE_PREFIX=iot
+    volumes:
+      - ../..:/app
+      - ../../config.yaml:/app/config.yaml
+    ports:
+      - "8080:8080"
+    depends_on:
+      - rabbitmq
+
+  admin:
+    image: docker.io/python:3.12-slim
+    working_dir: /app
+    container_name: iotmw-admin
+    command: bash -lc "pip install --no-cache-dir -r /app/apps/admin-fastapi/requirements.txt && PYTHONPATH=/app/src python -m containers.admin.main"
+    environment:
+      - ADMIN_PORT=9000
+      - ADMIN_HOST=0.0.0.0
+      - CONFIG_PATH=/app/config.yaml
+      - POSTGRES_HOST=postgresql
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=iot_middleware
+      - POSTGRES_USER=iot_user
+      - POSTGRES_PASSWORD=iot_password_2024
+    volumes:
+      - ../..:/app
+      - ../../config.yaml:/app/config.yaml
+    ports:
+      - "9000:9000"
+    depends_on:
+      - postgresql
+
+  topology-ui:
+    image: docker.io/node:20-alpine
+    working_dir: /app/apps/topology-next
+    container_name: iotmw-topology-ui
+    command: sh -lc "if [ ! -d node_modules ]; then npm install; fi && npm run dev -- --hostname 0.0.0.0 --port 3000"
+    environment:
+      - DB_HOST=postgresql
+      - DB_PORT=5432
+      - DB_NAME=iot_middleware
+      - DB_USER=iot_user
+      - DB_PASSWORD=iot_password_2024
+      - DB_SSL=false
+      - NODE_ENV=development
+      - NEXT_TELEMETRY_DISABLED=1
+    volumes:
+      - ../..:/app
+    ports:
+      - "3000:3000"
+    depends_on:
+      - postgresql
+
+volumes:
+  influxdb_data: {}
+  mosquitto_data: {}
+  postgresql_data: {}
+  rabbitmq_data: {}

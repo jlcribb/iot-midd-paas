@@ -6,11 +6,11 @@ Este módulo define los modelos Pydantic para las operaciones
 de autenticación de la API.
 """
 
-from typing import Optional
-from pydantic import BaseModel, EmailStr, Field
+from typing import Optional, Union
+from pydantic import BaseModel, EmailStr, Field, field_validator, ConfigDict
 from datetime import datetime
 
-from ...models.enums import RolUsuario
+from ...models.enums import RolUsuario, rol_to_pydantic
 
 
 class LoginRequest(BaseModel):
@@ -26,15 +26,20 @@ class UserInfo(BaseModel):
     id: str = Field(..., description="ID único del usuario")
     email: EmailStr = Field(..., description="Email del usuario")
     nombre: str = Field(..., description="Nombre completo del usuario")
-    rol: RolUsuario = Field(..., description="Rol del usuario en el sistema")
+    rol: Union[RolUsuario, str] = Field(..., description="Rol del usuario en el sistema")
     cliente_id: Optional[str] = Field(None, description="ID del cliente asociado")
     proyecto_id: Optional[str] = Field(None, description="ID del proyecto asociado")
     unidad_id: Optional[str] = Field(None, description="ID de la unidad asociada")
     activo: bool = Field(..., description="Estado activo del usuario")
     ultimo_acceso: Optional[datetime] = Field(None, description="Último acceso del usuario")
     
-    class Config:
-        from_attributes = True
+    @field_validator('rol', mode='before')
+    @classmethod
+    def convert_rol(cls, v):
+        """Convierte rol de SQLAlchemy a enum de Python para Pydantic"""
+        return rol_to_pydantic(v)
+    
+    model_config = ConfigDict(from_attributes=True)
 
 
 class TokenInfo(BaseModel):
@@ -53,8 +58,7 @@ class LoginResponse(BaseModel):
     message: str = Field(..., description="Mensaje descriptivo de la respuesta")
     data: dict = Field(..., description="Datos de la respuesta")
     
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "success": True,
                 "message": "Autenticación exitosa",
@@ -78,7 +82,7 @@ class LoginResponse(BaseModel):
                     }
                 }
             }
-        }
+        })
 
 
 class RefreshTokenRequest(BaseModel):
@@ -94,8 +98,7 @@ class RefreshTokenResponse(BaseModel):
     message: str = Field(..., description="Mensaje descriptivo de la respuesta")
     data: TokenInfo = Field(..., description="Nuevo token de acceso")
     
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "success": True,
                 "message": "Token refrescado exitosamente",
@@ -106,7 +109,7 @@ class RefreshTokenResponse(BaseModel):
                     "expires_in": 1800
                 }
             }
-        }
+        })
 
 
 class LogoutRequest(BaseModel):
@@ -121,13 +124,12 @@ class LogoutResponse(BaseModel):
     success: bool = Field(default=True, description="Indica si la operación fue exitosa")
     message: str = Field(..., description="Mensaje descriptivo de la respuesta")
     
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "success": True,
                 "message": "Logout exitoso"
             }
-        }
+        })
 
 
 class ChangePasswordRequest(BaseModel):
@@ -151,10 +153,9 @@ class ChangePasswordResponse(BaseModel):
     success: bool = Field(default=True, description="Indica si la operación fue exitosa")
     message: str = Field(..., description="Mensaje descriptivo de la respuesta")
     
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "success": True,
                 "message": "Contraseña cambiada exitosamente"
             }
-        }
+        })

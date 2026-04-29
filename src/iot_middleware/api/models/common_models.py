@@ -7,7 +7,7 @@ en toda la API del IoT Middleware.
 """
 
 from typing import Generic, TypeVar, Optional, List, Any
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from datetime import datetime
 
 # Tipo genérico para los datos de respuesta
@@ -58,8 +58,7 @@ class PaginatedResponse(BaseModel, Generic[T]):
     data: List[T] = Field(..., description="Lista de elementos")
     pagination: PaginationInfo = Field(..., description="Información de paginación")
     
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "success": True,
                 "message": "Datos obtenidos exitosamente",
@@ -73,7 +72,7 @@ class PaginatedResponse(BaseModel, Generic[T]):
                     "has_prev": False
                 }
             }
-        }
+        })
 
 
 class SuccessResponse(BaseModel, Generic[T]):
@@ -83,14 +82,13 @@ class SuccessResponse(BaseModel, Generic[T]):
     message: str = Field(..., description="Mensaje descriptivo de la respuesta")
     data: Optional[T] = Field(None, description="Datos de la respuesta")
     
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "success": True,
                 "message": "Operación realizada exitosamente",
                 "data": None
             }
-        }
+        })
 
 
 class ErrorResponse(BaseModel):
@@ -102,8 +100,7 @@ class ErrorResponse(BaseModel):
     details: Optional[dict] = Field(None, description="Detalles adicionales del error")
     timestamp: datetime = Field(default_factory=datetime.utcnow, description="Timestamp del error")
     
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "success": False,
                 "message": "Error al procesar la solicitud",
@@ -114,7 +111,7 @@ class ErrorResponse(BaseModel):
                 },
                 "timestamp": "2025-08-16T00:00:00Z"
             }
-        }
+        })
 
 
 class ValidationError(BaseModel):
@@ -130,8 +127,7 @@ class ValidationErrorResponse(ErrorResponse):
     
     errors: List[ValidationError] = Field(..., description="Lista de errores de validación")
     
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "success": False,
                 "message": "Error de validación",
@@ -145,7 +141,7 @@ class ValidationErrorResponse(ErrorResponse):
                 ],
                 "timestamp": "2025-08-16T00:00:00Z"
             }
-        }
+        })
 
 
 class HealthCheckResponse(BaseModel):
@@ -156,8 +152,7 @@ class HealthCheckResponse(BaseModel):
     version: str = Field(..., description="Versión de la API")
     services: dict = Field(..., description="Estado de los servicios")
     
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "status": "healthy",
                 "timestamp": "2025-08-16T00:00:00Z",
@@ -168,7 +163,7 @@ class HealthCheckResponse(BaseModel):
                     "storage": "healthy"
                 }
             }
-        }
+        })
 
 
 class BulkOperationRequest(BaseModel):
@@ -189,8 +184,7 @@ class BulkOperationResponse(BaseModel):
     failed_items: int = Field(..., description="Elementos que fallaron")
     errors: Optional[List[dict]] = Field(None, description="Detalles de los errores")
     
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "success": True,
                 "message": "Operación en lote completada",
@@ -204,7 +198,7 @@ class BulkOperationResponse(BaseModel):
                     }
                 ]
             }
-        }
+        })
 
 
 class SearchRequest(BaseModel):
@@ -227,8 +221,7 @@ class SearchResponse(BaseModel, Generic[T]):
     total_results: int = Field(..., description="Total de resultados encontrados")
     pagination: Optional[PaginationInfo] = Field(None, description="Información de paginación")
     
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "success": True,
                 "message": "Búsqueda completada exitosamente",
@@ -237,4 +230,4 @@ class SearchResponse(BaseModel, Generic[T]):
                 "total_results": 50,
                 "pagination": None
             }
-        }
+        })

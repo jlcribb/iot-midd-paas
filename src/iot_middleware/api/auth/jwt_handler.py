@@ -110,19 +110,14 @@ class JWTHandler:
         """
         try:
             payload = jwt.decode(token, self.secret_key, algorithms=[self.algorithm])
-            
-            # Verificar que no haya expirado
-            if datetime.fromtimestamp(payload.get("exp", 0)) < datetime.utcnow():
-                logger.warning("Token expirado")
-                return None
-            
+
             logger.debug(f"Token verificado para usuario: {payload.get('sub', 'unknown')}")
             return payload
             
         except jwt.ExpiredSignatureError:
             logger.warning("Token expirado")
             return None
-        except jwt.JWTError as e:
+        except jwt.InvalidTokenError as e:
             logger.warning(f"Token JWT inválido: {e}")
             return None
         except Exception as e:
@@ -193,11 +188,13 @@ class JWTHandler:
             Diccionario con tokens de acceso y refresco
         """
         try:
+            rol_value = usuario.rol.value if hasattr(usuario.rol, "value") else usuario.rol
+
             # Datos del token
             token_data = {
                 "sub": str(usuario.id),
                 "email": usuario.email,
-                "rol": usuario.rol,
+                "rol": rol_value,
                 "cliente_id": str(usuario.cliente_id) if usuario.cliente_id else None,
                 "proyecto_id": str(usuario.proyecto_id) if usuario.proyecto_id else None,
                 "unidad_id": str(usuario.unidad_id) if usuario.unidad_id else None,

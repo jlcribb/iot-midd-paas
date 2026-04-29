@@ -20,7 +20,8 @@ from .config_loader import (
     NormalizerConfig,
     StorageConfig,
     SecurityConfig,
-    MonitoringConfig
+    MonitoringConfig,
+    RabbitMQConfig
 )
 
 __all__ = [
@@ -37,7 +38,8 @@ __all__ = [
     'NormalizerConfig',
     'StorageConfig',
     'SecurityConfig',
-    'MonitoringConfig'
+    'MonitoringConfig',
+    'RabbitMQConfig'
 ]
 
 __version__ = "1.0.0"

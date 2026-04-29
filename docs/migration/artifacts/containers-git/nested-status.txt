@@ -1,0 +1,9 @@
+## main...origin/main
+A  development_log_20250812_190645.md
+A  iot_middleware_status_20250812_190637.txt
+AM mosquitto/mosquitto.conf
+AM podman-compose.yaml
+?? admin/
+?? dashboard/
+?? mosquitto/README.md
+?? postgresql/

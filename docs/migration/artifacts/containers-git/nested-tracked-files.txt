@@ -1,0 +1,5 @@
+README.md
+development_log_20250812_190645.md
+iot_middleware_status_20250812_190637.txt
+mosquitto/mosquitto.conf
+podman-compose.yaml

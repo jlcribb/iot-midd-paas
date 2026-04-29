@@ -23,12 +23,16 @@ from ..models.auth_models import (
 )
 from ..models.common_models import ErrorResponse
 from ..auth import JWTHandler, AuthMiddleware
-from ...storage.db_handler import DatabaseHandler
+from ...storage.db_handler import create_database_handler
 from ...models.entities import Usuario
-from ...config.config_loader import ConfigLoader
 
 # Configurar logging
 logger = logging.getLogger(__name__)
+
+
+def _get_db_handler(request: Request):
+    """Construye el manejador de base de datos desde la configuración cargada."""
+    return create_database_handler(config=request.app.state.config)
 
 # Crear router
 auth_router = APIRouter(
@@ -57,8 +61,7 @@ async def login(
     """
     try:
         # Obtener configuración
-        config = request.app.state.config
-        db_handler = DatabaseHandler(config['postgresql'])
+        db_handler = _get_db_handler(request)
         
         # Inicializar manejadores
         jwt_handler = JWTHandler()
@@ -93,7 +96,7 @@ async def login(
                 )
             
             # Actualizar último acceso
-            usuario.ultimo_acceso = datetime.utcnow()
+            usuario.ultimo_login = datetime.utcnow()
             session.commit()
             
             # Crear respuesta de autenticación
@@ -124,8 +127,7 @@ async def refresh_token(
     """
     try:
         # Obtener configuración
-        config = request.app.state.config
-        db_handler = DatabaseHandler(config['postgresql'])
+        db_handler = _get_db_handler(request)
         
         # Inicializar manejadores
         jwt_handler = JWTHandler()
@@ -170,8 +172,7 @@ async def logout(
     """
     try:
         # Obtener configuración
-        config = request.app.state.config
-        db_handler = DatabaseHandler(config['postgresql'])
+        db_handler = _get_db_handler(request)
         
         # Inicializar manejadores
         jwt_handler = JWTHandler()
@@ -226,8 +227,7 @@ async def change_password(
         password_data.validate_passwords()
         
         # Obtener configuración
-        config = request.app.state.config
-        db_handler = DatabaseHandler(config['postgresql'])
+        db_handler = _get_db_handler(request)
         
         # Verificar contraseña actual
         if not JWTHandler.verify_password(password_data.current_password, current_user.password_hash):
@@ -306,8 +306,7 @@ async def get_current_user(request: Request) -> Usuario:
     """Obtener usuario actual desde el request"""
     try:
         # Obtener configuración
-        config = request.app.state.config
-        db_handler = DatabaseHandler(config['postgresql'])
+        db_handler = _get_db_handler(request)
         
         # Inicializar manejadores
         jwt_handler = JWTHandler()

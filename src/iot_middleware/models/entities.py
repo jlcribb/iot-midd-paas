@@ -8,7 +8,7 @@ las entidades de la base de datos PostgreSQL.
 
 from sqlalchemy import (
     Column, String, Text, Boolean, Integer, Float, DateTime, Date, 
-    ForeignKey, UniqueConstraint, Index, CheckConstraint, PrimaryKeyConstraint, func
+    ForeignKey, UniqueConstraint, Index, CheckConstraint, PrimaryKeyConstraint, Identity, func
 )
 from sqlalchemy.dialects.postgresql import (
     UUID, JSONB, TIMESTAMP, INET, CITEXT
@@ -143,7 +143,7 @@ class Sesion(Base):
     estado = Column(String(50), default='activa')
     observaciones = Column(Text)
     configuracion = Column(JSONB, default=dict)
-    metadatos = Column(JSONB, default=dict)
+    metadatos = Column('metadata', JSONB, default=dict)
     creado_en = Column(TIMESTAMP(timezone=True), nullable=False, default=func.now())
     actualizado_en = Column(TIMESTAMP(timezone=True), nullable=False, default=func.now(), onupdate=func.now())
     creado_por = Column(UUID(as_uuid=True))
@@ -216,7 +216,7 @@ class DispositivoProyecto(Base):
     responsable = Column(Text)
     responsable_email = Column(Text)
     responsable_telefono = Column(Text)
-    metadatos = Column(JSONB, default=dict)
+    metadatos = Column('metadata', JSONB, default=dict)
     creado_en = Column(TIMESTAMP(timezone=True), nullable=False, default=func.now())
     actualizado_en = Column(TIMESTAMP(timezone=True), nullable=False, default=func.now(), onupdate=func.now())
     creado_por = Column(UUID(as_uuid=True))
@@ -282,7 +282,7 @@ class RegistroDatos(Base):
     __tablename__ = 'registros_datos'
     __table_args__ = {'schema': 'iot_schema'}
     
-    id = Column(Integer, primary_key=True)
+    id = Column(Integer, Identity(), nullable=False)
     canal_id = Column(UUID(as_uuid=True), ForeignKey('iot_schema.canales.id'), nullable=False)
     ts = Column(TIMESTAMP(timezone=True), nullable=False)
     valor_num = Column(Float)
@@ -292,7 +292,7 @@ class RegistroDatos(Base):
     valor_json = Column(JSONB)
     calidad = Column(create_postgresql_enum(CalidadDato), default=CalidadDato.OK)
     calidad_porcentaje = Column(Integer, default=100)
-    metadatos = Column(JSONB, default=dict)
+    metadatos = Column('metadata', JSONB, default=dict)
     procesado = Column(Boolean, default=False)
     validado = Column(Boolean, default=False)
     
@@ -310,7 +310,7 @@ class RegistroDatos(Base):
         Index('idx_reg_datos_procesado', 'procesado'),
         Index('idx_reg_datos_validado', 'validado'),
         # Índice GIN para metadatos JSONB
-        Index('idx_reg_metadata', 'metadatos', postgresql_using='gin'),
+        Index('idx_reg_metadata', 'metadata', postgresql_using='gin'),
         {'schema': 'iot_schema'}
     )
 
@@ -336,7 +336,7 @@ class EventoAlarma(Base):
     resuelta_por = Column(UUID(as_uuid=True))
     resuelta_en = Column(TIMESTAMP(timezone=True))
     comentarios = Column(Text)
-    metadatos = Column(JSONB, default=dict)
+    metadatos = Column('metadata', JSONB, default=dict)
     creado_en = Column(TIMESTAMP(timezone=True), nullable=False, default=func.now())
     actualizado_en = Column(TIMESTAMP(timezone=True), nullable=False, default=func.now(), onupdate=func.now())
     creado_por = Column(UUID(as_uuid=True))
@@ -374,7 +374,7 @@ class Usuario(Base):
     activo = Column(Boolean, nullable=False, default=True)
     ultimo_login = Column(TIMESTAMP(timezone=True))
     configuracion = Column(JSONB, default=dict)
-    metadatos = Column(JSONB, default=dict)
+    metadatos = Column('metadata', JSONB, default=dict)
     creado_en = Column(TIMESTAMP(timezone=True), nullable=False, default=func.now())
     actualizado_en = Column(TIMESTAMP(timezone=True), nullable=False, default=func.now(), onupdate=func.now())
     creado_por = Column(UUID(as_uuid=True))
@@ -393,6 +393,37 @@ class Usuario(Base):
         Index('idx_usuarios_config', 'configuracion', postgresql_using='gin'),
         {'schema': 'iot_schema'}
     )
+
+    @property
+    def active_scope(self):
+        """Retorna el primer scope activo para compatibilidad con código existente."""
+        for scope in self.usuarios_scope:
+            if scope.activo:
+                return scope
+        return None
+
+    @property
+    def cliente_id(self):
+        scope = self.active_scope
+        return scope.cliente_id if scope else None
+
+    @property
+    def proyecto_id(self):
+        scope = self.active_scope
+        return scope.proyecto_id if scope else None
+
+    @property
+    def unidad_id(self):
+        # El modelo actual no persiste unidad en UsuarioScope.
+        return None
+
+    @property
+    def ultimo_acceso(self):
+        return self.ultimo_login
+
+    @ultimo_acceso.setter
+    def ultimo_acceso(self, value):
+        self.ultimo_login = value
 
 class UsuarioScope(Base):
     """Modelo para alcance de usuarios en clientes/proyectos"""

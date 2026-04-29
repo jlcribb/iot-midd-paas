@@ -172,12 +172,12 @@ class DataValidator:
             Resultado de la validación
         """
         if not self.validation_enabled:
-            return {'valid': True, 'quality': CalidadDato.VALIDO}
+            return {'valid': True, 'quality': CalidadDato.GOOD}
         
         try:
             validation_result = {
                 'valid': True,
-                'quality': CalidadDato.VALIDO,
+                'quality': CalidadDato.GOOD,
                 'errors': [],
                 'warnings': [],
                 'alarms': []
@@ -189,7 +189,7 @@ class DataValidator:
                 type_validation = self._validate_type(payload, tipo_dato)
                 if not type_validation['valid']:
                     validation_result['valid'] = False
-                    validation_result['quality'] = CalidadDato.INVALIDO
+                    validation_result['quality'] = CalidadDato.BAD
                     validation_result['errors'].extend(type_validation['errors'])
             
             # Validar rangos si es numérico
@@ -197,7 +197,7 @@ class DataValidator:
                 range_validation = self._validate_range(payload, canal_config)
                 if not range_validation['valid']:
                     validation_result['valid'] = False
-                    validation_result['quality'] = CalidadDato.FUERA_DE_RANGO
+                    validation_result['quality'] = CalidadDato.UNCERTAIN
                     validation_result['errors'].extend(range_validation['errors'])
                 
                 # Verificar umbrales de alarma
@@ -209,7 +209,7 @@ class DataValidator:
                 length_validation = self._validate_length(payload, canal_config)
                 if not length_validation['valid']:
                     validation_result['valid'] = False
-                    validation_result['quality'] = CalidadDato.INVALIDO
+                    validation_result['quality'] = CalidadDato.BAD
                     validation_result['errors'].extend(length_validation['errors'])
             
             return validation_result
@@ -218,7 +218,7 @@ class DataValidator:
             self.logger.error(f"Error en validación: {e}")
             return {
                 'valid': False,
-                'quality': CalidadDato.ERROR,
+                'quality': CalidadDato.BAD,
                 'errors': [f"Error de validación: {e}"],
                 'warnings': [],
                 'alarms': []
@@ -314,12 +314,15 @@ class MessageProcessor:
     """Procesador de mensajes MQTT"""
     
     def __init__(self, config: IngestaConfig, db_handler: DatabaseHandler, 
-                 topic_mapper: TopicMapper, data_validator: DataValidator):
+                 topic_mapper: TopicMapper, data_validator: DataValidator,
+                 metrics: Optional[IngestaMetrics] = None):
         self.config = config
         self.db_handler = db_handler
         self.topic_mapper = topic_mapper
         self.data_validator = data_validator
+        self.metrics = metrics
         self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
+        self._metrics_lock = threading.Lock()
         
         # Cola de procesamiento
         self.message_queue = Queue(maxsize=config.ingesta['max_queue_size'])
@@ -385,6 +388,7 @@ class MessageProcessor:
                     self._process_single_message(message)
                 except Exception as e:
                     self.logger.error(f"Error procesando mensaje {message.topic}: {e}")
+                    self._inc_metric('messages_failed')
                     
         except Exception as e:
             self.logger.error(f"Error procesando lote en worker {worker_id}: {e}")
@@ -417,7 +421,11 @@ class MessageProcessor:
             }
             
             # Insertar en base de datos
-            self._insert_registro(registro_data)
+            insert_ok = self._insert_registro(registro_data)
+            if insert_ok:
+                self._inc_metric('messages_processed')
+            else:
+                self._inc_metric('messages_failed')
             
             # Verificar alarmas
             if validation_result['alarms']:
@@ -425,16 +433,146 @@ class MessageProcessor:
                 
         except Exception as e:
             self.logger.error(f"Error procesando mensaje {message.topic}: {e}")
+            self._inc_metric('messages_failed')
     
-    def _insert_registro(self, registro_data: Dict[str, Any]):
-        """Inserta un registro en la base de datos"""
+    def _inc_metric(self, field_name: str, delta: int = 1):
+        """Incrementa un contador de métricas de forma segura."""
+        if not self.metrics:
+            return
         try:
-            # Aquí se implementaría la inserción real usando el db_handler
-            # Por ahora solo logueamos
-            self.logger.info(f"Registro insertado: {registro_data['canal_id']} = {registro_data['valor']}")
-            
+            with self._metrics_lock:
+                current_value = getattr(self.metrics, field_name, 0)
+                setattr(self.metrics, field_name, current_value + delta)
+        except Exception as e:
+            self.logger.debug(f"No se pudo actualizar métrica {field_name}: {e}")
+
+    @staticmethod
+    def _normalize_scalar_value(value: Any) -> Any:
+        """Normaliza strings numéricos/booleanos para facilitar persistencia."""
+        if isinstance(value, bool):
+            # Unificamos a numérico para evitar conflictos de tipo en Influx (bool vs float).
+            return 1 if value else 0
+
+        if isinstance(value, str):
+            text = value.strip()
+            if not text:
+                return value
+            lowered = text.lower()
+            if lowered in {"true", "false"}:
+                return 1 if lowered == "true" else 0
+            try:
+                if "." in text:
+                    return float(text)
+                return int(text)
+            except ValueError:
+                return value
+        return value
+
+    def _extract_sensor_value(self, payload: Any) -> Any:
+        """Extrae un valor escalar del payload MQTT."""
+        if isinstance(payload, (int, float, bool, str)):
+            return self._normalize_scalar_value(payload)
+
+        if isinstance(payload, dict):
+            preferred_keys = (
+                "value",
+                "valor",
+                "signal_value",
+                "reading",
+                "measurement",
+                "open",
+                "state",
+                "level",
+                "level_percent",
+                "servo_angle",
+                "temperature",
+                "humidity",
+                "pressure",
+            )
+            for key in preferred_keys:
+                if key in payload and isinstance(payload[key], (int, float, bool, str)):
+                    return self._normalize_scalar_value(payload[key])
+
+        return None
+
+    def _build_sensor_record(self, registro_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Construye un registro normalizado para DB/Influx a partir del mensaje."""
+        payload = registro_data.get('valor')
+        metadata = registro_data.get('metadata') or {}
+        topic_info = metadata.get('topic_info') or {}
+
+        scalar_value = self._extract_sensor_value(payload)
+        if scalar_value is None:
+            self.logger.warning(
+                f"No se pudo extraer valor escalar de payload en tópico {metadata.get('topic')}"
+            )
+            return None
+
+        payload_dict = payload if isinstance(payload, dict) else {}
+        sensor_type = (
+            payload_dict.get('signal')
+            or payload_dict.get('sensor_type')
+            or topic_info.get('canal_id')
+            or registro_data.get('canal_id')
+            or 'value'
+        )
+        device_id = (
+            payload_dict.get('device_ref_id')
+            or payload_dict.get('device_id')
+            or topic_info.get('dispositivo_id')
+            or 'unknown'
+        )
+        topic = metadata.get('topic') or payload_dict.get('topic') or 'unknown'
+        timestamp = payload_dict.get('timestamp') or registro_data.get('timestamp')
+
+        sensor_record: Dict[str, Any] = {
+            'device_id': str(device_id),
+            'sensor_type': str(sensor_type),
+            'value': scalar_value,
+            'timestamp': timestamp,
+            'topic': str(topic),
+            'project_id': payload_dict.get('project_id') or topic_info.get('proyecto_id'),
+            'unit_id': payload_dict.get('unit_id') or topic_info.get('unidad_id'),
+            'quality': str(registro_data.get('calidad')),
+        }
+
+        for key, value in payload_dict.items():
+            if key in sensor_record:
+                continue
+            if isinstance(value, (int, float, bool, str)):
+                sensor_record[key] = value
+
+        return sensor_record
+
+    def _insert_registro(self, registro_data: Dict[str, Any]) -> bool:
+        """Inserta un registro en la base de datos."""
+        try:
+            sensor_record = self._build_sensor_record(registro_data)
+            if sensor_record is None:
+                self._inc_metric('database_errors')
+                return False
+
+            influx_handler = getattr(self.db_handler, 'influxdb_handler', None)
+            if influx_handler:
+                inserted = influx_handler.insert_influxdb(sensor_record)
+            else:
+                inserted = self.db_handler.insert_sensor_data(sensor_record)
+
+            if inserted:
+                self._inc_metric('database_inserts')
+                self.logger.info(
+                    f"Registro persistido: {sensor_record.get('device_id')}.{sensor_record.get('sensor_type')}="
+                    f"{sensor_record.get('value')}"
+                )
+                return True
+
+            self._inc_metric('database_errors')
+            return False
+
         except Exception as e:
             self.logger.error(f"Error insertando registro: {e}")
+            self._inc_metric('database_errors')
+            return False
     
     def _trigger_alarms(self, registro_data: Dict[str, Any], alarms: List[Dict[str, Any]]):
         """Dispara eventos de alarma"""
@@ -450,9 +588,12 @@ class MessageProcessor:
         """Agrega un mensaje a la cola de procesamiento"""
         try:
             self.message_queue.put_nowait(message)
+            return True
         except Full:
             self.logger.warning("Cola de mensajes llena, mensaje descartado")
             # Aquí se podrían implementar estrategias de backpressure
+            self._inc_metric('messages_dropped')
+            return False
     
     def stop(self):
         """Detiene el procesador de mensajes"""
@@ -510,6 +651,26 @@ class MQTTIngestaService:
         """Manejador de señales del sistema"""
         logger.info(f"Señal {signum} recibida, deteniendo servicio...")
         self.stop()
+
+    def _ensure_runtime_demo_topics(self):
+        """Asegura tópicos de suscripción compatibles con demo (5 y 6 segmentos)."""
+        try:
+            subscribe_topics = list((self.config.mqtt.topics or {}).get('subscribe') or [])
+            required_topics = ["iot/+/+/+/+", "iot/+/+/+/+/+"]
+            changed = False
+
+            for topic in required_topics:
+                if topic not in subscribe_topics:
+                    subscribe_topics.append(topic)
+                    changed = True
+
+            if changed:
+                self.config.mqtt.topics['subscribe'] = subscribe_topics
+                logger.info(
+                    f"📋 Tópicos MQTT actualizados para demo: {self.config.mqtt.topics['subscribe']}"
+                )
+        except Exception as exc:
+            logger.warning(f"⚠️  No se pudieron ajustar tópicos MQTT de demo: {exc}")
     
     def initialize(self) -> bool:
         """Inicializa el servicio de ingesta"""
@@ -519,9 +680,14 @@ class MQTTIngestaService:
             # Cargar configuración
             self.config = load_config(self.config_path)
             logger.info("✅ Configuración cargada")
+            self._ensure_runtime_demo_topics()
             
             # Crear manejador de base de datos
-            self.db_handler = create_database_handler(self.config.storage)
+            self.db_handler = create_database_handler(
+                postgresql_config=self.config.postgresql,
+                influxdb_config=self.config.influxdb,
+                storage_config=self.config.storage
+            )
             logger.info("✅ Manejador de base de datos creado")
             
             # Crear mapeador de tópicos
@@ -537,7 +703,8 @@ class MQTTIngestaService:
                 self.config, 
                 self.db_handler, 
                 self.topic_mapper, 
-                self.data_validator
+                self.data_validator,
+                self.metrics,
             )
             logger.info("✅ Procesador de mensajes creado")
             
@@ -561,7 +728,9 @@ class MQTTIngestaService:
             self.metrics.last_message_time = datetime.now(timezone.utc)
             
             # Agregar mensaje al procesador
-            self.message_processor.add_message(message)
+            queued = self.message_processor.add_message(message)
+            if not queued:
+                self.metrics.messages_failed += 1
             
             logger.debug(f"📨 Mensaje recibido en {message.topic}")
             
@@ -629,6 +798,8 @@ class MQTTIngestaService:
                 logger.info(f"📊 Métricas: Recibidos={self.metrics.messages_received}, "
                           f"Procesados={self.metrics.messages_processed}, "
                           f"Errores={self.metrics.messages_failed}, "
+                          f"DB_OK={self.metrics.database_inserts}, "
+                          f"DB_ERR={self.metrics.database_errors}, "
                           f"Uptime={self.metrics.uptime_seconds}s")
                 
         except Exception as e:
@@ -672,6 +843,8 @@ class MQTTIngestaService:
                 'messages_received': self.metrics.messages_received,
                 'messages_processed': self.metrics.messages_processed,
                 'messages_failed': self.metrics.messages_failed,
+                'database_inserts': self.metrics.database_inserts,
+                'database_errors': self.metrics.database_errors,
                 'uptime_seconds': self.metrics.uptime_seconds,
                 'last_message_time': self.metrics.last_message_time.isoformat() if self.metrics.last_message_time else None
             },

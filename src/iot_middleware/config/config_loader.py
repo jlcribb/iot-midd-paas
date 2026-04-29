@@ -8,14 +8,12 @@ desde archivos YAML, incluyendo validación de esquemas y valores requeridos.
 
 import os
 import yaml
-from pathlib import Path
-from typing import Dict, Any, Optional, List, Union
-from dataclasses import dataclass, field
+from typing import Dict, Any, Optional, List
 try:
-    from pydantic import BaseModel, Field, validator, ValidationError
+    from pydantic import BaseModel, Field, field_validator, ValidationError, ConfigDict
 except ImportError:
     # Fallback para versiones anteriores de Pydantic
-    from pydantic import BaseModel, Field, validator, ValidationError
+    from pydantic import BaseModel, Field, field_validator, ValidationError, ConfigDict
 import logging
 
 # Configurar logging
@@ -29,7 +27,8 @@ class MQTTConfig(BaseModel):
     qos: int = Field(default=1, ge=0, le=2, description="Calidad de servicio MQTT")
     retain: bool = Field(default=False, description="Retener mensajes MQTT")
     
-    @validator('broker')
+    @field_validator('broker')
+    @classmethod
     def validate_broker(cls, v):
         required_keys = ['host', 'port']
         missing_keys = [key for key in required_keys if key not in v]
@@ -46,7 +45,8 @@ class MQTTConfig(BaseModel):
         
         return v
     
-    @validator('topics')
+    @field_validator('topics')
+    @classmethod
     def validate_topics(cls, v):
         required_keys = ['subscribe', 'publish']
         missing_keys = [key for key in required_keys if key not in v]
@@ -73,13 +73,15 @@ class InfluxDBConfig(BaseModel):
     batch_size: int = Field(default=1000, ge=1, description="Tamaño del lote")
     flush_interval: int = Field(default=10, ge=1, description="Intervalo de flush en segundos")
     
-    @validator('url')
+    @field_validator('url')
+    @classmethod
     def validate_url(cls, v):
         if not v.startswith(('http://', 'https://')):
             raise ValueError("La URL de InfluxDB debe comenzar con http:// o https://")
         return v
     
-    @validator('token')
+    @field_validator('token')
+    @classmethod
     def validate_token(cls, v):
         if not v or len(v.strip()) == 0:
             raise ValueError("El token de InfluxDB no puede estar vacío")
@@ -99,13 +101,15 @@ class PostgreSQLConfig(BaseModel):
     pool_timeout: int = Field(default=30, ge=1, description="Timeout del pool en segundos")
     pool_recycle: int = Field(default=3600, ge=1, description="Reciclaje del pool en segundos")
     
-    @validator('host')
+    @field_validator('host')
+    @classmethod
     def validate_host(cls, v):
         if not v or len(v.strip()) == 0:
             raise ValueError("El host de PostgreSQL no puede estar vacío")
         return v
     
-    @validator('database', 'username', 'password')
+    @field_validator('database', 'username', 'password')
+    @classmethod
     def validate_not_empty(cls, v):
         if not v or len(v.strip()) == 0:
             raise ValueError("Los campos database, username y password no pueden estar vacíos")
@@ -119,7 +123,8 @@ class APIConfig(BaseModel):
     debug: bool = Field(default=False, description="Modo debug de la API")
     cors: Dict[str, Any] = Field(default_factory=dict, description="Configuración CORS")
     
-    @validator('host')
+    @field_validator('host')
+    @classmethod
     def validate_host(cls, v):
         if not v:
             raise ValueError("El host de la API no puede estar vacío")
@@ -135,7 +140,8 @@ class LoggingConfig(BaseModel):
     max_size: str = Field(default="100MB", description="Tamaño máximo del archivo de log")
     backup_count: int = Field(default=5, ge=0, description="Número de archivos de backup")
     
-    @validator('level')
+    @field_validator('level')
+    @classmethod
     def validate_level(cls, v):
         valid_levels = ['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL']
         if v.upper() not in valid_levels:
@@ -180,6 +186,28 @@ class MonitoringConfig(BaseModel):
     alerting: Dict[str, Any] = Field(default_factory=dict, description="Configuración de alertas")
 
 
+class RabbitMQConfig(BaseModel):
+    """Configuración de RabbitMQ para comunicación asíncrona"""
+    host: str = Field(default="localhost", description="Host de RabbitMQ")
+    port: int = Field(default=5672, ge=1, le=65535, description="Puerto de RabbitMQ")
+    username: str = Field(default="guest", description="Usuario de RabbitMQ")
+    password: str = Field(default="guest", description="Contraseña de RabbitMQ")
+    virtual_host: str = Field(default="/", description="Virtual host de RabbitMQ")
+    exchange: str = Field(default="iot_middleware", description="Exchange principal")
+    queue_prefix: str = Field(default="iot", description="Prefijo para las colas")
+    heartbeat: int = Field(default=600, ge=0, description="Heartbeat en segundos")
+    connection_attempts: int = Field(default=3, ge=1, description="Intentos de conexión")
+    retry_delay: int = Field(default=5, ge=1, description="Delay entre reintentos en segundos")
+    enable_monitoring: bool = Field(default=True, description="Habilitar publicación de métricas")
+    
+    @field_validator('host')
+    @classmethod
+    def validate_host(cls, v):
+        if not v or len(v.strip()) == 0:
+            raise ValueError("El host de RabbitMQ no puede estar vacío")
+        return v
+
+
 class IoTMiddlewareConfig(BaseModel):
     """Configuración principal del IoT Middleware"""
     mqtt: MQTTConfig = Field(..., description="Configuración MQTT")
@@ -190,11 +218,12 @@ class IoTMiddlewareConfig(BaseModel):
     processing: ProcessingConfig = Field(default_factory=ProcessingConfig, description="Configuración de procesamiento")
     normalizers: NormalizerConfig = Field(default_factory=NormalizerConfig, description="Configuración de normalizadores")
     storage: StorageConfig = Field(..., description="Configuración de almacenamiento")
+    ingesta: Dict[str, Any] = Field(default_factory=dict, description="Configuración de ingesta")
     security: SecurityConfig = Field(default_factory=SecurityConfig, description="Configuración de seguridad")
     monitoring: MonitoringConfig = Field(default_factory=MonitoringConfig, description="Configuración de monitoreo")
+    rabbitmq: RabbitMQConfig = Field(default_factory=RabbitMQConfig, description="Configuración de RabbitMQ")
     
-    class Config:
-        extra = "ignore"  # Ignorar campos adicionales no definidos
+    model_config = ConfigDict(extra="ignore")  # Ignorar campos adicionales no definidos
 
 
 class ConfigLoader:
@@ -291,7 +320,7 @@ class ConfigLoader:
                 logger.error("Error de validación en la configuración:")
                 for error in e.errors():
                     logger.error(f"  - {error['loc']}: {error['msg']}")
-                raise ValidationError(f"Configuración inválida: {e}")
+                raise  # Re-lanzar la excepción original
         
         return self.config
     

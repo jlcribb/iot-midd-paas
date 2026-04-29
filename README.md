@@ -1,252 +1,288 @@
-# IoT Middleware
+# Midd IOT
 
-Sistema de middleware para IoT que proporciona capacidades de procesamiento, almacenamiento y comunicación para dispositivos IoT.
+Plataforma de middleware IoT orientada a inteligencia operacional.
 
-## Características Principales
+Midd IOT no busca competir en transporte de datos, device management o infraestructura cloud IoT generalista. Su foco es:
 
-### 🚀 **Procesamiento de Datos**
-- Normalización y validación automática de datos IoT
-- Procesamiento en tiempo real con múltiples estrategias
-- Pipeline configurable para transformación de datos
+- inteligencia operacional;
+- control adaptativo parametrico;
+- sistemas de decision orientados a eventos;
+- integracion con gemelos digitales.
 
-### 🗄️ **Capa CRUD Completa**
-- Repositorios especializados para todas las entidades del sistema
-- Validación automática de tipos de datos según configuración del canal
-- Validación de rangos (min/max) para valores numéricos
-- Metadatos enriquecidos automáticamente con contexto del proyecto
-- Operaciones CRUD optimizadas con consultas relacionales avanzadas
+## Principio central
 
-### 💾 **Almacenamiento Inteligente**
-- **Sistema de particiones mensuales** para optimización de rendimiento
-- Base de datos PostgreSQL con esquema escalable
-- Gestión automática de datos históricos
-- Backup y recuperación granular por partición
+> Midd IOT no existe para conectar dispositivos.
+> Existe para volverlos inteligentes.
 
-### 📡 **Comunicación MQTT**
-- Cliente MQTT robusto con reconexión automática
-- Soporte para múltiples brokers y tópicos
-- Manejo de mensajes offline y colas de retransmisión
+## Arquitectura
 
-### ⚙️ **Configuración Flexible**
-- Sistema de configuración basado en YAML
-- Configuración por entorno (desarrollo, producción, testing)
-- Validación automática de configuración
+La verdad arquitectonica del sistema es:
 
-## Sistema de Particiones Mensuales
+```text
+Protocols -> Events -> Cognitive Core -> Parametric Control -> Actions
+```
 
-### 🎯 **Beneficios Clave**
-- **Rendimiento**: Consultas 10x más rápidas en datos históricos
-- **Escalabilidad**: Crecimiento automático sin degradación de rendimiento
-- **Mantenimiento**: Gestión automatizada del ciclo de vida de datos
+Componentes conceptuales:
 
-### 📊 **Características**
-- Creación automática de particiones por mes
-- Trigger inteligente para creación on-the-fly
-- Monitoreo en tiempo real del estado del sistema
-- Limpieza automática de particiones antiguas
+- Ingestion Layer
+- Messaging Layer
+- Cognitive Core
+- Parametric Control Engine
+- Digital Twin Engine
+- Control Layer
+- API / UI Layer
 
-### 🛠️ **Herramientas de Gestión**
+## Estado actual del repositorio
+
+El repo esta en una reorganizacion incremental.
+
+Hoy conviven:
+
+- runtime Python para ingesta, MQTT, storage, procesos IoT y migraciones;
+- API Python historica;
+- `core_backend` Python en transicion;
+- backend/UI Next.js para el dominio operacional;
+- modulo de Digital Twin Engine;
+- infraestructura local con contenedores;
+- documentacion historica, de saneo y de migracion.
+
+## Clasificacion actual
+
+### Oficial
+
+- Runtime Python de ingestión, MQTT, storage, procesamiento y migraciones.
+- `apps/topology-next` como implementacion oficial del dominio operacional:
+  - projects
+  - sectors
+  - locations
+  - assets
+  - topology
+  - provisioning
+  - canvas/UI
+
+### Transition
+
+- `src/iot_middleware/core_backend`
+- `apps/admin-fastapi`
+
+### Legacy
+
+- `src/iot_middleware/api`
+- CRUD historico de `apps/admin-fastapi/routers/*` basado en modelos previos
+
+### Experimental
+
+- `apps/monitoring-dashboard`
+- `src/iot_middleware/dte`
+- ejemplos y demos
+
+## Estructura objetivo
+
+La reorganizacion converge hacia:
+
+```text
+apps/
+  ingest-python/
+  api-python-legacy/
+  admin-fastapi/
+  topology-next/
+  cognitive-core/
+  parametric-control-engine/
+  dte/
+
+packages/
+  shared-contracts/
+  shared-docs/
+
+infra/
+  containers/
+  migrations/
+  env/
+
+docs/
+  architecture/
+  operations/
+  migration/
+  legacy/
+```
+
+## Importante sobre esta etapa
+
+Para preservar el baseline actual, esta primera reorganizacion crea la estructura arquitectonica y la documentacion oficial, pero no mueve todavia el codigo productivo de mayor riesgo.
+
+Por ahora, las rutas efectivas siguen siendo:
+
+- runtime Python: `src/iot_middleware/*`
+- API Python legacy: `src/iot_middleware/api/*`
+- admin: `apps/admin-fastapi/*`
+- compatibilidad temporal: `containers/admin -> ../apps/admin-fastapi`
+- dashboard: `apps/monitoring-dashboard/*`
+- compatibilidad temporal: `containers/dashboard -> ../apps/monitoring-dashboard`
+- dominio operacional Next: `apps/topology-next/*`
+- compatibilidad temporal: `next-backend -> apps/topology-next`
+- migraciones: `infra/migrations/alembic/*`
+- compatibilidad temporal: `alembic -> infra/migrations/alembic`
+
+## Apps y responsabilidades
+
+### `apps/ingest-python/`
+
+Destino arquitectonico del runtime Python oficial:
+
+- ingestion
+- MQTT
+- storage
+- processing
+- backend IoT processes
+
+### `apps/api-python-legacy/`
+
+Destino arquitectonico de la API Python historica que queda en legacy.
+
+### `apps/admin-fastapi/`
+
+Destino arquitectonico del admin actual, que queda en transicion mientras se completa la consolidacion del dominio operacional.
+
+Ubicacion canonica actual del codigo:
+
+- `apps/admin-fastapi/*`
+
+Compatibilidad temporal:
+
+- `containers/admin` queda como symlink hacia `apps/admin-fastapi`
+
+### `apps/monitoring-dashboard/`
+
+Aplicacion experimental de monitoreo en tiempo real.
+
+Ubicacion canonica actual del codigo:
+
+- `apps/monitoring-dashboard/*`
+
+Compatibilidad temporal:
+
+- `containers/dashboard` queda como symlink hacia `apps/monitoring-dashboard`
+
+### `apps/topology-next/`
+
+Destino arquitectonico del backend/UI oficial del dominio operacional.
+
+Ubicacion canonica actual del codigo:
+
+- `apps/topology-next/*`
+
+Compatibilidad temporal:
+
+- `next-backend` queda como symlink hacia `apps/topology-next`
+
+### `apps/cognitive-core/`
+
+Reserva explicita para el futuro nucleo cognitivo del sistema.
+
+### `apps/parametric-control-engine/`
+
+Reserva explicita para el motor de control adaptativo parametrico, diferenciador central del producto.
+
+### `apps/dte/`
+
+Destino arquitectonico del Digital Twin Engine.
+
+## Como ejecutar localmente hoy
+
+### Baseline Python
+
 ```bash
-# Verificar salud del sistema
-python scripts/partitions.py health
-
-# Crear particiones automáticamente
-python scripts/partitions.py create
-
-# Monitorear estado
-python scripts/partitions.py monitor
+./scripts/smoke_core.sh
 ```
 
-**📖 [Documentación Completa del Sistema de Particiones](README_PARTITIONING.md)**
+Resultado esperado:
 
-## Capa CRUD y Validación de Tipos
+- validacion de sintaxis: OK
+- flake8 selectivo: OK
+- suite core Python: `17 passed`
 
-### 🎯 **Funcionalidades Clave**
-- **Validación Automática**: Tipos de datos y rangos según configuración del canal
-- **Metadatos Enriquecidos**: Contexto automático del proyecto, dispositivo y unidad
-- **Operaciones Optimizadas**: Consultas relacionales con JOINs inteligentes
-- **Manejo de Errores**: Logging detallado y respuestas estructuradas
+### Migraciones Alembic
 
-### 🛠️ **Uso Rápido**
-```python
-from iot_middleware.storage.repositories import RegistroDatosRepository
+Ruta canonica:
 
-# Inserción con validación automática
-registro = registro_repo.insert_record(
-    canal_id='uuid-canal',
-    valor=25.5,  # Se valida según el tipo del canal
-    metadata={'source': 'sensor_1'},
-    qos=1,
-    ip='192.168.1.100'
-)
-```
-
-### 📊 **Tipos de Datos Soportados**
-- **Numéricos**: `int`, `float` con validación de rangos
-- **Booleanos**: Conversión automática desde múltiples formatos
-- **Texto**: `string`, `json` con validación de formato
-- **Temporales**: `timestamp` con conversión ISO automática
-
-**📖 [Documentación Completa de la Capa CRUD](README_CRUD_REPOSITORIES.md)**
-
-## Instalación Rápida
-
-### 1. Clonar el Repositorio
 ```bash
-git clone <repository-url>
-cd iot-middleware
+alembic -c infra/migrations/alembic.ini upgrade head
 ```
 
-### 2. Configurar Base de Datos
+Compatibilidad temporal mantenida:
+
 ```bash
-# Aplicar esquema inicial
-alembic upgrade 0001
-
-# Aplicar sistema de particiones
-alembic upgrade 0002
-```
-
-### 3. Verificar Instalación
-```bash
-# Verificar sistema de particiones
-python scripts/partitions.py health
-
-# Ejecutar ejemplo de particionado
-python examples/partitioning_example.py
-
-# Ejecutar ejemplo de la capa CRUD
-python examples/crud_validation_example.py examples/config_partitioning.yaml
-```
-
-## Estructura del Proyecto
-
-```
-iot-middleware/
-├── alembic/                    # Migraciones de base de datos
-│   ├── versions/
-│   │   ├── 0001_initial_schema.py
-│   │   ├── 0002_partitioning_system.py  # 🆕 Sistema de particiones
-│   │   └── 0003_convert_to_partitioned.py # 🆕 Conversión a particionado
-├── src/                        # Código fuente
-│   └── iot_middleware/
-│       └── storage/
-│           └── repositories/   # 🆕 Capa CRUD completa
-│               ├── base_repository.py
-│               ├── cliente_repository.py
-│               ├── proyecto_repository.py
-│               ├── canal_repository.py
-│               └── registro_datos_repository.py
-├── scripts/                    # Scripts utilitarios
-│   ├── partitions.py          # 🆕 Gestor de particiones
-│   └── ...
-├── examples/                   # Ejemplos de uso
-│   ├── partitioning_example.py # 🆕 Demo del sistema de particiones
-│   ├── crud_validation_example.py # 🆕 Demo de la capa CRUD
-│   └── ...
-├── README_PARTITIONING.md     # 🆕 Documentación de particiones
-└── README_CRUD_REPOSITORIES.md # 🆕 Documentación de la capa CRUD
-```
-
-## Uso Rápido
-
-### Configuración Básica
-```yaml
-# config.yaml
-database:
-  host: localhost
-  port: 5432
-  name: iot_middleware
-  user: iot_user
-  password: iot_password
-
-mqtt:
-  broker: localhost
-  port: 1883
-  topics: ["iot/+/data"]
-```
-
-### Ejemplo de Particionado
-```python
-from iot_middleware.storage.db_handler import DatabaseHandler
-
-# El sistema crea automáticamente particiones mensuales
-db = DatabaseHandler(config['database'])
-
-# Insertar datos (se distribuyen automáticamente por partición)
-db.execute_query("""
-    INSERT INTO iot_schema.registros_datos (canal_id, ts, valor_num)
-    VALUES (%s, %s, %s)
-""", (canal_id, timestamp, value))
-```
-
-## Monitoreo y Mantenimiento
-
-### Comandos de Monitoreo
-```bash
-# Estado general del sistema
-python scripts/partitions.py health
-
-# Estadísticas de uso
-python scripts/partitions.py stats
-
-# Limpieza automática
-python scripts/partitions.py cleanup --retention-months 12
-```
-
-### Tareas de Mantenimiento
-- **Diario**: Verificar salud del sistema
-- **Semanal**: Monitorear estadísticas de particiones
-- **Mensual**: Crear particiones futuras y limpiar antiguas
-
-## Desarrollo
-
-### Requisitos
-- Python 3.8+
-- PostgreSQL 12+
-- Podman (para contenedores)
-
-### Configuración de Desarrollo
-```bash
-# Levantar servicios con Podman
-podman-compose -f containers/podman-compose.yaml up -d
-
-# Aplicar migraciones
 alembic upgrade head
-
-# Ejecutar tests
-python -m pytest tests/
 ```
 
-### Estructura de Migraciones
-- **0001**: Esquema inicial completo del sistema IoT
-- **0002**: Sistema de particiones mensuales automático
+### Tests del dominio operacional Next
 
-## Documentación
+```bash
+cd apps/topology-next
+npm test
+```
 
-- [📖 Sistema de Particiones](README_PARTITIONING.md) - Documentación completa del particionado
-- [📖 Base de Datos](README_POSTGRESQL.md) - Esquema y configuración de BD
-- [📖 Desarrollo](DEVELOPMENT_SUMMARY_PROCESSOR.md) - Guía de desarrollo del procesador
-- [📖 Almacenamiento](DEVELOPMENT_SUMMARY_STORAGE.md) - Guía de desarrollo del almacenamiento
+Resultado esperado:
 
-## Contribución
+- suite TypeScript: `17 passed`
 
-1. Fork el proyecto
-2. Crear rama para feature (`git checkout -b feature/AmazingFeature`)
-3. Commit cambios (`git commit -m 'Add some AmazingFeature'`)
-4. Push a la rama (`git push origin feature/AmazingFeature`)
-5. Abrir Pull Request
+### Stack local actual
 
-## Licencia
+Ruta canonica:
 
-Este proyecto está bajo la Licencia MIT. Ver el archivo `LICENSE` para más detalles.
+```bash
+docker compose -f infra/containers/docker-compose.yaml up -d
+```
 
-## Soporte
+Las rutas `infra/containers/podman-compose.yaml` y `containers/podman-compose.yaml` quedan solo como alias deprecated de compatibilidad, nunca como comando operativo recomendado.
 
-Para soporte técnico o preguntas sobre el sistema de particiones:
-- Revisar [README_PARTITIONING.md](README_PARTITIONING.md)
-- Ejecutar `python scripts/partitions.py health` para diagnóstico
-- Abrir issue en el repositorio con logs de error
+Servicios definidos actualmente:
 
----
+- `mosquitto`
+- `influxdb`
+- `postgresql`
+- `api`
+- `ingestor`
+- `rabbitmq`
+- `dashboard`
+- `admin`
+- `topology-ui`
 
-**🚀 El sistema de particiones mensuales está diseñado para escalar automáticamente y mantener el rendimiento óptimo incluso con millones de registros IoT.**
+## Entry points actuales
+
+Canonicos:
+
+- stack local completo: `docker compose -f infra/containers/docker-compose.yaml up -d`
+- dominio operacional oficial: `cd apps/topology-next && npm run dev`
+- runtime de ingesta Python: `python -m iot_middleware.services.ingestor`
+- API Python legacy activa: `uvicorn iot_middleware.api.api:app --host 0.0.0.0 --port 8000`
+- admin transicional: `python -m containers.admin.main`
+- dashboard experimental: `python -m containers.dashboard.main`
+- DTE: `PYTHONPATH=src uvicorn iot_middleware.dte.api.app:app --port 8010`
+
+Transicional / manual solamente:
+
+- `python main.py`
+
+Compatibilidad temporal:
+
+- `cd next-backend && npm run dev`
+
+## Documentacion clave
+
+- Arquitectura: [docs/architecture](/Users/joseluis/dev/iot-middleware%20copia/docs/architecture)
+- Migracion: [docs/migration](/Users/joseluis/dev/iot-middleware%20copia/docs/migration)
+- Legacy: [docs/legacy](/Users/joseluis/dev/iot-middleware%20copia/docs/legacy)
+- Saneo y baseline: [docs/SANEO_BASELINE.md](/Users/joseluis/dev/iot-middleware%20copia/docs/SANEO_BASELINE.md)
+- Propuesta de reorganizacion: [docs/PROPUESTA_REORGANIZACION_CHATGPT.md](/Users/joseluis/dev/iot-middleware%20copia/docs/PROPUESTA_REORGANIZACION_CHATGPT.md)
+
+## Decision vigente
+
+- Python queda como runtime IoT oficial.
+- Docker Desktop queda como runtime oficial de contenedores para desarrollo local.
+- Next.js queda como implementacion oficial del dominio operacional.
+- La API Python historica queda como legacy.
+- `core_backend` queda en transicion hasta su retiro.
+- `main.py` queda como entrypoint transicional y manual, no como ruta operativa preferida.
+- `dashboard` queda como experimental.
+- El repo debe habilitar explicitamente el futuro `cognitive-core` y `parametric-control-engine`.

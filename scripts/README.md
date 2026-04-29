@@ -9,8 +9,7 @@ Script principal con menú interactivo que combina todas las funcionalidades.
 
 **Uso:**
 ```bash
-# Desde el directorio 'containers'
-../scripts/iot_middleware_manager.sh
+./scripts/iot_middleware_manager.sh
 ```
 
 **Funcionalidades:**
@@ -68,14 +67,15 @@ Script para generar documentación automática del estado del desarrollo.
 ## 🚀 Instalación y Configuración
 
 ### Prerrequisitos
-- Podman instalado y funcionando
-- `podman-compose` instalado
+- Docker Desktop instalado y funcionando
+- `docker compose` disponible
 - Bash shell
 - Comandos: `curl`, `nc` (netcat)
 
-### Instalación de podman-compose
+### Verificar Docker Compose
 ```bash
-pip3 install podman-compose
+docker --version
+docker compose version
 ```
 
 ### Permisos de Ejecución
@@ -87,24 +87,29 @@ chmod +x scripts/*.sh
 
 ### Monitoreo Básico
 ```bash
-# Navegar al directorio containers
-cd containers
-
-# Ejecutar gestor principal
-../scripts/iot_middleware_manager.sh
+# Ejecutar gestor principal desde la raíz del repo
+./scripts/iot_middleware_manager.sh
 
 # O ejecutar monitoreo directo
-../scripts/monitor_containers.sh
+./scripts/monitor_containers.sh
 ```
 
 ### Generar Documentación
 ```bash
 # Generar documentación del desarrollo
-../scripts/document_containers.sh
+./scripts/document_development.sh
 
 # Generar reporte de estado
-../scripts/monitor_containers.sh -r
+./scripts/monitor_containers.sh -r
 ```
+
+### Stack oficial
+```bash
+docker compose -f infra/containers/docker-compose.yaml up -d
+./scripts/docker-stack.sh check
+```
+
+`./scripts/podman-stack.sh` queda únicamente como wrapper deprecated de compatibilidad.
 
 ## 📊 Salidas Generadas
 
@@ -140,29 +145,30 @@ echo -e "   🏃 Estado: $(get_container_status nuevo-servicio)"
 ### Ver Logs de Contenedores
 ```bash
 # Ver logs en tiempo real
-podman logs -f [nombre_contenedor]
+docker logs -f [nombre_contenedor]
 
 # Ver últimos N logs
-podman logs --tail 10 [nombre_contenedor]
+docker logs --tail 10 [nombre_contenedor]
 ```
 
-### Verificar Estado de Podman
+### Verificar Estado de Docker
 ```bash
 # Listar contenedores
-podman ps
+docker ps
 
 # Ver información detallada
-podman inspect [nombre_contenedor]
+docker inspect [nombre_contenedor]
 
-# Ver logs del sistema
-podman system df
+# Ver espacio usado por imágenes y contenedores
+docker system df
 ```
 
 ## 🚨 Solución de Problemas
 
-### Error: "podman-compose no está instalado"
+### Error: "`docker compose` no está disponible"
 ```bash
-pip3 install podman-compose
+docker --version
+docker compose version
 ```
 
 ### Error: "Este script debe ejecutarse desde el directorio 'containers'"
@@ -174,18 +180,18 @@ cd containers
 ### Error: "Puerto X está cerrado"
 1. Verificar que el contenedor esté ejecutándose
 2. Verificar logs del contenedor
-3. Verificar configuración de puertos en `podman-compose.yaml`
+3. Verificar configuración de puertos en `docker-compose.yaml`
 
 ### Contenedor no inicia
 ```bash
 # Ver logs del contenedor
-podman logs [nombre_contenedor]
+docker logs [nombre_contenedor]
 
 # Reiniciar el contenedor
-podman restart [nombre_contenedor]
+docker restart [nombre_contenedor]
 
 # Verificar recursos del sistema
-podman system df
+docker system df
 ```
 
 ## 📚 Ejemplos de Uso
@@ -232,7 +238,7 @@ Para problemas o mejoras:
 1. Revisar logs de contenedores
 2. Verificar estado del sistema
 3. Consultar documentación generada
-4. Revisar configuración de `podman-compose.yaml`
+4. Revisar configuración de `docker-compose.yaml`
 
 ---
 

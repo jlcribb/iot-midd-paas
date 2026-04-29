@@ -1,9 +1,17 @@
 #!/usr/bin/env python3
 """
-Script Principal - IoT Middleware
-=================================
+Entrypoint transicional/manual - IoT Middleware
+===============================================
 
-Este script principal inicia todos los servicios del IoT Middleware:
+Este script mantiene un arranque manual combinado para desarrollo o
+transicion, pero ya no es la ruta operativa preferida del sistema.
+
+Las rutas canonicas actuales son:
+- stack local: `infra/containers/docker-compose.yaml`
+- dominio operacional oficial: `apps/topology-next`
+- runtime de ingesta: `python -m iot_middleware.services.ingestor`
+
+Este script inicia en paralelo:
 - Cliente MQTT para ingesta de datos
 - API REST para consulta de datos
 - Servicios de auditoría y procesamiento
@@ -27,6 +35,7 @@ sys.path.insert(0, str(Path(__file__).parent / "src"))
 try:
     from iot_middleware.config import load_config
     from iot_middleware.services.ingestor import MQTTIngestaService, run as run_ingestor
+    from iot_middleware.services.monitoring_service import create_monitoring_service
     from iot_middleware.api.api import initialize_api, app
     from iot_middleware.mqtt.mqtt_client import create_mqtt_client
     from iot_middleware.storage.db_handler import create_database_handler
@@ -38,13 +47,21 @@ except ImportError as e:
     sys.exit(1)
 
 
+def _dict_get(mapping: Any, key: str, default: Any = None) -> Any:
+    """Acceso tolerante para secciones de configuración modeladas como dict."""
+    if isinstance(mapping, dict):
+        return mapping.get(key, default)
+    return getattr(mapping, key, default)
+
+
 class IoTMiddlewareManager:
-    """Gestor principal del IoT Middleware"""
+    """Gestor transicional para arranque manual combinado del middleware."""
     
     def __init__(self, config_path: str = "config.yaml"):
         self.config_path = config_path
         self.config = None
         self.ingestor_service = None
+        self.monitoring_service = None
         self.api_app = None
         self.mqtt_client = None
         self.db_handler = None
@@ -56,6 +73,7 @@ class IoTMiddlewareManager:
             'database': False,
             'mqtt': False,
             'ingestor': False,
+            'monitoring': False,
             'api': False,
             'auditoria': False
         }
@@ -131,16 +149,26 @@ class IoTMiddlewareManager:
         # Configuración MQTT
         if hasattr(self.config, 'mqtt') and self.config.mqtt:
             mqtt_config = self.config.mqtt
-            self.logger.info(f"   📡 MQTT Broker: {mqtt_config.broker.host}:{mqtt_config.broker.port}")
-            self.logger.info(f"   🔐 Usuario: {mqtt_config.broker.username}")
-            self.logger.info(f"   📝 Tópicos a suscribir: {len(mqtt_config.topics.subscribe)}")
+            broker = _dict_get(mqtt_config, 'broker', {})
+            topics = _dict_get(mqtt_config, 'topics', {})
+            self.logger.info(
+                f"   📡 MQTT Broker: {_dict_get(broker, 'host', 'N/A')}:{_dict_get(broker, 'port', 'N/A')}"
+            )
+            self.logger.info(f"   🔐 Usuario: {_dict_get(broker, 'username', 'N/A')}")
+            self.logger.info(f"   📝 Tópicos a suscribir: {len(_dict_get(topics, 'subscribe', []))}")
         
         # Configuración de almacenamiento
         if hasattr(self.config, 'storage') and self.config.storage:
             storage_config = self.config.storage
-            self.logger.info(f"   🗄️  Tipo de almacenamiento: {storage_config.type}")
-            if hasattr(storage_config, 'postgresql') and storage_config.postgresql:
-                pg_config = storage_config.postgresql
+            relational = _dict_get(storage_config, 'relational', {})
+            timeseries = _dict_get(storage_config, 'timeseries', {})
+            self.logger.info(
+                "   🗄️  Almacenamiento: "
+                f"relational={_dict_get(relational, 'provider', 'N/A')}, "
+                f"timeseries={_dict_get(timeseries, 'provider', 'N/A')}"
+            )
+            if hasattr(self.config, 'postgresql') and self.config.postgresql:
+                pg_config = self.config.postgresql
                 self.logger.info(f"   🐘 PostgreSQL: {pg_config.host}:{pg_config.port}/{pg_config.database}")
         
         # Configuración de ingesta
@@ -154,11 +182,12 @@ class IoTMiddlewareManager:
         try:
             self.logger.info("🗄️  Inicializando conexión a base de datos...")
             
-            self.db_handler = create_database_handler(self.config.storage)
+            self.db_handler = create_database_handler(config=self.config)
             
             # Verificar conexión
+            from sqlalchemy import text
             with self.db_handler.get_session() as session:
-                session.execute("SELECT 1")
+                session.execute(text("SELECT 1"))
             
             self.logger.info("✅ Base de datos inicializada exitosamente")
             self.services_status['database'] = True
@@ -221,6 +250,41 @@ class IoTMiddlewareManager:
         except Exception as e:
             self.logger.error(f"❌ Error inicializando servicio de ingesta: {e}")
             return False
+    
+    def initialize_monitoring_service(self) -> bool:
+        """Inicializa el servicio de monitoreo"""
+        try:
+            self.logger.info("📊 Inicializando servicio de monitoreo...")
+            
+            # Verificar si RabbitMQ está habilitado
+            if not hasattr(self.config, 'rabbitmq') or not self.config.rabbitmq.enable_monitoring:
+                self.logger.info("⚠️  Monitoreo deshabilitado en configuración")
+                self.services_status['monitoring'] = False
+                return True  # No es un error, solo está deshabilitado
+            
+            # Crear servicio de monitoreo
+            self.monitoring_service = create_monitoring_service(self.config.rabbitmq)
+            
+            # Registrar servicios para recopilar métricas
+            if self.ingestor_service:
+                self.monitoring_service.register_service("ingestor", self.ingestor_service)
+            if self.db_handler:
+                self.monitoring_service.register_service("db_handler", self.db_handler)
+            
+            # Inicializar servicio
+            if self.monitoring_service.initialize():
+                self.logger.info("✅ Servicio de monitoreo inicializado exitosamente")
+                self.services_status['monitoring'] = True
+                return True
+            else:
+                self.logger.warning("⚠️  No se pudo inicializar el servicio de monitoreo")
+                self.services_status['monitoring'] = False
+                return True  # No es crítico, continuar sin monitoreo
+            
+        except Exception as e:
+            self.logger.error(f"❌ Error inicializando servicio de monitoreo: {e}")
+            self.services_status['monitoring'] = False
+            return True  # No es crítico, continuar sin monitoreo
     
     def initialize_api(self) -> bool:
         """Inicializa la API REST"""
@@ -351,10 +415,12 @@ class IoTMiddlewareManager:
         
         # Información de conexiones
         if self.services_status['mqtt']:
+            broker = _dict_get(self.config.mqtt, 'broker', {})
+            topics = _dict_get(self.config.mqtt, 'topics', {})
             print("📡 MQTT:")
-            print(f"   Broker: {self.config.mqtt.broker.host}:{self.config.mqtt.broker.port}")
+            print(f"   Broker: {_dict_get(broker, 'host', 'N/A')}:{_dict_get(broker, 'port', 'N/A')}")
             print(f"   Estado: CONECTADO")
-            print(f"   Tópicos suscritos: {len(self.config.mqtt.topics.subscribe)}")
+            print(f"   Tópicos suscritos: {len(_dict_get(topics, 'subscribe', []))}")
         
         if self.services_status['api']:
             print("🌐 API REST:")
@@ -389,7 +455,11 @@ class IoTMiddlewareManager:
             if not self.initialize_ingestor_service():
                 return False
             
-            # 6. Inicializar API REST
+            # 6. Inicializar servicio de monitoreo
+            if not self.initialize_monitoring_service():
+                return False
+            
+            # 7. Inicializar API REST
             if not self.initialize_api():
                 return False
             
@@ -400,6 +470,19 @@ class IoTMiddlewareManager:
             self.logger.error(f"❌ Error inicializando servicios: {e}")
             return False
     
+    def start_monitoring_service(self):
+        """Inicia el servicio de monitoreo"""
+        try:
+            if not self.monitoring_service:
+                return
+            
+            self.logger.info("🚀 Iniciando servicio de monitoreo...")
+            self.monitoring_service.start()
+            self.logger.info("✅ Servicio de monitoreo iniciado")
+            
+        except Exception as e:
+            self.logger.error(f"❌ Error iniciando servicio de monitoreo: {e}")
+    
     def start_all_services(self):
         """Inicia todos los servicios en threads separados"""
         try:
@@ -407,6 +490,9 @@ class IoTMiddlewareManager:
             
             # Iniciar servicio de ingesta
             self.start_ingestor_service()
+            
+            # Iniciar servicio de monitoreo
+            self.start_monitoring_service()
             
             # Iniciar servidor de API
             self.start_api_server()
@@ -478,6 +564,14 @@ class IoTMiddlewareManager:
                     self.logger.info("✅ Servicio de ingesta detenido")
                 except Exception as e:
                     self.logger.error(f"❌ Error deteniendo ingesta: {e}")
+            
+            # Detener servicio de monitoreo
+            if self.monitoring_service:
+                try:
+                    self.monitoring_service.stop()
+                    self.logger.info("✅ Servicio de monitoreo detenido")
+                except Exception as e:
+                    self.logger.error(f"❌ Error deteniendo monitoreo: {e}")
             
             # Detener cliente MQTT
             if self.mqtt_client:
