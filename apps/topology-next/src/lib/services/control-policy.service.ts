@@ -1,3 +1,5 @@
+import type { ControlActor } from "@/lib/dto/control-access.dto";
+import { assertControlPermission, getScopedProjectIds } from "@/lib/auth/control-access";
 import { isDeepStrictEqual } from "node:util";
 import { ConflictError, NotFoundError } from "@/lib/errors/domain-errors";
 import type { ControlPolicy, ControlPolicyPreviewResponse } from "@/lib/dto/control-policy.dto";
@@ -30,11 +32,16 @@ export class ControlPolicyService {
     this.controlPolicyAuditRepo = deps.controlPolicyAuditRepo ?? new ControlPolicyAuditRepository();
   }
 
-  async list(filters?: { projectId?: string; variable?: string; enabled?: boolean }) {
-    return this.controlPolicyRepo.findAll(filters);
+  async list(actor: ControlActor, filters?: { projectId?: string; variable?: string; enabled?: boolean }) {
+    assertControlPermission(actor, "view_policies", filters?.projectId);
+    return this.controlPolicyRepo.findAll({
+      ...filters,
+      projectIds: getScopedProjectIds(actor, filters?.projectId)
+    });
   }
 
-  async create(input: CreateControlPolicyInput) {
+  async create(actor: ControlActor, input: CreateControlPolicyInput) {
+    assertControlPermission(actor, "edit_policies", input.project_id);
     const project = await this.projectRepo.findById(input.project_id);
     if (!project) {
       throw new NotFoundError("Project not found");
@@ -59,6 +66,7 @@ export class ControlPolicyService {
       before: null,
       after: created,
       context: {
+        actor,
         project_id: created.project_id,
         variable: created.variable
       }
@@ -66,16 +74,22 @@ export class ControlPolicyService {
     return created;
   }
 
-  async getById(id: string) {
+  async getById(actor: ControlActor, id: string) {
+    assertControlPermission(actor, "view_policies");
     const policy = await this.controlPolicyRepo.findById(id);
     if (!policy) {
       throw new NotFoundError("Control policy not found");
     }
+    assertControlPermission(actor, "view_policies", policy.project_id);
     return policy;
   }
 
-  async update(id: string, input: UpdateControlPolicyInput) {
-    const existing = await this.getById(id);
+  async update(actor: ControlActor, id: string, input: UpdateControlPolicyInput) {
+    const existing = await this.getById(actor, id);
+    assertControlPermission(actor, "edit_policies", existing.project_id);
+    if (input.enabled !== undefined && input.enabled !== existing.enabled) {
+      assertControlPermission(actor, "toggle_policies", existing.project_id);
+    }
     const nextState = {
       ...existing,
       context_selector: input.context_selector ?? existing.context_selector,
@@ -120,6 +134,7 @@ export class ControlPolicyService {
       before: existing,
       after: updated,
       context: {
+        actor,
         project_id: updated.project_id,
         variable: updated.variable
       }
@@ -128,8 +143,9 @@ export class ControlPolicyService {
     return updated;
   }
 
-  async disable(id: string) {
-    const existing = await this.getById(id);
+  async disable(actor: ControlActor, id: string) {
+    const existing = await this.getById(actor, id);
+    assertControlPermission(actor, "toggle_policies", existing.project_id);
     if (!existing.enabled) {
       return existing;
     }
@@ -149,6 +165,7 @@ export class ControlPolicyService {
       before: existing,
       after: updated,
       context: {
+        actor,
         project_id: updated.project_id,
         variable: updated.variable
       }
@@ -157,7 +174,7 @@ export class ControlPolicyService {
     return updated;
   }
 
-  async previewSelection(input: {
+  async previewSelection(actor: ControlActor, input: {
     projectId: string;
     variable: string;
     context: Record<string, unknown>;
@@ -173,8 +190,10 @@ export class ControlPolicyService {
       version?: number;
     };
   }): Promise<ControlPolicyPreviewResponse> {
+    assertControlPermission(actor, "view_policies", input.projectId);
     const existingPolicies = (await this.controlPolicyRepo.findAll({
       projectId: input.projectId,
+      projectIds: getScopedProjectIds(actor, input.projectId),
       variable: input.variable
     })) ?? [];
 

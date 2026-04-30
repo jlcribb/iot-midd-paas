@@ -98,19 +98,29 @@ export interface ITopologyRepository {
 }
 
 export interface IControlObservabilityRepository {
-  findLatestRecommendations(filters?: { projectId?: string; limit?: number }): Promise<ControlRecommendationView[]>;
+  findLatestRecommendations(filters?: {
+    projectId?: string;
+    projectIds?: string[];
+    limit?: number;
+  }): Promise<ControlRecommendationView[]>;
   findAuditEntries(filters?: {
     projectId?: string;
+    projectIds?: string[];
     status?: "processed" | "skipped" | "error";
     limit?: number;
   }): Promise<ControlAuditView[]>;
-  getStatus(): Promise<ControlStatusView>;
+  getStatus(filters?: { projectIds?: string[] }): Promise<ControlStatusView>;
 }
 
 export interface IControlPolicyRepository {
   create(input: CreateControlPolicyInput): Promise<ControlPolicy>;
   findById(id: string): Promise<ControlPolicy | null>;
-  findAll(filters?: { projectId?: string; variable?: string; enabled?: boolean }): Promise<ControlPolicy[]>;
+  findAll(filters?: {
+    projectId?: string;
+    projectIds?: string[];
+    variable?: string;
+    enabled?: boolean;
+  }): Promise<ControlPolicy[]>;
   update(id: string, input: UpdateControlPolicyInput & { version?: number }): Promise<ControlPolicy | null>;
 }
 

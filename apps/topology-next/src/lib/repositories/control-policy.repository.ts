@@ -81,13 +81,24 @@ export class ControlPolicyRepository implements IControlPolicyRepository {
     return result.rows[0] ? mapControlPolicy(result.rows[0]) : null;
   }
 
-  async findAll(filters?: { projectId?: string; variable?: string; enabled?: boolean }): Promise<ControlPolicy[]> {
+  async findAll(filters?: {
+    projectId?: string;
+    projectIds?: string[];
+    variable?: string;
+    enabled?: boolean;
+  }): Promise<ControlPolicy[]> {
     const conditions: string[] = [];
-    const values: Array<string | boolean> = [];
+    const values: Array<string | string[] | boolean> = [];
 
     if (filters?.projectId) {
       values.push(filters.projectId);
       conditions.push(`project_id = $${values.length}::uuid`);
+    } else if (filters?.projectIds) {
+      if (filters.projectIds.length === 0) {
+        return [];
+      }
+      values.push(filters.projectIds);
+      conditions.push(`project_id = ANY($${values.length}::uuid[])`);
     }
 
     if (filters?.variable) {

@@ -76,17 +76,29 @@ function mapStatus(row: QueryResultRow): ControlStatusView {
 export class ControlObservabilityRepository implements IControlObservabilityRepository {
   constructor(private readonly db: SqlExecutor = pool) {}
 
-  async findLatestRecommendations(filters?: { projectId?: string; limit?: number }): Promise<ControlRecommendationView[]> {
+  async findLatestRecommendations(filters?: {
+    projectId?: string;
+    projectIds?: string[];
+    limit?: number;
+  }): Promise<ControlRecommendationView[]> {
     const conditions = [
       "entidad = 'control_engine_worker'",
       "accion = 'CONTROL_RECOMMENDATION_EMITTED'"
     ];
-    const values: Array<string | number> = [];
+    const values: Array<string | string[] | number> = [];
 
     if (filters?.projectId) {
       values.push(filters.projectId);
       conditions.push(
         `COALESCE(entidad_id::text, cambios->'payload'->>'project_id', cambios->>'project_id') = $${values.length}`
+      );
+    } else if (filters?.projectIds) {
+      if (filters.projectIds.length === 0) {
+        return [];
+      }
+      values.push(filters.projectIds);
+      conditions.push(
+        `COALESCE(entidad_id::text, cambios->'payload'->>'project_id', cambios->>'project_id') = ANY($${values.length}::text[])`
       );
     }
 
@@ -127,16 +139,25 @@ export class ControlObservabilityRepository implements IControlObservabilityRepo
 
   async findAuditEntries(filters?: {
     projectId?: string;
+    projectIds?: string[];
     status?: "processed" | "skipped" | "error";
     limit?: number;
   }): Promise<ControlAuditView[]> {
     const conditions = ["entidad = 'control_engine_worker'"];
-    const values: Array<string | number> = [];
+    const values: Array<string | string[] | number> = [];
 
     if (filters?.projectId) {
       values.push(filters.projectId);
       conditions.push(
         `COALESCE(entidad_id::text, cambios->'payload'->>'project_id', cambios->>'project_id') = $${values.length}`
+      );
+    } else if (filters?.projectIds) {
+      if (filters.projectIds.length === 0) {
+        return [];
+      }
+      values.push(filters.projectIds);
+      conditions.push(
+        `COALESCE(entidad_id::text, cambios->'payload'->>'project_id', cambios->>'project_id') = ANY($${values.length}::text[])`
       );
     }
 
@@ -182,7 +203,36 @@ export class ControlObservabilityRepository implements IControlObservabilityRepo
     return result.rows.map(mapAudit);
   }
 
-  async getStatus(): Promise<ControlStatusView> {
+  async getStatus(filters?: { projectIds?: string[] }): Promise<ControlStatusView> {
+    const values: Array<string[]> = [];
+    let auditScopeCondition = "";
+    let projectScopeCondition = "";
+    let policyScopeCondition = "";
+
+    if (filters?.projectIds) {
+      if (filters.projectIds.length === 0) {
+        return {
+          activity_status: "idle",
+          latest_audit_at: null,
+          latest_recommendation_at: null,
+          latest_skipped_at: null,
+          enabled_projects: 0,
+          enabled_policies: 0,
+          projects_with_policies: 0,
+          audits_last_24h: 0,
+          recommendations_last_24h: 0,
+          skipped_last_24h: 0,
+          errors_last_24h: 0
+        };
+      }
+      values.push(filters.projectIds);
+      auditScopeCondition = `
+        AND COALESCE(entidad_id::text, cambios->'payload'->>'project_id', cambios->>'project_id') = ANY($1::text[])
+      `;
+      projectScopeCondition = " AND id = ANY($1::uuid[])";
+      policyScopeCondition = " AND project_id = ANY($1::uuid[])";
+    }
+
     const result = await this.db.query(
       `
       WITH audit_metrics AS (
@@ -205,6 +255,7 @@ export class ControlObservabilityRepository implements IControlObservabilityRepo
           ) AS errors_last_24h
         FROM iot_schema.auditoria
         WHERE entidad = 'control_engine_worker'
+        ${auditScopeCondition}
       )
       SELECT
         CASE
@@ -219,23 +270,27 @@ export class ControlObservabilityRepository implements IControlObservabilityRepo
           SELECT COUNT(*)
           FROM public.projects
           WHERE parametric_control_enabled = TRUE
+          ${projectScopeCondition}
         ), 0) AS enabled_projects,
         COALESCE((
           SELECT COUNT(*)
           FROM public.project_control_policies
           WHERE enabled = TRUE
+          ${policyScopeCondition}
         ), 0) AS enabled_policies,
         COALESCE((
           SELECT COUNT(DISTINCT project_id)
           FROM public.project_control_policies
           WHERE enabled = TRUE
+          ${policyScopeCondition}
         ), 0) AS projects_with_policies,
         COALESCE(audit_metrics.audits_last_24h, 0) AS audits_last_24h,
         COALESCE(audit_metrics.recommendations_last_24h, 0) AS recommendations_last_24h,
         COALESCE(audit_metrics.skipped_last_24h, 0) AS skipped_last_24h,
         COALESCE(audit_metrics.errors_last_24h, 0) AS errors_last_24h
       FROM audit_metrics
-      `
+      `,
+      values
     );
 
     return mapStatus(result.rows[0]);

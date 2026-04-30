@@ -18,6 +18,12 @@ export class ConflictError extends AppError {
   }
 }
 
+export class ForbiddenError extends AppError {
+  constructor(message: string, details?: unknown) {
+    super(403, "FORBIDDEN", message, details);
+  }
+}
+
 export class InternalError extends AppError {
   constructor(message: string, details?: unknown) {
     super(500, "INTERNAL_ERROR", message, details);

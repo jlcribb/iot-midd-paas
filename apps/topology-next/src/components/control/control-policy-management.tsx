@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
+import type { ControlAccessSnapshot } from "@/lib/dto/control-access.dto";
 import type {
   ControlPolicy,
   ControlPolicyConflict,
@@ -65,9 +66,14 @@ function buildDraftMap(policies: ControlPolicy[]) {
   return Object.fromEntries(policies.map((policy) => [policy.id, policyToDraft(policy)])) as Record<string, ControlPolicyDraft>;
 }
 
+function buildAccessDeniedMessage() {
+  return "Tu rol actual no permite modificar policies en este scope operacional.";
+}
+
 export function ControlPolicyManagement() {
   const [policies, setPolicies] = useState<ControlPolicy[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
+  const [access, setAccess] = useState<ControlAccessSnapshot | null>(null);
   const [drafts, setDrafts] = useState<Record<string, ControlPolicyDraft>>({});
   const [createForm, setCreateForm] = useState<ControlPolicyCreateFormState>(createEmptyPolicyFormState());
   const [loading, setLoading] = useState(true);
@@ -82,15 +88,17 @@ export function ControlPolicyManagement() {
 
     async function load() {
       try {
-        const [policiesData, projectsData] = await Promise.all([
+        const [accessData, policiesData] = await Promise.all([
+          fetchApi<ControlAccessSnapshot>("/api/control/access"),
           fetchApi<ControlPolicy[]>("/api/control/policies"),
-          fetchApi<Project[]>("/api/projects")
         ]);
+        const projectsData = accessData.allowed_projects;
 
         if (cancelled) {
           return;
         }
 
+        setAccess(accessData);
         setPolicies(policiesData);
         setProjects(projectsData);
         setDrafts(buildDraftMap(policiesData));
@@ -127,6 +135,10 @@ export function ControlPolicyManagement() {
 
   async function handleCreate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!access?.permissions.edit_policies) {
+      setError(buildAccessDeniedMessage());
+      return;
+    }
     setBusyKey("create");
     setError(null);
     setNotice(null);
@@ -152,6 +164,10 @@ export function ControlPolicyManagement() {
   }
 
   async function handleSave(policyId: string) {
+    if (!access?.permissions.edit_policies) {
+      setError(buildAccessDeniedMessage());
+      return;
+    }
     const draft = drafts[policyId];
     if (!draft) {
       return;
@@ -181,6 +197,10 @@ export function ControlPolicyManagement() {
   }
 
   async function handleDisable(policyId: string) {
+    if (!access?.permissions.toggle_policies) {
+      setError(buildAccessDeniedMessage());
+      return;
+    }
     setBusyKey(`disable:${policyId}`);
     setError(null);
     setNotice(null);
@@ -312,6 +332,12 @@ export function ControlPolicyManagement() {
             <code> apps/topology-next </code>
             , manteniendo el runtime desacoplado y usando PostgreSQL como source of truth.
           </p>
+          {access ? (
+            <p>
+              Usuario actual: <code>{access.actor.user_id}</code> · rol <code>{access.actor.role}</code> ·
+              scope {access.actor.all_projects ? <code>all-projects</code> : <code>{projects.length} projects</code>}
+            </p>
+          ) : null}
         </div>
         <div className="control-header-meta">
           <Link className="control-nav-link" href="/control">
@@ -334,6 +360,17 @@ export function ControlPolicyManagement() {
           y solo actuará si el proyecto tiene <code>parametric_control_enabled = true</code>.
         </span>
       </section>
+
+      {access ? (
+        <section className="control-alert">
+          <strong>RBAC operacional</strong>
+          <span>
+            Permisos activos: view_policies=<code>{String(access.permissions.view_policies)}</code> ·
+            edit_policies=<code>{String(access.permissions.edit_policies)}</code> ·
+            toggle_policies=<code>{String(access.permissions.toggle_policies)}</code>
+          </span>
+        </section>
+      ) : null}
 
       {error ? (
         <section className="control-alert control-alert-error">
@@ -364,6 +401,7 @@ export function ControlPolicyManagement() {
               className="input-select"
               value={createForm.project_id}
               onChange={(event) => setCreateForm((current) => ({ ...current, project_id: event.target.value }))}
+              disabled={!access?.permissions.edit_policies}
             >
               {projects.length === 0 ? <option value="">Sin proyectos</option> : null}
               {projects.map((project) => (
@@ -381,6 +419,7 @@ export function ControlPolicyManagement() {
               value={createForm.variable}
               onChange={(event) => setCreateForm((current) => ({ ...current, variable: event.target.value }))}
               placeholder="tank_level"
+              disabled={!access?.permissions.edit_policies}
             />
           </label>
 
@@ -390,6 +429,7 @@ export function ControlPolicyManagement() {
               className="input-select"
               value={createForm.policy_type}
               onChange={(event) => handlePolicyTypeChange(event.target.value as ControlPolicyCreateFormState["policy_type"])}
+              disabled={!access?.permissions.edit_policies}
             >
               <option value="proportional">proportional</option>
               <option value="threshold">threshold</option>
@@ -403,6 +443,7 @@ export function ControlPolicyManagement() {
               value={createForm.priority}
               onChange={(event) => setCreateForm((current) => ({ ...current, priority: event.target.value }))}
               inputMode="numeric"
+              disabled={!access?.permissions.edit_policies}
             />
           </label>
 
@@ -413,6 +454,7 @@ export function ControlPolicyManagement() {
               value={createForm.params_text}
               onChange={(event) => setCreateForm((current) => ({ ...current, params_text: event.target.value }))}
               rows={10}
+              disabled={!access?.permissions.edit_policies}
             />
           </label>
 
@@ -423,6 +465,7 @@ export function ControlPolicyManagement() {
               value={createForm.context_selector_text}
               onChange={(event) => setCreateForm((current) => ({ ...current, context_selector_text: event.target.value }))}
               rows={6}
+              disabled={!access?.permissions.edit_policies}
             />
           </label>
 
@@ -441,12 +484,17 @@ export function ControlPolicyManagement() {
               type="checkbox"
               checked={createForm.enabled}
               onChange={(event) => setCreateForm((current) => ({ ...current, enabled: event.target.checked }))}
+              disabled={!access?.permissions.toggle_policies}
             />
             <span>Enabled</span>
           </label>
 
           <div className="control-actions">
-            <button className="btn btn-primary" disabled={busyKey === "create"} type="submit">
+            <button
+              className="btn btn-primary"
+              disabled={busyKey === "create" || !access?.permissions.edit_policies}
+              type="submit"
+            >
               {busyKey === "create" ? "Creando..." : "Crear policy"}
             </button>
             <button
@@ -550,6 +598,7 @@ export function ControlPolicyManagement() {
                           value={draft.params_text}
                           onChange={(event) => updateDraft(policy.id, { params_text: event.target.value })}
                           rows={10}
+                          disabled={!access?.permissions.edit_policies}
                         />
                       </label>
 
@@ -560,6 +609,7 @@ export function ControlPolicyManagement() {
                           value={draft.context_selector_text}
                           onChange={(event) => updateDraft(policy.id, { context_selector_text: event.target.value })}
                           rows={6}
+                          disabled={!access?.permissions.edit_policies}
                         />
                       </label>
 
@@ -580,6 +630,7 @@ export function ControlPolicyManagement() {
                           value={draft.priority}
                           onChange={(event) => updateDraft(policy.id, { priority: event.target.value })}
                           inputMode="numeric"
+                          disabled={!access?.permissions.edit_policies}
                         />
                       </label>
 
@@ -588,6 +639,7 @@ export function ControlPolicyManagement() {
                           type="checkbox"
                           checked={draft.enabled}
                           onChange={(event) => updateDraft(policy.id, { enabled: event.target.checked })}
+                          disabled={!access?.permissions.toggle_policies}
                         />
                         <span>Enabled</span>
                       </label>
@@ -603,7 +655,7 @@ export function ControlPolicyManagement() {
                         </button>
                         <button
                           className="btn btn-primary"
-                          disabled={busyKey === `save:${policy.id}`}
+                          disabled={busyKey === `save:${policy.id}` || !access?.permissions.edit_policies}
                           onClick={() => void handleSave(policy.id)}
                           type="button"
                         >
@@ -611,7 +663,7 @@ export function ControlPolicyManagement() {
                         </button>
                         <button
                           className="btn btn-secondary"
-                          disabled={busyKey === `disable:${policy.id}` || !policy.enabled}
+                          disabled={busyKey === `disable:${policy.id}` || !policy.enabled || !access?.permissions.toggle_policies}
                           onClick={() => void handleDisable(policy.id)}
                           type="button"
                         >

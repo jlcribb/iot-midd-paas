@@ -1,11 +1,13 @@
 import { withRouteErrorHandling } from "@/lib/http/route-handler";
 import { ok } from "@/lib/http/response";
 import { ValidationError } from "@/lib/errors/domain-errors";
+import { resolveControlActor } from "@/lib/auth/control-access";
 import { ControlObservabilityService } from "@/lib/services/control-observability.service";
 
 const controlObservabilityService = new ControlObservabilityService();
 
 export const GET = withRouteErrorHandling(async (request: Request) => {
+  const actor = resolveControlActor(request);
   const { searchParams } = new URL(request.url);
   const projectId = searchParams.get("projectId") ?? undefined;
   const limitParam = searchParams.get("limit");
@@ -15,7 +17,7 @@ export const GET = withRouteErrorHandling(async (request: Request) => {
     throw new ValidationError("limit must be a number");
   }
 
-  const recommendations = await controlObservabilityService.listRecommendations({
+  const recommendations = await controlObservabilityService.listRecommendations(actor, {
     projectId,
     limit
   });

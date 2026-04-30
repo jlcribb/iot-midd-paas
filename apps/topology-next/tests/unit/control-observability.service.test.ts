@@ -1,6 +1,17 @@
 import { describe, expect, it, vi } from "vitest";
+import type { ControlActor } from "@/lib/dto/control-access.dto";
 import { ControlObservabilityService } from "@/lib/services/control-observability.service";
 import type { IControlObservabilityRepository } from "@/lib/repositories/contracts";
+
+function makeActor(partial?: Partial<ControlActor>): ControlActor {
+  return {
+    user_id: partial?.user_id ?? "viewer-1",
+    display_name: partial?.display_name ?? "Viewer Uno",
+    role: partial?.role ?? "viewer",
+    all_projects: partial?.all_projects ?? false,
+    project_ids: partial?.project_ids ?? ["project-1"]
+  };
+}
 
 describe("ControlObservabilityService", () => {
   it("lists recommendations with normalized limit", async () => {
@@ -34,10 +45,11 @@ describe("ControlObservabilityService", () => {
     };
 
     const service = new ControlObservabilityService({ observabilityRepo: repo });
-    const result = await service.listRecommendations({ projectId: "project-1", limit: 10 });
+    const result = await service.listRecommendations(makeActor(), { projectId: "project-1", limit: 10 });
 
     expect(findLatestRecommendations).toHaveBeenCalledWith({
       projectId: "project-1",
+      projectIds: ["project-1"],
       limit: 10
     });
     expect(result).toHaveLength(1);
@@ -53,7 +65,7 @@ describe("ControlObservabilityService", () => {
 
     const service = new ControlObservabilityService({ observabilityRepo: repo });
 
-    await expect(service.listRecommendations({ limit: 0 })).rejects.toMatchObject({
+    await expect(service.listRecommendations(makeActor(), { limit: 0 })).rejects.toMatchObject({
       message: "limit must be an integer between 1 and 100"
     });
   });
@@ -84,7 +96,7 @@ describe("ControlObservabilityService", () => {
     };
 
     const service = new ControlObservabilityService({ observabilityRepo: repo });
-    const result = await service.listAudit({
+    const result = await service.listAudit(makeActor(), {
       projectId: "project-1",
       status: "skipped",
       limit: 25
@@ -92,6 +104,7 @@ describe("ControlObservabilityService", () => {
 
     expect(findAuditEntries).toHaveBeenCalledWith({
       projectId: "project-1",
+      projectIds: ["project-1"],
       status: "skipped",
       limit: 25
     });
@@ -120,10 +133,26 @@ describe("ControlObservabilityService", () => {
     };
 
     const service = new ControlObservabilityService({ observabilityRepo: repo });
-    const result = await service.getStatus();
+    const result = await service.getStatus(makeActor());
 
-    expect(getStatus).toHaveBeenCalledTimes(1);
+    expect(getStatus).toHaveBeenCalledWith({
+      projectIds: ["project-1"]
+    });
     expect(result.activity_status).toBe("active");
     expect(result.enabled_policies).toBe(3);
+  });
+
+  it("rejects observability access outside the actor scope", async () => {
+    const repo: IControlObservabilityRepository = {
+      findLatestRecommendations: vi.fn(),
+      findAuditEntries: vi.fn(),
+      getStatus: vi.fn()
+    };
+
+    const service = new ControlObservabilityService({ observabilityRepo: repo });
+
+    await expect(service.listRecommendations(makeActor(), { projectId: "project-9", limit: 5 })).rejects.toMatchObject({
+      status: 403
+    });
   });
 });

@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import type { ControlActor } from "@/lib/dto/control-access.dto";
 import { ConflictError } from "@/lib/errors/domain-errors";
 import { ControlPolicyService } from "@/lib/services/control-policy.service";
 import type {
@@ -10,6 +11,16 @@ import type {
 function createAuditRepoMock(): IControlPolicyAuditRepository {
   return {
     recordChange: vi.fn().mockResolvedValue(undefined)
+  };
+}
+
+function makeActor(partial?: Partial<ControlActor>): ControlActor {
+  return {
+    user_id: partial?.user_id ?? "operator-1",
+    display_name: partial?.display_name ?? "Operator Uno",
+    role: partial?.role ?? "operator",
+    all_projects: partial?.all_projects ?? false,
+    project_ids: partial?.project_ids ?? ["project-1"]
   };
 }
 
@@ -60,7 +71,7 @@ describe("ControlPolicyService", () => {
 
     const auditRepo = createAuditRepoMock();
     const service = new ControlPolicyService({ controlPolicyRepo, projectRepo, controlPolicyAuditRepo: auditRepo });
-    const created = await service.create({
+    const created = await service.create(makeActor(), {
       project_id: "project-1",
       variable: "tank_level",
       policy_type: "proportional",
@@ -142,7 +153,7 @@ describe("ControlPolicyService", () => {
 
     const auditRepo = createAuditRepoMock();
     const service = new ControlPolicyService({ controlPolicyRepo, projectRepo, controlPolicyAuditRepo: auditRepo });
-    const updated = await service.update("policy-1", {
+    const updated = await service.update(makeActor(), "policy-1", {
       context_selector: { sector: "tank_B" },
       params: {
         variable_name: "Tank",
@@ -207,7 +218,7 @@ describe("ControlPolicyService", () => {
       }
     });
 
-    const result = await service.update("policy-1", {
+    const result = await service.update(makeActor(), "policy-1", {
       context_selector: {},
       params: existing.params,
       priority: 2,
@@ -269,7 +280,7 @@ describe("ControlPolicyService", () => {
       controlPolicyAuditRepo: createAuditRepoMock()
     });
 
-    await expect(service.create({
+    await expect(service.create(makeActor(), {
       project_id: "project-1",
       variable: "tank_level",
       policy_type: "proportional",
@@ -327,7 +338,7 @@ describe("ControlPolicyService", () => {
       controlPolicyAuditRepo: createAuditRepoMock()
     });
 
-    const preview = await service.previewSelection({
+    const preview = await service.previewSelection(makeActor(), {
       projectId: "project-1",
       variable: "tank_level",
       context: { sector: "tank_A" },
@@ -353,5 +364,42 @@ describe("ControlPolicyService", () => {
     expect(preview.current_selected_policy?.id).toBe("policy-1");
     expect(preview.hypothetical_selected_policy?.id).toBe("preview-candidate");
     expect(preview.candidate_would_be_selected).toBe(true);
+  });
+
+  it("rejects policy writes outside the actor project scope", async () => {
+    const service = new ControlPolicyService({
+      controlPolicyRepo: {
+        create: vi.fn(),
+        findById: vi.fn(),
+        findAll: vi.fn().mockResolvedValue([]),
+        update: vi.fn()
+      },
+      projectRepo: {
+        create: vi.fn(),
+        findById: vi.fn(),
+        findAll: vi.fn(),
+        update: vi.fn()
+      },
+      controlPolicyAuditRepo: createAuditRepoMock()
+    });
+
+    await expect(service.create(makeActor({ project_ids: ["project-9"] }), {
+      project_id: "project-1",
+      variable: "tank_level",
+      policy_type: "proportional",
+      context_selector: {},
+      params: {
+        variable_name: "Tank",
+        actuator_name: "pump",
+        setpoint_value: 70,
+        gain: 1,
+        deadband: 0,
+        min_action: 0
+      },
+      priority: 0,
+      enabled: true
+    })).rejects.toMatchObject({
+      status: 403
+    });
   });
 });

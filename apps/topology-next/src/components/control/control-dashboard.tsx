@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import type { ControlAccessSnapshot } from "@/lib/dto/control-access.dto";
 import type {
   ControlAuditView,
   ControlRecommendationView,
@@ -21,6 +22,7 @@ interface ApiSuccessResponse<T> {
 }
 
 interface ControlDashboardSnapshot {
+  access: ControlAccessSnapshot;
   status: ControlStatusView;
   recommendations: ControlRecommendationView[];
   audit: ControlAuditView[];
@@ -44,13 +46,15 @@ async function fetchApi<T>(url: string): Promise<T> {
 }
 
 async function fetchControlDashboardSnapshot(): Promise<ControlDashboardSnapshot> {
-  const [status, recommendations, audit] = await Promise.all([
+  const [access, status, recommendations, audit] = await Promise.all([
+    fetchApi<ControlAccessSnapshot>("/api/control/access"),
     fetchApi<ControlStatusView>("/api/control/status"),
     fetchApi<ControlRecommendationView[]>("/api/control/recommendations?limit=8"),
     fetchApi<ControlAuditView[]>("/api/control/audit?limit=8")
   ]);
 
   return {
+    access,
     status,
     recommendations,
     audit
@@ -98,6 +102,12 @@ export function ControlDashboard() {
           <p>
             Vista read-only de estado, recomendaciones y auditoría del control engine.
           </p>
+          {data ? (
+            <p>
+              Usuario actual: <code>{data.access.actor.user_id}</code> · rol <code>{data.access.actor.role}</code> ·
+              scope {data.access.actor.all_projects ? <code>all-projects</code> : <code>{data.access.allowed_projects.length} projects</code>}
+            </p>
+          ) : null}
         </div>
         <div className="control-header-meta">
           <Link className="control-nav-link" href="/control/policies">

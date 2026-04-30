@@ -26,11 +26,46 @@ Capacidades expuestas:
 La pantalla no ejecuta evaluaciones ni calcula recomendaciones. Solo usa APIs de
 Next.js como write path hacia PostgreSQL.
 
+## RBAC operacional
+
+La superficie `/control` y `/control/policies` aplica un RBAC mínimo con scope
+por proyecto, sin tocar el runtime Python.
+
+Roles soportados:
+
+- `viewer`: puede ver dashboard y policies;
+- `operator`: puede ver, crear, editar y habilitar/deshabilitar policies dentro de su scope;
+- `admin`: mismas capacidades que `operator` y permiso reservado para delete físico futuro.
+
+Resolución del actor actual:
+
+- headers HTTP `x-control-user-id`, `x-control-user-name`, `x-control-user-role`, `x-control-project-ids`;
+- cookies `control_user_id`, `control_user_name`, `control_user_role`, `control_project_ids`;
+- defaults de entorno para operación local.
+
+Variables de entorno útiles:
+
+- `CONTROL_RBAC_DEFAULT_USER_ID`
+- `CONTROL_RBAC_DEFAULT_USER_NAME`
+- `CONTROL_RBAC_DEFAULT_ROLE`
+- `CONTROL_RBAC_DEFAULT_PROJECT_SCOPE`
+
+`CONTROL_RBAC_DEFAULT_PROJECT_SCOPE` acepta `*` / `all` o una lista CSV de
+`project_id`.
+
 ## APIs
+
+### GET `/api/control/access`
+
+Devuelve:
+
+- actor actual resuelto;
+- permisos efectivos;
+- proyectos visibles dentro del scope operacional.
 
 ### GET `/api/control/policies`
 
-Lista policies. Soporta filtros opcionales:
+Lista policies visibles para el actor actual. Soporta filtros opcionales:
 
 - `projectId`
 - `variable`
@@ -38,7 +73,8 @@ Lista policies. Soporta filtros opcionales:
 
 ### POST `/api/control/policies`
 
-Crea una policy nueva.
+Crea una policy nueva si el actor tiene permiso `edit_policies` y acceso al
+`project_id` indicado.
 
 Payload mínimo:
 
@@ -75,6 +111,8 @@ Actualiza solo campos operativos:
 Cuando hay cambios reales, la implementación incrementa `version`
 automáticamente para mantener coherencia con el contrato operacional.
 
+Si el patch cambia `enabled`, también exige permiso `toggle_policies`.
+
 ### DELETE `/api/control/policies/[id]`
 
 No borra físicamente la fila. Ejecuta soft-disable:
@@ -82,10 +120,13 @@ No borra físicamente la fila. Ejecuta soft-disable:
 - `enabled = false`
 - incremento automático de `version` si la policy estaba activa
 
+La operación queda protegida como acción de `toggle_policies`.
+
 ### POST `/api/control/policies/preview`
 
 Permite simular la selección de policy para un `project_id + variable + context`
-sin tocar el runtime ni persistir cambios.
+sin tocar el runtime ni persistir cambios. El actor debe tener visibilidad sobre
+ese proyecto.
 
 Payload esperado:
 
@@ -162,7 +203,8 @@ Los cambios write-path desde `apps/topology-next` registran auditoría en
 - `entidad = project_control_policies`
 - `accion = CONTROL_POLICY_CREATED | CONTROL_POLICY_UPDATED | CONTROL_POLICY_DISABLED`
 - `cambios = { antes, despues }`
-- `contexto` con metadata del subsistema y claves operacionales básicas
+- `contexto` con metadata del subsistema, claves operacionales básicas y actor
+  que ejecutó la acción
 
 Esto no modifica el `control_engine_worker`; solo agrega trazabilidad sobre el
 origen de cambios de configuración.
