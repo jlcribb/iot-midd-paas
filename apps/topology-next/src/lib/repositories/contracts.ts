@@ -4,6 +4,7 @@ import type {
   ControlRecommendationView,
   ControlStatusView
 } from "@/lib/dto/control.dto";
+import type { ControlPolicy } from "@/lib/dto/control-policy.dto";
 import type { Location } from "@/lib/dto/location.dto";
 import type { Project } from "@/lib/dto/project.dto";
 import type { Sector } from "@/lib/dto/sector.dto";
@@ -12,6 +13,10 @@ import type {
   CreateAssetInput,
   UpdateAssetInput
 } from "@/lib/validators/asset.schemas";
+import type {
+  CreateControlPolicyInput,
+  UpdateControlPolicyInput
+} from "@/lib/validators/control-policy.schemas";
 import type {
   CreateLocationInput,
   UpdateLocationInput
@@ -100,4 +105,11 @@ export interface IControlObservabilityRepository {
     limit?: number;
   }): Promise<ControlAuditView[]>;
   getStatus(): Promise<ControlStatusView>;
+}
+
+export interface IControlPolicyRepository {
+  create(input: CreateControlPolicyInput): Promise<ControlPolicy>;
+  findById(id: string): Promise<ControlPolicy | null>;
+  findAll(filters?: { projectId?: string; variable?: string; enabled?: boolean }): Promise<ControlPolicy[]>;
+  update(id: string, input: UpdateControlPolicyInput & { version?: number }): Promise<ControlPolicy | null>;
 }

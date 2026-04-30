@@ -100,6 +100,9 @@ export function ControlDashboard() {
           </p>
         </div>
         <div className="control-header-meta">
+          <Link className="control-nav-link" href="/control/policies">
+            Gestionar Policies
+          </Link>
           <Link className="control-nav-link" href="/">
             Volver a Topología
           </Link>

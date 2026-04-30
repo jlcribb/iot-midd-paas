@@ -545,6 +545,112 @@ select {
   line-height: 1.6;
 }
 
+.control-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.control-field {
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+  color: #334155;
+}
+
+.control-field span {
+  font-weight: 700;
+}
+
+.control-field-wide {
+  grid-column: 1 / -1;
+}
+
+.control-textarea {
+  width: 100%;
+  min-height: 120px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: #ffffff;
+  font: 12px/1.5 "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  resize: vertical;
+}
+
+.control-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.control-policy-grid {
+  display: grid;
+  gap: 16px;
+}
+
+.control-policy-card {
+  display: grid;
+  gap: 16px;
+  padding: 18px;
+  border-radius: 16px;
+  border: 1px solid rgba(191, 219, 254, 0.95);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.95)),
+    #ffffff;
+}
+
+.control-policy-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.control-policy-card-header h3 {
+  margin: 8px 0 0;
+  font-size: 22px;
+  color: #0f172a;
+}
+
+.control-policy-meta {
+  margin: 8px 0 0;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.control-policy-badges {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.control-policy-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.control-policy-meta-grid > div {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  border-radius: 12px;
+  background: rgba(248, 250, 252, 0.9);
+  border: 1px solid rgba(226, 232, 240, 0.95);
+}
+
+.control-policy-meta-grid strong {
+  color: #0f172a;
+  font-size: 14px;
+}
+
+.control-code-text {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
 .asset-node,
 .sector-node {
   width: 100%;
@@ -926,6 +1032,11 @@ select {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .control-form-grid,
+  .control-policy-meta-grid {
+    grid-template-columns: 1fr;
+  }
+
   .workspace-grid {
     grid-template-columns: 260px 1fr;
   }
@@ -955,6 +1066,10 @@ select {
   .control-hero-metrics,
   .control-kpi-grid {
     grid-template-columns: 1fr;
+  }
+
+  .control-policy-card-header {
+    flex-direction: column;
   }
 
   .style-editor-colors {
