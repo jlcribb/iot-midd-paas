@@ -1,10 +1,17 @@
-import type { ControlPolicy, ControlPolicyType } from "@/lib/dto/control-policy.dto";
+import type {
+  ControlPolicy,
+  ControlPolicyConflict,
+  ControlPolicyPreviewResponse,
+  ControlPolicyType
+} from "@/lib/dto/control-policy.dto";
+import { detectPolicyConflicts } from "@/lib/utils/control-policy-governance";
 
 export interface ControlPolicyDraft {
   params_text: string;
   context_selector_text: string;
   priority: string;
   enabled: boolean;
+  preview_context_text: string;
 }
 
 export interface ControlPolicyCreateFormState extends ControlPolicyDraft {
@@ -52,7 +59,8 @@ export function createEmptyPolicyFormState(): ControlPolicyCreateFormState {
     params_text: defaultParamsText("proportional"),
     context_selector_text: "{}",
     priority: "0",
-    enabled: true
+    enabled: true,
+    preview_context_text: "{}"
   };
 }
 
@@ -61,7 +69,8 @@ export function policyToDraft(policy: ControlPolicy): ControlPolicyDraft {
     params_text: formatPolicyJson(policy.params),
     context_selector_text: formatPolicyJson(policy.context_selector),
     priority: String(policy.priority),
-    enabled: policy.enabled
+    enabled: policy.enabled,
+    preview_context_text: formatPolicyJson(policy.context_selector)
   };
 }
 
@@ -128,4 +137,64 @@ export function buildUpdatePolicyPayload(draft: ControlPolicyDraft) {
     priority: parsePriority(draft.priority),
     enabled: draft.enabled
   };
+}
+
+export function buildPreviewPayload(args: {
+  project_id: string;
+  variable: string;
+  draft: ControlPolicyDraft;
+  policy_type: ControlPolicyType;
+  policy_id?: string;
+  version?: number;
+}) {
+  return {
+    project_id: args.project_id,
+    variable: args.variable,
+    context: parseJsonObject(args.draft.preview_context_text, "preview.context"),
+    candidate_policy: {
+      id: args.policy_id,
+      project_id: args.project_id,
+      variable: args.variable,
+      policy_type: args.policy_type,
+      params: parseJsonObject(args.draft.params_text, "params"),
+      context_selector: parseJsonObject(args.draft.context_selector_text, "context_selector"),
+      priority: parsePriority(args.draft.priority),
+      enabled: args.draft.enabled,
+      version: args.version
+    }
+  };
+}
+
+export function collectListWarnings(policy: ControlPolicy, policies: ControlPolicy[]): ControlPolicyConflict[] {
+  return detectPolicyConflicts(
+    {
+      id: policy.id,
+      project_id: policy.project_id,
+      variable: policy.variable,
+      policy_type: policy.policy_type,
+      context_selector: policy.context_selector,
+      params: policy.params,
+      priority: policy.priority,
+      enabled: policy.enabled,
+      version: policy.version
+    },
+    policies
+  );
+}
+
+export function previewSummaryText(preview: ControlPolicyPreviewResponse | null) {
+  if (!preview) {
+    return null;
+  }
+
+  if (!preview.hypothetical_selected_policy) {
+    return "No habría policy seleccionada para ese contexto.";
+  }
+
+  return [
+    `Seleccionada: ${preview.hypothetical_selected_policy.variable}`,
+    `scope=${JSON.stringify(preview.hypothetical_selected_policy.context_selector)}`,
+    `priority=${preview.hypothetical_selected_policy.priority}`,
+    `version=${preview.hypothetical_selected_policy.version}`
+  ].join(" · ");
 }

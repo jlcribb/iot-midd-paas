@@ -2,14 +2,21 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
-import type { ControlPolicy } from "@/lib/dto/control-policy.dto";
+import type {
+  ControlPolicy,
+  ControlPolicyConflict,
+  ControlPolicyPreviewResponse
+} from "@/lib/dto/control-policy.dto";
 import type { Project } from "@/lib/dto/project.dto";
 import {
+  buildPreviewPayload,
   buildCreatePolicyPayload,
   buildUpdatePolicyPayload,
+  collectListWarnings,
   createEmptyPolicyFormState,
   defaultParamsText,
   policyToDraft,
+  previewSummaryText,
   type ControlPolicyCreateFormState,
   type ControlPolicyDraft
 } from "@/components/control/control-policies.helpers";
@@ -67,6 +74,8 @@ export function ControlPolicyManagement() {
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [createPreview, setCreatePreview] = useState<ControlPolicyPreviewResponse | null>(null);
+  const [policyPreviews, setPolicyPreviews] = useState<Record<string, ControlPolicyPreviewResponse | null>>({});
 
   useEffect(() => {
     let cancelled = false;
@@ -113,6 +122,7 @@ export function ControlPolicyManagement() {
     const policiesData = await fetchApi<ControlPolicy[]>("/api/control/policies");
     setPolicies(policiesData);
     setDrafts(buildDraftMap(policiesData));
+    setPolicyPreviews({});
   }
 
   async function handleCreate(event: FormEvent<HTMLFormElement>) {
@@ -132,6 +142,7 @@ export function ControlPolicyManagement() {
         ...createEmptyPolicyFormState(),
         project_id: createForm.project_id
       });
+      setCreatePreview(null);
       setNotice("Policy creada correctamente.");
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : "No se pudo crear la policy");
@@ -157,6 +168,10 @@ export function ControlPolicyManagement() {
         body: JSON.stringify(payload)
       });
       await reloadPolicies();
+      setPolicyPreviews((current) => ({
+        ...current,
+        [policyId]: null
+      }));
       setNotice("Policy actualizada correctamente.");
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : "No se pudo actualizar la policy");
@@ -206,6 +221,84 @@ export function ControlPolicyManagement() {
         params_text: replaceParams ? defaultParamsText(nextType) : current.params_text
       };
     });
+  }
+
+  async function handleCreatePreview() {
+    setBusyKey("preview:create");
+    setError(null);
+
+    try {
+      const payload = buildPreviewPayload({
+        project_id: createForm.project_id,
+        variable: createForm.variable,
+        draft: createForm,
+        policy_type: createForm.policy_type,
+        version: 1
+      });
+      const preview = await fetchApi<ControlPolicyPreviewResponse>("/api/control/policies/preview", {
+        method: "POST",
+        body: JSON.stringify(payload)
+      });
+      setCreatePreview(preview);
+    } catch (previewError) {
+      setError(previewError instanceof Error ? previewError.message : "No se pudo generar el preview");
+    } finally {
+      setBusyKey(null);
+    }
+  }
+
+  async function handlePolicyPreview(policy: ControlPolicy) {
+    const draft = drafts[policy.id];
+    if (!draft) {
+      return;
+    }
+
+    setBusyKey(`preview:${policy.id}`);
+    setError(null);
+
+    try {
+      const payload = buildPreviewPayload({
+        project_id: policy.project_id,
+        variable: policy.variable,
+        draft,
+        policy_type: policy.policy_type,
+        policy_id: policy.id,
+        version: policy.version + 1
+      });
+      const preview = await fetchApi<ControlPolicyPreviewResponse>("/api/control/policies/preview", {
+        method: "POST",
+        body: JSON.stringify(payload)
+      });
+      setPolicyPreviews((current) => ({
+        ...current,
+        [policy.id]: preview
+      }));
+    } catch (previewError) {
+      setError(previewError instanceof Error ? previewError.message : "No se pudo generar el preview");
+    } finally {
+      setBusyKey(null);
+    }
+  }
+
+  function renderConflicts(conflicts: ControlPolicyConflict[]) {
+    if (conflicts.length === 0) {
+      return null;
+    }
+
+    return (
+      <div className="control-warning-list">
+        {conflicts.map((conflict) => (
+          <div
+            className={conflict.severity === "error" ? "control-alert control-alert-error" : "control-alert"}
+            key={`${conflict.type}:${conflictingIdsKey(conflict.conflicting_policy_ids)}`}
+          >
+            <strong>{conflict.severity === "error" ? "Conflicto bloqueante" : "Warning de gobernanza"}</strong>
+            <span>{conflict.message}</span>
+            <span>Policies relacionadas: {conflict.conflicting_policy_ids.join(", ")}</span>
+          </div>
+        ))}
+      </div>
+    );
   }
 
   return (
@@ -333,6 +426,16 @@ export function ControlPolicyManagement() {
             />
           </label>
 
+          <label className="control-field control-field-wide">
+            <span>Preview context JSON</span>
+            <textarea
+              className="control-textarea"
+              value={createForm.preview_context_text}
+              onChange={(event) => setCreateForm((current) => ({ ...current, preview_context_text: event.target.value }))}
+              rows={4}
+            />
+          </label>
+
           <label className="check-row">
             <input
               type="checkbox"
@@ -346,8 +449,41 @@ export function ControlPolicyManagement() {
             <button className="btn btn-primary" disabled={busyKey === "create"} type="submit">
               {busyKey === "create" ? "Creando..." : "Crear policy"}
             </button>
+            <button
+              className="btn btn-secondary"
+              disabled={busyKey === "preview:create"}
+              onClick={() => void handleCreatePreview()}
+              type="button"
+            >
+              {busyKey === "preview:create" ? "Calculando..." : "Preview selección"}
+            </button>
           </div>
         </form>
+
+        {createPreview ? (
+          <div className="control-preview-panel">
+            <strong>Resultado del preview</strong>
+            <span>{previewSummaryText(createPreview)}</span>
+            {createPreview.current_selected_policy ? (
+              <span>
+                Selección actual: <code>{createPreview.current_selected_policy.id}</code>
+              </span>
+            ) : (
+              <span>No hay selección actual para ese contexto.</span>
+            )}
+            {renderConflicts(createPreview.conflicts)}
+            {createPreview.warnings.length > 0 ? (
+              <div className="control-warning-list">
+                {createPreview.warnings.map((warning) => (
+                  <div className="control-alert" key={warning}>
+                    <strong>Warning</strong>
+                    <span>{warning}</span>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
       </section>
 
       <section className="control-panel">
@@ -366,6 +502,8 @@ export function ControlPolicyManagement() {
           <div className="control-policy-grid">
             {policies.map((policy) => {
               const draft = drafts[policy.id];
+              const listWarnings = collectListWarnings(policy, policies);
+              const preview = policyPreviews[policy.id] ?? null;
 
               return (
                 <article className="control-policy-card" key={policy.id}>
@@ -401,6 +539,8 @@ export function ControlPolicyManagement() {
                     </div>
                   </div>
 
+                  {renderConflicts(listWarnings)}
+
                   {draft ? (
                     <div className="control-form-grid">
                       <label className="control-field control-field-wide">
@@ -420,6 +560,16 @@ export function ControlPolicyManagement() {
                           value={draft.context_selector_text}
                           onChange={(event) => updateDraft(policy.id, { context_selector_text: event.target.value })}
                           rows={6}
+                        />
+                      </label>
+
+                      <label className="control-field control-field-wide">
+                        <span>Preview context JSON</span>
+                        <textarea
+                          className="control-textarea"
+                          value={draft.preview_context_text}
+                          onChange={(event) => updateDraft(policy.id, { preview_context_text: event.target.value })}
+                          rows={4}
                         />
                       </label>
 
@@ -444,6 +594,14 @@ export function ControlPolicyManagement() {
 
                       <div className="control-actions">
                         <button
+                          className="btn btn-secondary"
+                          disabled={busyKey === `preview:${policy.id}`}
+                          onClick={() => void handlePolicyPreview(policy)}
+                          type="button"
+                        >
+                          {busyKey === `preview:${policy.id}` ? "Calculando..." : "Preview selección"}
+                        </button>
+                        <button
                           className="btn btn-primary"
                           disabled={busyKey === `save:${policy.id}`}
                           onClick={() => void handleSave(policy.id)}
@@ -460,6 +618,31 @@ export function ControlPolicyManagement() {
                           {busyKey === `disable:${policy.id}` ? "Deshabilitando..." : "Deshabilitar"}
                         </button>
                       </div>
+
+                      {preview ? (
+                        <div className="control-preview-panel control-field-wide">
+                          <strong>Resultado del preview</strong>
+                          <span>{previewSummaryText(preview)}</span>
+                          {preview.current_selected_policy ? (
+                            <span>
+                              Selección actual: <code>{preview.current_selected_policy.id}</code>
+                            </span>
+                          ) : (
+                            <span>No hay selección actual para ese contexto.</span>
+                          )}
+                          {renderConflicts(preview.conflicts)}
+                          {preview.warnings.length > 0 ? (
+                            <div className="control-warning-list">
+                              {preview.warnings.map((warning) => (
+                                <div className="control-alert" key={warning}>
+                                  <strong>Warning</strong>
+                                  <span>{warning}</span>
+                                </div>
+                              ))}
+                            </div>
+                          ) : null}
+                        </div>
+                      ) : null}
                     </div>
                   ) : null}
                 </article>
@@ -470,4 +653,8 @@ export function ControlPolicyManagement() {
       </section>
     </main>
   );
+}
+
+function conflictingIdsKey(ids: string[]) {
+  return ids.slice().sort().join(":");
 }

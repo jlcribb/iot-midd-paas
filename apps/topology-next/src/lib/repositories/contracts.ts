@@ -113,3 +113,13 @@ export interface IControlPolicyRepository {
   findAll(filters?: { projectId?: string; variable?: string; enabled?: boolean }): Promise<ControlPolicy[]>;
   update(id: string, input: UpdateControlPolicyInput & { version?: number }): Promise<ControlPolicy | null>;
 }
+
+export interface IControlPolicyAuditRepository {
+  recordChange(entry: {
+    entityId: string;
+    action: "CONTROL_POLICY_CREATED" | "CONTROL_POLICY_UPDATED" | "CONTROL_POLICY_DISABLED";
+    before: unknown;
+    after: unknown;
+    context?: Record<string, unknown>;
+  }): Promise<void>;
+}
