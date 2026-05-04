@@ -1,7 +1,7 @@
 import { withRouteErrorHandling } from "@/lib/http/route-handler";
 import { ok } from "@/lib/http/response";
 import { ValidationError } from "@/lib/errors/domain-errors";
-import { resolveControlActor } from "@/lib/auth/control-access";
+import { resolveAuthenticatedControlActor } from "@/lib/auth/control-auth-session";
 import { ControlPolicyService } from "@/lib/services/control-policy.service";
 import { createControlPolicySchema } from "@/lib/validators/control-policy.schemas";
 
@@ -21,7 +21,7 @@ function parseEnabledParam(value: string | null): boolean | undefined {
 }
 
 export const GET = withRouteErrorHandling(async (request: Request) => {
-  const actor = resolveControlActor(request);
+  const actor = await resolveAuthenticatedControlActor(request);
   const { searchParams } = new URL(request.url);
   const projectId = searchParams.get("projectId") ?? undefined;
   const variable = searchParams.get("variable")?.trim() || undefined;
@@ -37,7 +37,7 @@ export const GET = withRouteErrorHandling(async (request: Request) => {
 });
 
 export const POST = withRouteErrorHandling(async (request: Request) => {
-  const actor = resolveControlActor(request);
+  const actor = await resolveAuthenticatedControlActor(request);
   const payload = createControlPolicySchema.parse(await request.json());
   const created = await controlPolicyService.create(actor, payload);
   return ok(created, 201);

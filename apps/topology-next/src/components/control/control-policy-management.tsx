@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
+import { LogoutButton } from "@/components/auth/logout-button";
 import type { ControlAccessSnapshot } from "@/lib/dto/control-access.dto";
 import type {
   ControlPolicy,
@@ -343,6 +344,7 @@ export function ControlPolicyManagement() {
           <Link className="control-nav-link" href="/control">
             Volver a Dashboard de Control
           </Link>
+          <LogoutButton />
           <Link className="control-nav-link" href="/">
             Volver a Topología
           </Link>

@@ -81,6 +81,23 @@ function parseRole(value: string): ControlRole {
   return normalized as ControlRole;
 }
 
+function parseEmailList(value: string | undefined) {
+  if (!value) {
+    return new Set<string>();
+  }
+
+  return new Set(
+    value
+      .split(",")
+      .map((entry) => entry.trim().toLowerCase())
+      .filter(Boolean)
+  );
+}
+
+function normalizeEmail(email: string | null | undefined) {
+  return email?.trim().toLowerCase() ?? null;
+}
+
 function parseProjectScope(value: string | null, role: ControlRole): { all_projects: boolean; project_ids: string[] } {
   const defaultRaw = process.env.CONTROL_RBAC_DEFAULT_PROJECT_SCOPE
     ?? (isDevelopmentRuntime() ? DEFAULT_DEV_SCOPE : "");
@@ -134,6 +151,27 @@ export function resolveControlActor(request: Request): ControlActor {
 
 export function getControlPermissions(role: ControlRole): ControlPermissions {
   return PERMISSIONS_BY_ROLE[role];
+}
+
+export function resolveRoleFromEmail(email: string | null | undefined): ControlRole {
+  const normalizedEmail = normalizeEmail(email);
+  if (!normalizedEmail) {
+    return "viewer";
+  }
+
+  const envMap: Record<ControlRole, Set<string>> = {
+    admin: parseEmailList(process.env.CONTROL_AUTH_ADMIN_EMAILS),
+    operator: parseEmailList(process.env.CONTROL_AUTH_OPERATOR_EMAILS),
+    viewer: parseEmailList(process.env.CONTROL_AUTH_VIEWER_EMAILS)
+  };
+
+  for (const role of ["admin", "operator", "viewer"] as ControlRole[]) {
+    if (envMap[role].has(normalizedEmail)) {
+      return role;
+    }
+  }
+
+  return "viewer";
 }
 
 export function canAccessProject(actor: ControlActor, projectId: string) {

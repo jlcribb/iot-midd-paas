@@ -32,8 +32,15 @@ describe("control-access", () => {
 
   it("checks project scope access", () => {
     const actor = {
+      actor_id: "viewer-1",
       user_id: "viewer-1",
+      username: "viewer-1",
       display_name: null,
+      email: null,
+      image: null,
+      auth_provider: null,
+      provider_account_id: null,
+      auth_source: "dev_fallback" as const,
       role: "viewer" as const,
       all_projects: false,
       project_ids: ["project-1"]
@@ -46,8 +53,15 @@ describe("control-access", () => {
 
   it("rejects actions outside the role matrix", () => {
     const actor = {
+      actor_id: "viewer-1",
       user_id: "viewer-1",
+      username: "viewer-1",
       display_name: null,
+      email: null,
+      image: null,
+      auth_provider: null,
+      provider_account_id: null,
+      auth_source: "dev_fallback" as const,
       role: "viewer" as const,
       all_projects: false,
       project_ids: ["project-1"]

@@ -16,8 +16,15 @@ function createAuditRepoMock(): IControlPolicyAuditRepository {
 
 function makeActor(partial?: Partial<ControlActor>): ControlActor {
   return {
+    actor_id: partial?.actor_id ?? partial?.user_id ?? "operator-1",
     user_id: partial?.user_id ?? "operator-1",
+    username: partial?.username ?? "operator-1",
     display_name: partial?.display_name ?? "Operator Uno",
+    email: partial?.email ?? "operator@example.com",
+    image: partial?.image ?? null,
+    auth_provider: partial?.auth_provider ?? "google",
+    provider_account_id: partial?.provider_account_id ?? "google-account-1",
+    auth_source: partial?.auth_source ?? "oauth_session",
     role: partial?.role ?? "operator",
     all_projects: partial?.all_projects ?? false,
     project_ids: partial?.project_ids ?? ["project-1"]
@@ -401,5 +408,118 @@ describe("ControlPolicyService", () => {
     })).rejects.toMatchObject({
       status: 403
     });
+  });
+
+  it("forbids viewer role from creating policies", async () => {
+    const service = new ControlPolicyService({
+      controlPolicyRepo: {
+        create: vi.fn(),
+        findById: vi.fn(),
+        findAll: vi.fn().mockResolvedValue([]),
+        update: vi.fn()
+      },
+      projectRepo: {
+        create: vi.fn(),
+        findById: vi.fn().mockResolvedValue({
+          id: "project-1",
+          name: "Proyecto Demo",
+          description: null,
+          status: "active",
+          metadata: {},
+          created_at: "2026-01-01T00:00:00.000Z",
+          updated_at: "2026-01-01T00:00:00.000Z"
+        }),
+        findAll: vi.fn(),
+        update: vi.fn()
+      },
+      controlPolicyAuditRepo: createAuditRepoMock()
+    });
+
+    await expect(service.create(makeActor({ role: "viewer" }), {
+      project_id: "project-1",
+      variable: "tank_level",
+      policy_type: "proportional",
+      context_selector: {},
+      params: {
+        variable_name: "Tank",
+        actuator_name: "pump",
+        setpoint_value: 70,
+        gain: 1,
+        deadband: 0,
+        min_action: 0
+      },
+      priority: 0,
+      enabled: true
+    })).rejects.toMatchObject({
+      status: 403
+    });
+  });
+
+  it("allows operator role to disable an enabled policy", async () => {
+    const update = vi.fn().mockResolvedValue({
+      id: "policy-1",
+      project_id: "project-1",
+      variable: "tank_level",
+      context_selector: {},
+      policy_type: "threshold",
+      params: {
+        variable_name: "Tank",
+        actuator_name: "pump",
+        setpoint_value: 70,
+        tolerance: 2,
+        increase_step: 1,
+        decrease_step: 1,
+        hold_signal: 0
+      },
+      priority: 2,
+      enabled: false,
+      version: 8,
+      created_at: "2026-01-01T00:00:00.000Z",
+      updated_at: "2026-01-02T00:00:00.000Z"
+    });
+
+    const service = new ControlPolicyService({
+      controlPolicyRepo: {
+        create: vi.fn(),
+        findById: vi.fn().mockResolvedValue({
+          id: "policy-1",
+          project_id: "project-1",
+          variable: "tank_level",
+          context_selector: {},
+          policy_type: "threshold",
+          params: {
+            variable_name: "Tank",
+            actuator_name: "pump",
+            setpoint_value: 70,
+            tolerance: 2,
+            increase_step: 1,
+            decrease_step: 1,
+            hold_signal: 0
+          },
+          priority: 2,
+          enabled: true,
+          version: 7,
+          created_at: "2026-01-01T00:00:00.000Z",
+          updated_at: "2026-01-01T00:00:00.000Z"
+        }),
+        findAll: vi.fn().mockResolvedValue([]),
+        update
+      },
+      projectRepo: {
+        create: vi.fn(),
+        findById: vi.fn(),
+        findAll: vi.fn(),
+        update: vi.fn()
+      },
+      controlPolicyAuditRepo: createAuditRepoMock()
+    });
+
+    const disabled = await service.disable(makeActor({ role: "operator" }), "policy-1");
+
+    expect(update).toHaveBeenCalledWith("policy-1", {
+      enabled: false,
+      version: 8
+    });
+    expect(disabled.enabled).toBe(false);
   });
 });
