@@ -9,4 +9,7 @@ logs/
 htmlcov/
 node_modules/
 .next/
+.next-docker/
+*.tsbuildinfo
+.playwright-mcp/
 .DS_Store

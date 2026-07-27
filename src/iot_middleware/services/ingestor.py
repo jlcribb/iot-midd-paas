@@ -12,8 +12,10 @@ Este módulo implementa un servicio de ingesta que:
 
 import json
 import logging
+import os
 import time
 import threading
+import uuid
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional, List, Union, Callable
 from dataclasses import dataclass, field
@@ -25,6 +27,7 @@ import sys
 # Importar módulos del proyecto
 try:
     from ..mqtt.mqtt_client import IoTMQTTClient, MQTTMessage, create_mqtt_client
+    from ..messaging import create_rabbitmq_client
     from ..storage.db_handler import DatabaseHandler, create_database_handler
     from ..config import load_config, MQTTConfig, StorageConfig
     from ..processing.processor import DataProcessor, create_data_processor
@@ -34,8 +37,237 @@ except ImportError as e:
     logging.error(f"Error al importar módulos: {e}")
     raise
 
+from iot_middleware.services.control_runtime_contract import TELEMETRY_EVENTS_ROUTING_KEY
+
 # Configurar logging
 logger = logging.getLogger(__name__)
+
+
+def _env_bool(name: str, default: bool) -> bool:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _safe_iso_timestamp(value: Any) -> str:
+    if isinstance(value, datetime):
+        return value.astimezone(timezone.utc).isoformat()
+    if isinstance(value, str) and value.strip():
+        try:
+            return datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(timezone.utc).isoformat()
+        except ValueError:
+            return datetime.now(timezone.utc).isoformat()
+    return datetime.now(timezone.utc).isoformat()
+
+
+class ControlTelemetryPublisher:
+    """Publica eventos canónicos de telemetría para el control engine."""
+
+    def __init__(self, rabbitmq_config: Any, *, ingesta_config: Optional[Dict[str, Any]] = None):
+        ingesta_config = ingesta_config or {}
+        self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
+        self.enabled = _env_bool(
+            "IOT_MW_CONTROL_TELEMETRY_ENABLED",
+            bool(ingesta_config.get("control_telemetry_enabled", True)),
+        )
+        self.routing_key = str(
+            os.getenv(
+                "IOT_MW_CONTROL_TELEMETRY_ROUTING_KEY",
+                ingesta_config.get("control_telemetry_routing_key", TELEMETRY_EVENTS_ROUTING_KEY),
+            )
+        ).strip() or TELEMETRY_EVENTS_ROUTING_KEY
+        self.queue_name = str(
+            os.getenv(
+                "IOT_MW_CONTROL_TELEMETRY_QUEUE",
+                ingesta_config.get("control_telemetry_queue", self.routing_key),
+            )
+        ).strip() or self.routing_key
+        self.source = str(
+            os.getenv(
+                "IOT_MW_CONTROL_TELEMETRY_SOURCE",
+                ingesta_config.get("control_telemetry_source", "runtime.ingestor"),
+            )
+        ).strip() or "runtime.ingestor"
+        self.rabbitmq_config = self._apply_env_overrides(rabbitmq_config)
+        self._client = None
+
+    @staticmethod
+    def _apply_env_overrides(rabbitmq_config: Any) -> Any:
+        overrides: Dict[str, Any] = {}
+        env_map = {
+            "RABBITMQ_HOST": ("host", str),
+            "RABBITMQ_PORT": ("port", int),
+            "RABBITMQ_USERNAME": ("username", str),
+            "RABBITMQ_PASSWORD": ("password", str),
+            "RABBITMQ_VHOST": ("virtual_host", str),
+            "RABBITMQ_EXCHANGE": ("exchange", str),
+            "RABBITMQ_HEARTBEAT": ("heartbeat", int),
+            "RABBITMQ_CONNECTION_ATTEMPTS": ("connection_attempts", int),
+            "RABBITMQ_RETRY_DELAY": ("retry_delay", int),
+        }
+
+        for env_name, (field_name, caster) in env_map.items():
+            raw = os.getenv(env_name)
+            if raw is None or raw.strip() == "":
+                continue
+            overrides[field_name] = caster(raw)
+
+        if not overrides:
+            return rabbitmq_config
+
+        if hasattr(rabbitmq_config, "model_copy"):
+            return rabbitmq_config.model_copy(update=overrides)
+        if hasattr(rabbitmq_config, "copy"):
+            return rabbitmq_config.copy(update=overrides)
+
+        for key, value in overrides.items():
+            setattr(rabbitmq_config, key, value)
+        return rabbitmq_config
+
+    def _get_client(self):
+        if self._client is not None:
+            return self._client
+        client = create_rabbitmq_client(self.rabbitmq_config)
+        if not client.connect():
+            raise ConnectionError("No se pudo conectar a RabbitMQ para publicar telemetry.events")
+        self._client = client
+        return client
+
+    def _reset_client(self) -> None:
+        if self._client is None:
+            return
+        try:
+            self._client.disconnect()
+        except Exception as exc:
+            self.logger.debug(f"No se pudo resetear cliente RabbitMQ de telemetría: {exc}")
+        finally:
+            self._client = None
+
+    def build_event(self, sensor_record: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        project_id = sensor_record.get("project_id")
+        variable = sensor_record.get("sensor_type")
+        value = sensor_record.get("value")
+
+        if project_id is None or str(project_id).strip() == "":
+            self.logger.warning("Telemetry event omitido: falta project_id en sensor_record")
+            return None
+        if variable is None or str(variable).strip() == "":
+            self.logger.warning("Telemetry event omitido: falta variable/sensor_type para project_id=%s", project_id)
+            return None
+        if value is None:
+            self.logger.warning("Telemetry event omitido: falta value para project_id=%s variable=%s", project_id, variable)
+            return None
+
+        try:
+            numeric_value = float(value)
+        except (TypeError, ValueError):
+            self.logger.warning(
+                "Telemetry event omitido: value no numérico project_id=%s variable=%s value=%r",
+                project_id,
+                variable,
+                value,
+            )
+            return None
+
+        metadata = {
+            "topic": sensor_record.get("topic"),
+            "quality": sensor_record.get("quality"),
+        }
+        metadata = {key: value for key, value in metadata.items() if value is not None}
+
+        context: Dict[str, Any] = {}
+        for key in ("unit_id", "device_id", "topic", "sector", "location_id", "asset_id", "channel_id"):
+            if sensor_record.get(key) is not None:
+                context[key] = sensor_record[key]
+
+        base_keys = {
+            "project_id",
+            "sensor_type",
+            "value",
+            "timestamp",
+            "topic",
+            "quality",
+            "unit_id",
+            "device_id",
+            "sector",
+            "location_id",
+            "asset_id",
+            "channel_id",
+        }
+        for key, item in sensor_record.items():
+            if key in base_keys or item is None or isinstance(item, (dict, list, tuple)):
+                continue
+            if isinstance(item, (str, int, float, bool)):
+                context.setdefault(key, item)
+
+        return {
+            "event_id": str(sensor_record.get("event_id") or f"evt-{uuid.uuid4()}"),
+            "project_id": str(project_id),
+            "variable": str(variable),
+            "value": numeric_value,
+            "timestamp": _safe_iso_timestamp(sensor_record.get("timestamp")),
+            "source": self.source,
+            "event_kind": "telemetry.observed",
+            "quality": str(sensor_record.get("quality") or "raw"),
+            "metadata": metadata,
+            "context": context,
+        }
+
+    def publish_sensor_record(self, sensor_record: Dict[str, Any]) -> bool:
+        if not self.enabled:
+            self.logger.debug("Publicación de telemetry.events deshabilitada por configuración")
+            return False
+
+        event = self.build_event(sensor_record)
+        if event is None:
+            return False
+
+        for attempt in range(2):
+            try:
+                client = self._get_client()
+                published = client.publish_json(
+                    routing_key=self.routing_key,
+                    payload=event,
+                    queue_name=self.queue_name,
+                    durable_queue=True,
+                )
+                if published:
+                    self.logger.info(
+                        "telemetry.events publicado project_id=%s variable=%s value=%s queue=%s",
+                        event["project_id"],
+                        event["variable"],
+                        event["value"],
+                        self.queue_name,
+                    )
+                    return True
+
+                self.logger.warning(
+                    "No se pudo publicar telemetry.events project_id=%s variable=%s intento=%s/2",
+                    event["project_id"],
+                    event["variable"],
+                    attempt + 1,
+                )
+            except Exception as exc:
+                self.logger.error(
+                    "Fallo publicando telemetry.events project_id=%s variable=%s intento=%s/2: %s",
+                    event["project_id"],
+                    event["variable"],
+                    attempt + 1,
+                    exc,
+                )
+
+            self._reset_client()
+
+        self.logger.error(
+            "No se pudo publicar telemetry.events project_id=%s variable=%s tras recrear el cliente RabbitMQ",
+            event["project_id"],
+            event["variable"],
+        )
+        return False
+
+    def close(self) -> None:
+        self._reset_client()
 
 
 @dataclass
@@ -323,6 +555,10 @@ class MessageProcessor:
         self.metrics = metrics
         self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
         self._metrics_lock = threading.Lock()
+        self.telemetry_publisher = ControlTelemetryPublisher(
+            config.rabbitmq,
+            ingesta_config=config.ingesta,
+        )
         
         # Cola de procesamiento
         self.message_queue = Queue(maxsize=config.ingesta['max_queue_size'])
@@ -421,7 +657,10 @@ class MessageProcessor:
             }
             
             # Insertar en base de datos
-            insert_ok = self._insert_registro(registro_data)
+            insert_ok = self._insert_registro(
+                registro_data,
+                publish_control_event=bool(validation_result.get('valid', False)),
+            )
             if insert_ok:
                 self._inc_metric('messages_processed')
             else:
@@ -544,7 +783,7 @@ class MessageProcessor:
 
         return sensor_record
 
-    def _insert_registro(self, registro_data: Dict[str, Any]) -> bool:
+    def _insert_registro(self, registro_data: Dict[str, Any], *, publish_control_event: bool = False) -> bool:
         """Inserta un registro en la base de datos."""
         try:
             sensor_record = self._build_sensor_record(registro_data)
@@ -559,6 +798,8 @@ class MessageProcessor:
                 inserted = self.db_handler.insert_sensor_data(sensor_record)
 
             if inserted:
+                if publish_control_event:
+                    self.telemetry_publisher.publish_sensor_record(sensor_record)
                 self._inc_metric('database_inserts')
                 self.logger.info(
                     f"Registro persistido: {sensor_record.get('device_id')}.{sensor_record.get('sensor_type')}="
@@ -602,6 +843,8 @@ class MessageProcessor:
         # Esperar a que los workers terminen
         for worker in self.workers:
             worker.join(timeout=5.0)
+
+        self.telemetry_publisher.close()
         
         self.logger.info("Procesador de mensajes detenido")
 

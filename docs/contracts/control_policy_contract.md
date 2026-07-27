@@ -81,3 +81,7 @@ Variable explícita:
 ```text
 CONTROL_WORKER_ALLOW_INMEMORY_POLICY_FALLBACK=true
 ```
+
+La publicación en `stdout` ya no habilita ese fallback por sí sola.
+Si el runtime no puede resolver policies PostgreSQL y la variable anterior no está
+activa, el resultado esperado es `status=error` auditable.

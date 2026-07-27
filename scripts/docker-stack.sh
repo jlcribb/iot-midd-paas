@@ -12,7 +12,7 @@ COMPOSE_FILE="$REPO_ROOT/infra/containers/docker-compose.yaml"
 COMPOSE=(docker compose -f "$COMPOSE_FILE")
 
 INFRA_ORDER=(mosquitto influxdb postgresql rabbitmq)
-APP_ORDER=(iotmw-api iotmw-ingestor iotmw-dashboard iotmw-admin)
+APP_ORDER=(iotmw-api iotmw-ingestor control-engine-worker iotmw-dashboard iotmw-admin iotmw-topology-ui)
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -26,6 +26,26 @@ die() {
 
 info() { echo -e "${GREEN}[INFO]${NC} $*"; }
 warn() { echo -e "${YELLOW}[WARN]${NC} $*"; }
+
+apply_topology_sql_migrations() {
+  local files=(
+    "apps/topology-next/migrations/007_topology_views.sql"
+    "apps/topology-next/migrations/008_topology_node_layouts.sql"
+    "apps/topology-next/migrations/009_topology_link_layouts.sql"
+  )
+
+  info "Aplicando migraciones SQL de topology-next…"
+  local file
+  for file in "${files[@]}"; do
+    if [[ ! -f "$REPO_ROOT/$file" ]]; then
+      warn "  faltante: $file"
+      continue
+    fi
+
+    docker exec -i postgresql psql -v ON_ERROR_STOP=1 -U iot_user -d iot_middleware < "$REPO_ROOT/$file" >/dev/null
+    info "  aplicada: $(basename "$file")"
+  done
+}
 
 require_compose_file() {
   [[ -f "$COMPOSE_FILE" ]] || die "No existe $COMPOSE_FILE (¿estás en el clon correcto del repo?)"
@@ -91,6 +111,8 @@ cmd_probe() {
   probe_url "http://127.0.0.1:8000/docs" "API (OpenAPI)"
   probe_url "http://127.0.0.1:9000/" "Panel administración"
   probe_url "http://127.0.0.1:8080/health" "Dashboard /health"
+  probe_url "http://127.0.0.1:3000/api/projects" "Topología / proyectos"
+  probe_url "http://127.0.0.1:3000/api/control/status" "Control observability"
   echo "---"
   if [[ $fail -gt 0 ]]; then
     warn "Sondas fallidas: $fail (revisa logs: $0 logs <nombre>)"
@@ -119,6 +141,7 @@ cmd_up() {
     i=$((i + 1))
     [[ $i -lt 35 ]] || { warn "PostgreSQL no respondió a tiempo; revisa: docker logs postgresql"; break; }
   done
+  apply_topology_sql_migrations
   cmd_check || true
 }
 
@@ -143,6 +166,7 @@ cmd_recreate() {
   cd "$REPO_ROOT"
   info "Recreando contenedores (imágenes y volúmenes persistentes se reutilizan)…"
   "${COMPOSE[@]}" up -d --force-recreate
+  apply_topology_sql_migrations
   cmd_check || true
 }
 
@@ -163,6 +187,11 @@ cmd_start_manual() {
     docker start "$c" 2>/dev/null && info "  iniciado: $c" || warn "  $c: no iniciado (¿existe?)"
   done
   sleep 4
+  if docker exec postgresql pg_isready -U iot_user -d iot_middleware &>/dev/null; then
+    apply_topology_sql_migrations
+  else
+    warn "PostgreSQL todavía no está listo; se omiten migraciones SQL de topology-next."
+  fi
   for c in "${APP_ORDER[@]}"; do
     docker start "$c" 2>/dev/null && info "  iniciado: $c" || warn "  $c: no iniciado (¿existe?)"
   done

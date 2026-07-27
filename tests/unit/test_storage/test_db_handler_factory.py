@@ -95,6 +95,9 @@ def test_persist_control_audit_record_serializes_nested_datetimes(monkeypatch):
         def add(self, record):
             captured["record"] = record
 
+        def flush(self):
+            captured["record"].id = 321
+
         def commit(self):
             captured["committed"] = True
 
@@ -133,7 +136,13 @@ def test_persist_control_audit_record_serializes_nested_datetimes(monkeypatch):
         action="CONTROL_RECOMMENDATION_EMITTED",
     )
 
-    assert persisted is True
+    assert persisted["status"] == "persisted"
+    assert persisted["attempted"] is True
+    assert persisted["row_id"] == 321
     assert captured["committed"] is True
     observed_at = captured["record"].cambios["payload"]["evaluation"]["trace"][0]["data"]["measurement"]["observed_at"]
     assert observed_at == "2026-04-28T23:46:46+00:00"
+    audit_persistence = captured["record"].cambios["payload"]["delivery"]["audit_persistence"]
+    assert audit_persistence["status"] == "persisted"
+    assert audit_persistence["attempted"] is True
+    assert audit_persistence["row_id"] == 321

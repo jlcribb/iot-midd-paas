@@ -243,10 +243,29 @@ Servicios definidos actualmente:
 - `postgresql`
 - `api`
 - `ingestor`
+- `control-engine-worker`
 - `rabbitmq`
 - `dashboard`
 - `admin`
 - `topology-ui`
+
+### Smoke oficial de control paramétrico
+
+Comando canónico:
+
+```bash
+./scripts/smoke_control_engine_end_to_end.sh
+```
+
+El smoke distingue niveles reales de validación:
+
+- `contract-level`
+- `component-level`
+- `broker-level`
+- `database-level`
+- `full E2E`
+
+No declara E2E completo si RabbitMQ, PostgreSQL, MQTT o `/api/control/*` no están disponibles.
 
 ## Entry points actuales
 
@@ -255,6 +274,7 @@ Canonicos:
 - stack local completo: `docker compose -f infra/containers/docker-compose.yaml up -d`
 - dominio operacional oficial: `cd apps/topology-next && npm run dev`
 - runtime de ingesta Python: `python -m iot_middleware.services.ingestor`
+- worker oficial de control: `python -m iot_middleware.services.control_engine_worker`
 - API Python legacy activa: `uvicorn iot_middleware.api.api:app --host 0.0.0.0 --port 8000`
 - admin transicional: `python -m containers.admin.main`
 - dashboard experimental: `python -m containers.dashboard.main`

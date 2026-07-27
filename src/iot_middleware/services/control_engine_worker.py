@@ -26,6 +26,24 @@ from dataclasses import asdict, is_dataclass
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
+from iot_middleware.services.control_runtime_contract import (
+    CONTROL_AUDIT_ACTION_EVALUATION_FAILED,
+    CONTROL_AUDIT_PERSISTENCE_STATUS_FAILED,
+    CONTROL_AUDIT_PERSISTENCE_STATUS_NOT_ATTEMPTED,
+    CONTROL_AUDIT_PERSISTENCE_STATUS_PENDING,
+    CONTROL_AUDIT_PERSISTENCE_STATUS_PERSISTED,
+    CONTROL_AUDIT_ACTION_RECOMMENDATION_EMITTED,
+    CONTROL_AUDIT_ACTION_SKIPPED_BY_FEATURE_FLAG,
+    CONTROL_AUDIT_MESSAGE_TYPE,
+    CONTROL_AUDIT_ROUTING_KEY,
+    CONTROL_AUDIT_STATUS_ERROR,
+    CONTROL_AUDIT_STATUS_PROCESSED,
+    CONTROL_AUDIT_STATUS_SKIPPED,
+    CONTROL_RECOMMENDATION_MESSAGE_TYPE,
+    CONTROL_RECOMMENDATIONS_ROUTING_KEY,
+    CONTROL_SKIP_REASON_FEATURE_FLAG_DISABLED,
+    TELEMETRY_EVENTS_ROUTING_KEY,
+)
 
 logger = logging.getLogger("control_engine_worker")
 logging.basicConfig(
@@ -81,7 +99,7 @@ except Exception as exc:  # pragma: no cover
     ) from exc
 
 
-TELEMETRY_QUEUE = os.getenv("CONTROL_WORKER_INPUT_QUEUE", "telemetry.events")
+TELEMETRY_QUEUE = os.getenv("CONTROL_WORKER_INPUT_QUEUE", TELEMETRY_EVENTS_ROUTING_KEY)
 TELEMETRY_ROUTING_KEY = os.getenv(
     "CONTROL_WORKER_INPUT_ROUTING_KEY",
     TELEMETRY_QUEUE,
@@ -92,9 +110,9 @@ TELEMETRY_CONSUMER_QUEUE = os.getenv(
 )
 RECOMMENDATION_QUEUE = os.getenv(
     "CONTROL_WORKER_RECOMMENDATION_QUEUE",
-    "control.recommendations",
+    CONTROL_RECOMMENDATIONS_ROUTING_KEY,
 )
-AUDIT_QUEUE = os.getenv("CONTROL_WORKER_AUDIT_QUEUE", "control.audit")
+AUDIT_QUEUE = os.getenv("CONTROL_WORKER_AUDIT_QUEUE", CONTROL_AUDIT_ROUTING_KEY)
 DEFAULT_SETPOINT = float(os.getenv("CONTROL_WORKER_SETPOINT", "70.0"))
 DEFAULT_GAIN = float(os.getenv("CONTROL_WORKER_GAIN", "1.0"))
 DEFAULT_DEADBAND = float(os.getenv("CONTROL_WORKER_DEADBAND", "0.0"))
@@ -152,6 +170,121 @@ def _safe_to_dict(value: Any) -> Any:
     if hasattr(value, "__dict__"):
         return value.__dict__
     return value
+
+
+def _build_correlation_id(input_event: Dict[str, Any]) -> str:
+    event_id = str(input_event.get("event_id") or "unknown-event")
+    variable = str(input_event.get("variable") or "unknown-variable")
+    return f"control::{event_id}::{variable}"
+
+
+def _build_audit_identity(input_event: Dict[str, Any]) -> Dict[str, str]:
+    event_id = str(input_event.get("event_id") or "unknown-event")
+    variable = str(input_event.get("variable") or "unknown-variable")
+    return {
+        "audit_id": f"audit::{event_id}::{variable}",
+        "record_type": "control.runtime.audit",
+        "partition_key": variable,
+        "correlation_id": _build_correlation_id(input_event),
+    }
+
+
+def _build_delivery_metadata() -> Dict[str, Any]:
+    return {
+        "recommendation_publish": {
+            "status": "not_requested",
+            "transport": None,
+            "routing_key": RECOMMENDATION_QUEUE,
+        },
+        "audit_publish": {
+            "status": "pending",
+            "transport": None,
+            "routing_key": AUDIT_QUEUE,
+        },
+        "audit_persistence": _build_audit_persistence_metadata(
+            status=CONTROL_AUDIT_PERSISTENCE_STATUS_NOT_ATTEMPTED,
+            attempted=False,
+        ),
+    }
+
+
+def _build_audit_persistence_metadata(
+    *,
+    status: str,
+    attempted: bool,
+    attempted_at: str | None = None,
+    completed_at: str | None = None,
+    row_id: int | None = None,
+    rows_affected: int | None = None,
+    error: str | None = None,
+    action: str | None = None,
+) -> Dict[str, Any]:
+    metadata: Dict[str, Any] = {
+        "status": status,
+        "attempted": attempted,
+        "backend": "postgresql",
+        "store": "iot_schema.auditoria",
+        "table": "iot_schema.auditoria",
+    }
+    if attempted_at:
+        metadata["attempted_at"] = attempted_at
+    if completed_at:
+        metadata["completed_at"] = completed_at
+    if row_id is not None:
+        metadata["row_id"] = row_id
+    if rows_affected is not None:
+        metadata["rows_affected"] = rows_affected
+    if error:
+        metadata["error"] = error
+    if action:
+        metadata["action"] = action
+    return metadata
+
+
+def _mark_audit_persistence_pending(audit_payload: Dict[str, Any]) -> None:
+    delivery = audit_payload.setdefault("payload", {}).setdefault("delivery", _build_delivery_metadata())
+    current = delivery.get("audit_persistence")
+    attempted_at = None
+    if isinstance(current, dict):
+        attempted_at = current.get("attempted_at")
+    delivery["audit_persistence"] = _build_audit_persistence_metadata(
+        status=CONTROL_AUDIT_PERSISTENCE_STATUS_PENDING,
+        attempted=True,
+        attempted_at=attempted_at or utc_now_iso(),
+    )
+
+
+def _build_base_audit_envelope(
+    *,
+    input_event: Dict[str, Any],
+    status: str,
+) -> Dict[str, Any]:
+    audit_identity = _build_audit_identity(input_event)
+    payload = {
+        "event_id": input_event.get("event_id"),
+        "variable_id": input_event.get("variable"),
+        "project_id": input_event.get("project_id"),
+        "correlation_id": audit_identity["correlation_id"],
+        "input_event": input_event,
+        "policy_selection": None,
+        "evaluation": None,
+        "runtime_payload": None,
+        "delivery": _build_delivery_metadata(),
+    }
+
+    return {
+        **audit_identity,
+        "message_type": CONTROL_AUDIT_MESSAGE_TYPE,
+        "timestamp": utc_now_iso(),
+        "status": status,
+        "project_id": input_event.get("project_id"),
+        "variable": input_event.get("variable"),
+        "correlation_id": audit_identity["correlation_id"],
+        "input_event": input_event,
+        "recommendation": None,
+        "publishable": None,
+        "payload": payload,
+    }
 
 
 def _parse_observed_at(raw_timestamp: Any) -> datetime:
@@ -312,7 +445,7 @@ def _build_postgresql_policy_source():
 
 
 def _allow_inmemory_policy_fallback() -> bool:
-    return _env_bool("CONTROL_WORKER_ALLOW_INMEMORY_POLICY_FALLBACK", False) or PUBLISH_MODE == "stdout"
+    return _env_bool("CONTROL_WORKER_ALLOW_INMEMORY_POLICY_FALLBACK", False)
 
 
 def _resolve_policy_source(event: TelemetryStateEvent):
@@ -349,17 +482,13 @@ def _build_failure_audit_envelope(
     input_event: Dict[str, Any],
     error: str,
 ) -> Dict[str, Any]:
-    return {
-        "message_type": "control.audit",
-        "timestamp": utc_now_iso(),
-        "status": "error",
-        "project_id": input_event.get("project_id"),
-        "variable": input_event.get("variable"),
-        "input_event": input_event,
-        "recommendation": None,
-        "publishable": None,
-        "error": error,
-    }
+    envelope = _build_base_audit_envelope(
+        input_event=input_event,
+        status=CONTROL_AUDIT_STATUS_ERROR,
+    )
+    envelope["error"] = error
+    envelope["payload"]["error"] = error
+    return envelope
 
 
 def _build_skipped_audit_envelope(
@@ -367,17 +496,13 @@ def _build_skipped_audit_envelope(
     input_event: Dict[str, Any],
     reason: str,
 ) -> Dict[str, Any]:
-    return {
-        "message_type": "control.audit",
-        "timestamp": utc_now_iso(),
-        "status": "skipped",
-        "project_id": input_event.get("project_id"),
-        "variable": input_event.get("variable"),
-        "input_event": input_event,
-        "recommendation": None,
-        "publishable": None,
-        "skip_reason": reason,
-    }
+    envelope = _build_base_audit_envelope(
+        input_event=input_event,
+        status=CONTROL_AUDIT_STATUS_SKIPPED,
+    )
+    envelope["skip_reason"] = reason
+    envelope["payload"]["skip_reason"] = reason
+    return envelope
 
 
 def _load_rabbitmq_client():
@@ -452,7 +577,7 @@ def _normalize_telemetry_message(raw_message: Dict[str, Any]) -> Dict[str, Any]:
     )
 
 
-def publish_event(queue_name: str, payload: Dict[str, Any]) -> None:
+def publish_event(queue_name: str, payload: Dict[str, Any]) -> Dict[str, Any]:
     """
     Adapter boundary.
 
@@ -475,31 +600,108 @@ def publish_event(queue_name: str, payload: Dict[str, Any]) -> None:
             ):
                 raise ConnectionError(f"Failed to publish payload for routing key {queue_name}")
             logger.info("[PUBLISH_RABBITMQ] queue=%s", queue_name)
-            return
+            return {
+                "status": "published",
+                "transport": "rabbitmq",
+                "routing_key": queue_name,
+            }
         except Exception as exc:
             logger.warning(
                 "RabbitMQ publish unavailable for queue=%s: %s. Falling back to stdout.",
                 queue_name,
                 exc,
             )
+            fallback_error = str(exc)
+        else:  # pragma: no cover
+            fallback_error = None
+    else:
+        fallback_error = None
 
     logger.info(
         "[PUBLISH_STDOUT] queue=%s payload=%s",
         queue_name,
         json.dumps(payload, ensure_ascii=False, default=str),
     )
+    return {
+        "status": "published_stdout" if PUBLISH_MODE == "stdout" else "fallback_stdout",
+        "transport": "stdout",
+        "routing_key": queue_name,
+        "error": fallback_error,
+    }
 
 
-def _persist_audit_envelope(audit_payload: Dict[str, Any], *, action: str) -> None:
+def _persist_audit_envelope(audit_payload: Dict[str, Any], *, action: str) -> Dict[str, Any]:
     """Persistencia best-effort del audit envelope en PostgreSQL."""
     try:
         from iot_middleware.storage.db_handler import persist_control_audit_record
 
-        persisted = persist_control_audit_record(audit_payload, action=action)
-        if not persisted:
+        persistence_result = persist_control_audit_record(audit_payload, action=action)
+        if isinstance(persistence_result, dict):
+            return persistence_result
+        if not persistence_result:
             logger.warning("Control audit persistence returned false action=%s", action)
+            return _build_audit_persistence_metadata(
+                status=CONTROL_AUDIT_PERSISTENCE_STATUS_FAILED,
+                attempted=True,
+                attempted_at=utc_now_iso(),
+                completed_at=utc_now_iso(),
+                rows_affected=0,
+                error="persist_control_audit_record returned false",
+                action=action,
+            )
+        return _build_audit_persistence_metadata(
+            status=CONTROL_AUDIT_PERSISTENCE_STATUS_PERSISTED,
+            attempted=True,
+            attempted_at=utc_now_iso(),
+            completed_at=utc_now_iso(),
+            rows_affected=1,
+            action=action,
+        )
     except Exception as exc:
         logger.warning("Control audit persistence unavailable action=%s: %s", action, exc)
+        return _build_audit_persistence_metadata(
+            status=CONTROL_AUDIT_PERSISTENCE_STATUS_FAILED,
+            attempted=True,
+            attempted_at=utc_now_iso(),
+            completed_at=utc_now_iso(),
+            rows_affected=0,
+            action=action,
+            error=str(exc),
+        )
+
+
+def _enrich_processed_audit_envelope(
+    *,
+    audit_payload: Dict[str, Any],
+    input_event: Dict[str, Any],
+    selection: Any,
+    publish_payload: Dict[str, Any],
+) -> Dict[str, Any]:
+    audit_payload.setdefault("message_type", CONTROL_AUDIT_MESSAGE_TYPE)
+    audit_payload.setdefault("timestamp", utc_now_iso())
+    audit_payload["status"] = CONTROL_AUDIT_STATUS_PROCESSED
+    audit_payload["project_id"] = input_event.get("project_id")
+    audit_payload["variable"] = input_event.get("variable")
+    audit_payload["correlation_id"] = _build_correlation_id(input_event)
+    audit_payload["input_event"] = input_event
+    audit_payload["publishable"] = publish_payload
+
+    payload = audit_payload.setdefault("payload", {})
+    payload["project_id"] = input_event.get("project_id")
+    payload["event_id"] = payload.get("event_id") or input_event.get("event_id")
+    payload["variable_id"] = payload.get("variable_id") or input_event.get("variable")
+    payload["correlation_id"] = audit_payload["correlation_id"]
+    payload["policy_selection"] = {
+        "policy_id": selection.policy_id,
+        "selector_name": selection.selector_name,
+        "priority": selection.priority,
+        "version": selection.version,
+        "policy_type": selection.policy_type,
+        "selection_trace": [_safe_to_dict(entry) for entry in selection.selection_trace],
+    }
+    payload["input_event"] = input_event
+    payload.setdefault("delivery", _build_delivery_metadata())
+    return audit_payload
 
 
 def handle_event(event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
@@ -509,13 +711,16 @@ def handle_event(event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     if not is_parametric_control_enabled(project_id):
         audit_payload = _build_skipped_audit_envelope(
             input_event=event,
-            reason="feature_flag_disabled",
+            reason=CONTROL_SKIP_REASON_FEATURE_FLAG_DISABLED,
         )
-        _persist_audit_envelope(
+        _mark_audit_persistence_pending(audit_payload)
+        audit_publish_result = publish_event(AUDIT_QUEUE, audit_payload)
+        audit_payload["payload"]["delivery"]["audit_publish"] = audit_publish_result
+        persistence_result = _persist_audit_envelope(
             audit_payload,
-            action="CONTROL_SKIPPED_BY_FEATURE_FLAG",
+            action=CONTROL_AUDIT_ACTION_SKIPPED_BY_FEATURE_FLAG,
         )
-        publish_event(AUDIT_QUEUE, audit_payload)
+        audit_payload["payload"]["delivery"]["audit_persistence"] = persistence_result
         logger.info(
             "Parametric control disabled; skipping event project_id=%s variable=%s",
             project_id,
@@ -538,31 +743,29 @@ def handle_event(event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
 
         publish_payload = _safe_to_dict(sink_output.publish_envelope)
         publish_payload.setdefault("payload", {})
+        publish_payload["message_type"] = CONTROL_RECOMMENDATION_MESSAGE_TYPE
         publish_payload["payload"]["project_id"] = project_id
         publish_payload["payload"]["policy_id"] = selection.policy_id
         publish_payload["payload"]["policy_type"] = selection.policy_type
         publish_payload["payload"]["policy_version"] = selection.version
         publish_payload["payload"]["policy_priority"] = selection.priority
 
-        audit_payload = _safe_to_dict(sink_output.audit_envelope)
-        audit_payload.setdefault("payload", {})
-        audit_payload["payload"]["project_id"] = project_id
-        audit_payload["payload"]["policy_selection"] = {
-            "policy_id": selection.policy_id,
-            "selector_name": selection.selector_name,
-            "priority": selection.priority,
-            "version": selection.version,
-            "policy_type": selection.policy_type,
-            "selection_trace": [_safe_to_dict(entry) for entry in selection.selection_trace],
-        }
-        audit_payload["payload"]["input_event"] = event
-
-        _persist_audit_envelope(
-            audit_payload,
-            action="CONTROL_RECOMMENDATION_EMITTED",
+        audit_payload = _enrich_processed_audit_envelope(
+            audit_payload=_safe_to_dict(sink_output.audit_envelope),
+            input_event=event,
+            selection=selection,
+            publish_payload=publish_payload,
         )
-        publish_event(RECOMMENDATION_QUEUE, publish_payload)
-        publish_event(AUDIT_QUEUE, audit_payload)
+        recommendation_publish_result = publish_event(RECOMMENDATION_QUEUE, publish_payload)
+        audit_payload["payload"]["delivery"]["recommendation_publish"] = recommendation_publish_result
+        _mark_audit_persistence_pending(audit_payload)
+        audit_publish_result = publish_event(AUDIT_QUEUE, audit_payload)
+        audit_payload["payload"]["delivery"]["audit_publish"] = audit_publish_result
+        persistence_result = _persist_audit_envelope(
+            audit_payload,
+            action=CONTROL_AUDIT_ACTION_RECOMMENDATION_EMITTED,
+        )
+        audit_payload["payload"]["delivery"]["audit_persistence"] = persistence_result
 
         logger.info(
             "[CONTROL] project=%s variable=%s value=%s recommendation=%s",
@@ -582,11 +785,14 @@ def handle_event(event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
             input_event=event,
             error=str(exc),
         )
-        _persist_audit_envelope(
+        _mark_audit_persistence_pending(audit_payload)
+        audit_publish_result = publish_event(AUDIT_QUEUE, audit_payload)
+        audit_payload["payload"]["delivery"]["audit_publish"] = audit_publish_result
+        persistence_result = _persist_audit_envelope(
             audit_payload,
-            action="CONTROL_EVALUATION_FAILED",
+            action=CONTROL_AUDIT_ACTION_EVALUATION_FAILED,
         )
-        publish_event(AUDIT_QUEUE, audit_payload)
+        audit_payload["payload"]["delivery"]["audit_persistence"] = persistence_result
 
         logger.exception(
             "Control evaluation failed project_id=%s variable=%s",

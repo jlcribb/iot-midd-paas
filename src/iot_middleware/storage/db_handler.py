@@ -1210,12 +1210,30 @@ def _json_safe_runtime_value(value: Any) -> Any:
     return value
 
 
+def _merge_runtime_audit_persistence_metadata(
+    audit_envelope: Dict[str, Any],
+    persistence_metadata: Dict[str, Any],
+) -> Dict[str, Any]:
+    """Actualiza la metadata de persistencia preservando compatibilidad del envelope."""
+    safe_envelope = _json_safe_runtime_value(audit_envelope)
+    payload = safe_envelope.setdefault("payload", {})
+    delivery = payload.setdefault("delivery", {})
+
+    current = delivery.get("audit_persistence")
+    current = current if isinstance(current, dict) else {}
+    delivery["audit_persistence"] = {
+        **current,
+        **_json_safe_runtime_value(persistence_metadata),
+    }
+    return safe_envelope
+
+
 def persist_control_audit_record(
     audit_envelope: Dict[str, Any],
     *,
     action: str,
     entity: str = "control_engine_worker",
-) -> bool:
+) -> Dict[str, Any]:
     """
     Persiste el audit envelope del worker en `iot_schema.auditoria`.
 
@@ -1265,11 +1283,18 @@ def persist_control_audit_record(
         "message_type": audit_envelope.get("message_type"),
     }
     safe_audit_envelope = _json_safe_runtime_value(audit_envelope)
+    attempted_at = (
+        safe_audit_envelope.get("payload", {})
+        .get("delivery", {})
+        .get("audit_persistence", {})
+        .get("attempted_at")
+    )
+    attempted_at = attempted_at or datetime.now(timezone.utc).isoformat()
 
     session_factory = _get_control_runtime_session_factory(_get_control_settings_connection_url())
-    with session_factory() as session:
-        session.add(
-            Auditoria(
+    try:
+        with session_factory() as session:
+            record = Auditoria(
                 usuario_id=None,
                 entidad=entity,
                 entidad_id=entity_id,
@@ -1278,10 +1303,42 @@ def persist_control_audit_record(
                 contexto={k: v for k, v in audit_context.items() if v is not None},
                 ts=timestamp,
             )
-        )
-        session.commit()
+            session.add(record)
+            session.flush()
 
-    return True
+            completed_at = datetime.now(timezone.utc).isoformat()
+            persistence_result = {
+                "status": "persisted",
+                "attempted": True,
+                "backend": "postgresql",
+                "store": "iot_schema.auditoria",
+                "table": "iot_schema.auditoria",
+                "action": action,
+                "attempted_at": attempted_at,
+                "completed_at": completed_at,
+                "row_id": record.id,
+                "rows_affected": 1,
+            }
+            record.cambios = _merge_runtime_audit_persistence_metadata(
+                safe_audit_envelope,
+                persistence_result,
+            )
+            session.commit()
+            return persistence_result
+    except Exception as exc:
+        logger.warning("No se pudo persistir control audit action=%s: %s", action, exc)
+        return {
+            "status": "failed",
+            "attempted": True,
+            "backend": "postgresql",
+            "store": "iot_schema.auditoria",
+            "table": "iot_schema.auditoria",
+            "action": action,
+            "attempted_at": attempted_at,
+            "completed_at": datetime.now(timezone.utc).isoformat(),
+            "rows_affected": 0,
+            "error": str(exc),
+        }
 
 
 # ============================================================================

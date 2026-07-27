@@ -109,6 +109,48 @@ docker compose -f infra/containers/docker-compose.yaml up -d
 ./scripts/docker-stack.sh check
 ```
 
+### Smokes de Control Paramétrico
+```bash
+# Smoke directo del worker (debug local, con fallback permitido)
+./scripts/smoke_control_engine.sh
+
+# Smoke RabbitMQ del worker (enabled + disabled, sin MQTT)
+./scripts/smoke_control_engine_rabbitmq.sh
+
+# Smoke oficial de consolidación del canal MQTT -> runtime -> observabilidad
+./scripts/smoke_control_engine_end_to_end.sh
+```
+
+Ese smoke está pensado para ejecutarse desde la máquina host, con el stack
+canónico publicado por Docker Compose. Si no se definieron overrides manuales,
+resuelve por defecto:
+
+- PostgreSQL: `localhost:5432`
+- RabbitMQ: `localhost:5672`
+- MQTT: `localhost:1883`
+- observabilidad Next.js: `http://127.0.0.1:3000`
+
+El smoke E2E distingue estos niveles:
+
+- `contract-level`
+- `component-level`
+- `broker-level`
+- `database-level`
+- `full E2E`
+
+Y separa además la evidencia de auditoría en:
+
+- `audit_publish`
+- `audit_persistence_attempt`
+- `audit_database_row`
+- `audit_metadata_consistency`
+
+Y usa estos códigos de salida:
+
+- `0`: PASS completo
+- `1`: FAIL
+- `2`: WARN/SKIP sin fallo duro
+
 `./scripts/podman-stack.sh` queda únicamente como wrapper deprecated de compatibilidad.
 
 ## 📊 Salidas Generadas

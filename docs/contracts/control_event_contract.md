@@ -19,6 +19,7 @@ Telemetry Event
 - routing key por defecto: `telemetry.events`
 - cola por defecto del worker: `telemetry.events`
 - exchange por defecto: `iot_middleware`
+- constantes oficiales compartidas: `src/iot_middleware/services/control_runtime_contract.py`
 
 ## Payload mínimo requerido
 
@@ -66,5 +67,6 @@ El worker también acepta un envelope con `payload` si allí vive el evento can�
 - Si `parametric_control_enabled = FALSE`, el worker no emite recommendation.
 - En caso `disabled`, el worker sí genera un audit envelope con `status=skipped`.
 - Si no existe policy persistida para `project_id + variable + context`, el worker no emite recommendation y audita `status=error`.
-- La fuente canónica de policies es [control_policy_contract.md](/Users/joseluis/dev/iot-middleware copia/docs/contracts/control_policy_contract.md).
+- `event_id` funciona como identificador primario de correlación entre evento, recommendation y audit.
+- La fuente canónica de policies es [control_policy_contract.md](./control_policy_contract.md).
 - Toda lógica de control se delega a `parametric-control-engine`.

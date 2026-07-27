@@ -98,6 +98,46 @@ services:
       - influxdb
       - mosquitto
       - postgresql
+      - rabbitmq
+
+  control-engine-worker:
+    image: docker.io/python:3.12-slim
+    working_dir: /app
+    container_name: control-engine-worker
+    command: bash -lc "pip install --no-cache-dir -r /app/requirements.txt && PYTHONPATH=/app/src:/app/apps/parametric-control-engine/src python -m iot_middleware.services.control_engine_worker"
+    restart: unless-stopped
+    environment:
+      - DB_HOST=postgresql
+      - DB_PORT=5432
+      - DB_NAME=iot_middleware
+      - DB_USER=iot_user
+      - DB_PASSWORD=iot_password_2024
+      - POSTGRES_HOST=postgresql
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=iot_middleware
+      - POSTGRES_USER=iot_user
+      - POSTGRES_PASSWORD=iot_password_2024
+      - CONTROL_WORKER_PUBLISH_MODE=rabbitmq
+      - CONTROL_WORKER_ALLOW_INMEMORY_POLICY_FALLBACK=false
+      - CONTROL_WORKER_INPUT_QUEUE=telemetry.events
+      - CONTROL_WORKER_INPUT_ROUTING_KEY=telemetry.events
+      - CONTROL_WORKER_CONSUMER_QUEUE=telemetry.events
+      - CONTROL_WORKER_RECOMMENDATION_QUEUE=control.recommendations
+      - CONTROL_WORKER_AUDIT_QUEUE=control.audit
+      - CONTROL_WORKER_RABBITMQ_HOST=rabbitmq
+      - CONTROL_WORKER_RABBITMQ_PORT=5672
+      - CONTROL_WORKER_RABBITMQ_USERNAME=guest
+      - CONTROL_WORKER_RABBITMQ_PASSWORD=guest
+      - CONTROL_WORKER_RABBITMQ_VHOST=/
+      - CONTROL_WORKER_RABBITMQ_EXCHANGE=iot_middleware
+      - CONTROL_WORKER_LOG_LEVEL=INFO
+      - REPO_ROOT=/app
+    volumes:
+      - ../..:/app
+      - ../../config.yaml:/app/config.yaml
+    depends_on:
+      - rabbitmq
+      - postgresql
 
   rabbitmq:
     image: docker.io/rabbitmq:3-management
@@ -169,6 +209,14 @@ services:
       - DB_SSL=false
       - NODE_ENV=development
       - NEXT_TELEMETRY_DISABLED=1
+      - NEXT_DIST_DIR=.next-docker
+      - AUTH_SECRET=dev-local-auth-secret
+      - AUTH_URL=http://localhost:3000
+      - CONTROL_RBAC_ALLOW_DEV_FALLBACK=true
+      - CONTROL_RBAC_DEFAULT_USER_ID=local-control-admin
+      - CONTROL_RBAC_DEFAULT_USER_NAME=Local Control Admin
+      - CONTROL_RBAC_DEFAULT_ROLE=admin
+      - CONTROL_RBAC_DEFAULT_PROJECT_SCOPE=*
     volumes:
       - ../..:/app
     ports:

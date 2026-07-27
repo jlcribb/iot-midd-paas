@@ -59,10 +59,14 @@ El origen efectivo de lectura es PostgreSQL, reutilizando la observabilidad pers
 Secuencia sugerida:
 
 1. Levantar el stack Docker.
-2. Ejecutar `./scripts/smoke_control_engine_rabbitmq.sh`.
-3. Abrir `/control`.
-4. Mostrar primero el bloque de estado.
-5. Mostrar luego recommendation y audit para evidenciar trazabilidad.
+2. Habilitar `parametric_control_enabled` para el proyecto desde la capa oficial de proyectos.
+3. Confirmar que exista al menos una `project_control_policy` habilitada.
+4. Ejecutar `./scripts/smoke_control_engine_end_to_end.sh`.
+5. Abrir `/control`.
+6. Mostrar primero el bloque de estado.
+7. Mostrar luego recommendation y audit para evidenciar trazabilidad.
+
+En el compose local de desarrollo, `/api/control/*` queda accesible vía dev fallback de RBAC para facilitar validación operacional sin OAuth manual.
 
 ## Restricciones de alcance
 
