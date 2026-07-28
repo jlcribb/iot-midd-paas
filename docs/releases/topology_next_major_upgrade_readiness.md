@@ -458,3 +458,406 @@
 - justificación:
   - el árbol definitivo cumple seguridad y compatibilidad funcional
   - el override de `sharp` queda con warning por rango semver no satisfecho y `extraneous` opcionales explicados
+
+## 32. Prompt 017 - Gate de compatibilidad de Sharp y reproducibilidad E2E
+
+### Contexto del gate
+
+- fecha: `2026-07-28`
+- repositorio oficial validado: `/Users/joseluis/dev/iot-midd-paas-clean`
+- rama validada: `chore/topology-next-major-upgrade`
+- `HEAD`: `41bd4ab61fbce3311e86937619e51d3a61164b4b`
+- `main`: `9937d2ad5d93c9e96c7a7632909a1047ea9f8311`
+- `origin/main`: `6ababdbe2fb9c7ff35c1afe769b48ecea6f133ff`
+- sin archivos staged
+- sin tags nuevos
+- residuo conocido aún excluido:
+  - `docs/informe_intervencion_codex_chatgpt_2026-07-27.md`
+
+### Inventario de uso real de imágenes
+
+Hallazgos observados en el repositorio:
+
+- `rg "from ['\"]next/image['\"]" apps/topology-next` -> sin coincidencias
+- `rg "require\\(['\"]sharp['\"]\\)" apps/topology-next` -> sin coincidencias
+- `rg "from ['\"]sharp['\"]" apps/topology-next` -> sin coincidencias
+- `rg "<Image" apps/topology-next/src` -> sin coincidencias
+- `rg "unoptimized" apps/topology-next` -> sin coincidencias
+- `rg "_next/image" apps/topology-next` -> sin coincidencias
+- `rg "images:" apps/topology-next` -> sin coincidencias
+- `rg "loader:" apps/topology-next` -> sin coincidencias
+- `rg "output:" apps/topology-next/next.config.mjs apps/topology-next` -> sin coincidencias
+- `apps/topology-next/next.config.mjs` solo define `reactStrictMode` y `distDir`
+- no se encontraron assets `.png/.jpg/.jpeg/.webp/.gif/.svg` dentro de `apps/topology-next`
+
+Clasificación:
+
+- `SHARP_OPTIONAL_CURRENTLY_UNUSED`
+- `NEXT_IMAGE_RUNTIME_NOT_EXERCISED_NO_CURRENT_USAGE`
+
+Justificación:
+
+- la aplicación no consume `next/image`
+- no existe loader custom ni configuración `images`
+- no hay evidencia de rutas `/_next/image`
+- no hay imágenes locales o remotas sometidas hoy al pipeline oficial de optimización
+
+### Árbol de Sharp observado
+
+Estado definitivo revalidado en `apps/topology-next`:
+
+- `npm ci` -> PASS
+- `npm audit --json` -> `critical=0`, `high=0`, `moderate=0`, `low=0`
+- `npm ls sharp`:
+  - `next@16.2.12 -> sharp@0.35.3 overridden`
+- `npm explain sharp`:
+  - `sharp@"0.35.3" (was "^0.34.5") from next@16.2.12`
+- `npm ls postcss`:
+  - `next@16.2.12 -> postcss@8.5.24 overridden`
+  - `vite@6.4.3 -> postcss@8.5.24 deduped`
+- `npm ls --json`:
+  - `problems` contiene solo:
+    - `extraneous: @img/sharp-wasm32@0.35.3`
+    - `extraneous: @emnapi/runtime@1.11.3`
+- `npm ls --all`:
+  - sin `invalid`
+  - solo `UNMET OPTIONAL DEPENDENCY` esperables por plataforma
+
+Metadatos observados:
+
+- `process.platform process.arch`: `darwin arm64`
+- `next@16.2.12` publicado en npm declara `optionalDependencies.sharp = ^0.34.5`
+- `sharp@0.35.3` publicado en npm declara paquetes opcionales por plataforma `@img/sharp-*` y `@img/sharp-libvips-*`
+- `sharp@0.35.3` publicado en npm declara `engines.node >=20.9.0`
+
+Interpretación técnica:
+
+- el árbol queda seguro y funcional
+- el warning persistente no es de vulnerabilidad sino de consistencia semver
+- los `extraneous` observados quedan acotados al paquete WASM de Sharp y a `@emnapi/runtime`
+
+### Prueba directa de Sharp
+
+Prueba nativa ejecutada en memoria:
+
+- creación de imagen RGBA mínima
+- `resize`
+- salida PNG en memoria
+- validación de bytes no vacíos
+
+Resultado Apple Silicon:
+
+- `sharp=0.35.3`
+- `vips=8.18.3`
+- `platform=darwin`
+- `arch=arm64`
+- salida: `91` bytes
+- clasificación: PASS
+
+### Alternativas evaluadas
+
+#### Alternativa A - Estado actual
+
+- `next@16.2.12`
+- override `postcss@8.5.24`
+- override `sharp@0.35.3`
+
+Resultado:
+
+- audit en cero
+- `npm test`: PASS (`72 passed`)
+- `npm run typecheck`: PASS
+- `npm run build`: PASS
+- prueba nativa de Sharp: PASS
+- smoke E2E desde clon limpio: PASS
+
+#### Alternativa B - Override específico bajo `next`
+
+Entorno:
+
+- `/tmp/midd-iot-prompt017-altb.1iXns0`
+
+Cambio:
+
+- `overrides.next.postcss = 8.5.24`
+- `overrides.next.sharp = 0.35.3`
+
+Resultado:
+
+- instalación: PASS
+- audit: `0 vulnerabilities`
+- tests: PASS (`72 passed`)
+- typecheck: PASS
+- build: PASS
+- Sharp nativo: PASS
+- warning persistente:
+  - `@img/sharp-wasm32 extraneous`
+  - `@emnapi/runtime extraneous`
+- mejora frente al estado actual: ninguna
+
+Conclusión:
+
+- no justifica reemplazar el estado actual
+
+#### Alternativa C - `npm ci --omit=optional`
+
+Entorno:
+
+- `/tmp/midd-iot-prompt017-altc.t5AMcb`
+
+Resultado:
+
+- instalación: PASS (`129` paquetes)
+- audit: `0 vulnerabilities`
+- `npm ls sharp`: vacío
+- `require('sharp')`: `MODULE_NOT_FOUND`
+- tests: FAIL
+  - falta `@rollup/rollup-darwin-arm64`
+- build: FAIL
+  - Next cae a bindings WASM y Turbopack informa falta de bindings nativos `@next/swc-darwin-arm64`
+
+Conclusión:
+
+- `SHARP_CAN_BE_OMITTED_SAFELY` rechazado
+- omitir opcionales rompe toolchain nativo del frontend
+
+#### Alternativa D - Sharp como dependencia raíz explícita
+
+Entorno:
+
+- `/tmp/midd-iot-prompt017-altd.ld2sAv`
+
+Cambio:
+
+- agregado `dependencies.sharp = 0.35.3`
+
+Resultado:
+
+- instalación: PASS
+- audit: `0 vulnerabilities`
+- tests: PASS (`72 passed`)
+- typecheck: PASS
+- build: PASS
+- Sharp nativo: PASS
+- `npm ls sharp`:
+  - `next -> sharp@0.35.3 deduped`
+  - `root -> sharp@0.35.3 overridden`
+- warning persistente:
+  - `@img/sharp-wasm32 extraneous`
+  - `@emnapi/runtime extraneous`
+- el desacople semver con `^0.34.5` permanece
+
+Conclusión:
+
+- no aporta una mejora suficiente sobre A/E
+
+### Decisión sobre Sharp
+
+Clasificación exacta:
+
+- `SHARP_OVERRIDE_ACCEPTABLE_TEMPORARILY`
+
+Justificación:
+
+- seguridad en cero
+- no existe uso real actual de `next/image`
+- Sharp fue validado funcionalmente en Apple Silicon y Linux amd64
+- build, tests y typecheck permanecen en PASS
+- las alternativas B y D no mejoran materialmente la consistencia
+- la alternativa C rompe el toolchain nativo
+
+Deuda explícita:
+
+- `0.35.3` sigue fuera del rango `^0.34.5` publicado por `next@16.2.12`
+- `npm ls --json` mantiene `extraneous` opcionales explicados
+
+Criterio de retiro del override:
+
+- adoptar una versión de `next` que publique un rango de `sharp` no vulnerable y consistente con una instalación limpia sin `extraneous`
+
+### Validación Linux amd64
+
+Entorno:
+
+- copia temporal: `/tmp/midd-iot-prompt017-alta.HPf7LD`
+- imagen: `node:22-bullseye`
+- modo: emulación `--platform=linux/amd64` sobre Docker Desktop `aarch64`
+
+Resultado:
+
+- `npm ci`: PASS
+- audit: `0 vulnerabilities`
+- `npm ls sharp`: `next -> sharp@0.35.3 overridden`
+- Sharp nativo: PASS
+  - `platform=linux`
+  - `arch=x64`
+  - `sharp=0.35.3`
+  - `vips=8.18.3`
+- `npm test`: PASS (`72 passed`)
+- `npm run typecheck`: PASS
+- `npm run build`: PASS
+
+Clasificación:
+
+- Linux amd64 validado satisfactoriamente
+
+### Entorno Python reproducible
+
+Mecanismo oficial observado:
+
+- `venv/` local e ignorado
+- dependencias base en `requirements.txt`
+- dependencias de testing en `tests/requirements-test.txt`
+- script canónico del repo: `./setup_venv.sh`
+
+Acción ejecutada:
+
+- `./setup_venv.sh` en el clon limpio
+
+Resultado:
+
+- `venv` creado en el clon limpio
+- Python: `3.12.0`
+- imports críticos verificados:
+  - `sqlalchemy 2.0.35`
+  - `paho-mqtt` import PASS
+
+Causa del fallo heredado del Prompt 016:
+
+- clasificación principal: `PYTHON_ENV_NOT_CREATED`
+- detalle:
+  - el script `scripts/smoke_control_engine_end_to_end.sh` intenta `venv/bin/python`
+  - al no existir `venv`, cae a `python3`
+  - el `python3` del host no tenía `sqlalchemy`
+
+### Smoke E2E desde el clon limpio
+
+Preflight observado:
+
+- `postgresql`, `rabbitmq`, `mosquitto` y `topology-ui` accesibles por puertos canónicos
+- `/api/control/status` responde `200 OK`
+
+Ejecución:
+
+- `PYTHONDONTWRITEBYTECODE=1 ./scripts/smoke_control_engine_end_to_end.sh`
+
+Resultado:
+
+- clasificación exacta: `SMOKE_E2E_PASS_CLEAN_REPOSITORY`
+- `overall=PASS`
+- `exit_code=0`
+- `contract-level`: PASS
+- `component-level`: PASS
+- `broker-level`: PASS
+- `database-level`: PASS
+- `full E2E`: PASS
+
+### Validaciones finales consolidadas
+
+- frontend:
+  - `npm test`: PASS (`72 passed`)
+  - `npm run typecheck`: PASS
+  - `npm run build`: PASS
+- backend focalizado:
+  - `18 passed`
+- parametric-control-engine:
+  - `35 passed`
+- Docker Compose:
+  - `docker compose -f infra/containers/docker-compose.yaml config`: PASS
+- smoke real:
+  - `SMOKE_E2E_PASS_CLEAN_REPOSITORY`
+
+### Riesgos y deuda
+
+- warning semver documentado entre `next@16.2.12` y `sharp@0.35.3`
+- `extraneous` opcionales de Sharp aún visibles en `npm ls --json`
+- validación visual desktop/tablet/mobile no fue reejecutada en este prompt porque el alcance se concentró en compatibilidad de Sharp y reproducibilidad E2E sobre el mismo `HEAD` ya revisado en Prompt 016
+
+### Decisión de integración
+
+Decisión exacta:
+
+- `READY_FOR_LOCAL_CONTROLLED_MERGE_REHEARSAL_WITH_WARNINGS`
+
+Justificación:
+
+- audit final en cero
+- frontend, backend, engine, compose y smoke real en PASS
+- Sharp probado en Apple Silicon y Linux amd64
+- persiste un warning documentado, pero no se observó inconsistencia bloqueante ni regresión funcional
+
+## 33. Prompt 018 - Ensayo local controlado de integración de Next.js
+
+### Resultado del ensayo
+
+- relación entre ramas:
+  - merge base `9937d2ad5d93c9e96c7a7632909a1047ea9f8311`
+  - `main` sin commits exclusivos
+  - `chore/topology-next-major-upgrade` con `2` commits exclusivos
+- clasificación previa:
+  - `FAST_FORWARD_CANDIDATE`
+- método:
+  - worktree temporal en `/tmp/midd-iot-prompt018-merge-rehearsal.W7UoPI`
+  - rama temporal segura `rehearsal-prompt018-next-upgrade`
+  - integración mediante `git merge --ff-only`
+- resultado:
+  - fast-forward limpio
+  - sin conflictos
+  - sin merge commit
+  - sin diferencias de contenido respecto de `chore/topology-next-major-upgrade`
+
+### Clasificación de historia
+
+- `HISTORY_CLEAN_FAST_FORWARD`
+
+Motivos:
+
+- trazabilidad clara entre el commit funcional `3d16d9b` y el documental `41bd4ab`
+- no fue necesario commit temporal
+- no se detectó pérdida de commits ni cambios paralelos inesperados
+
+### Validaciones ejecutadas sobre el resultado integrado
+
+- frontend:
+  - `npm ci`: PASS
+  - `npm audit --json`: `0` critical, `0` high, `0` moderate, `0` low
+  - `npm test`: PASS (`72 passed`)
+  - `npm run typecheck`: PASS
+  - `npm run build`: PASS
+- Sharp:
+  - importación y transformación nativa PASS
+  - `sharp 0.35.3`
+  - `vips 8.18.3`
+  - `darwin arm64`
+- auth y feature flag:
+  - `NextAuth 4.24.15` preservado
+  - estrategia `jwt` preservada
+  - `/control` protegido con redirect a `/login?callbackUrl=%2Fcontrol`
+  - `parametric_control_enabled` preservado en persistencia, validación y UI
+- visual:
+  - desktop, tablet y móvil PASS
+  - sin overflow horizontal
+  - sin errores de consola del navegador
+- Python y backend:
+  - `./setup_venv.sh`: PASS
+  - tests focalizados: `18 passed`
+  - `apps/parametric-control-engine/tests`: `35 passed`
+- plataforma:
+  - `docker compose -f infra/containers/docker-compose.yaml config`: PASS
+  - smoke real: `SMOKE_E2E_PASS_MERGE_REHEARSAL`
+
+### Warnings
+
+- se mantiene la deuda conocida:
+  - override temporal `sharp@0.35.3` fuera del rango `^0.34.5` declarado por `next@16.2.12`
+  - `@img/sharp-wasm32` y `@emnapi/runtime` continúan como `extraneous` opcionales explicados
+- en la validación visual local aparecieron warnings de `next-auth` por `NEXTAUTH_URL` y `NO_SECRET` ausentes en el entorno dev del ensayo; no implicaron bypass ni regresión funcional
+
+### Readiness final
+
+- decisión técnica exacta:
+  - `READY_FOR_CONTROLLED_LOCAL_INTEGRATION_WITH_WARNINGS`
+- estado exacto del ensayo:
+  - `COMPLETED_LOCAL_MERGE_REHEARSAL_WITH_WARNINGS`
+- interpretación:
+  - la integración local futura puede planificarse sin esperar más validaciones técnicas de este mismo alcance, pero manteniendo explícita la deuda temporal de Sharp y sin asumir que este ensayo autoriza merge oficial, push, tag o release por sí solo
