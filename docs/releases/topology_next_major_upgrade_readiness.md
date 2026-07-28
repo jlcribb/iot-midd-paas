@@ -331,3 +331,130 @@
 ## 26. Próximo paso
 
 - siguiente intervención recomendada: revisar y publicar el upgrade mediante validación humana final del branch `chore/topology-next-major-upgrade`, con foco en smoke UI post-merge y observación de los `overrides` de `postcss`/`sharp`.
+
+## 27. Addendum Prompt 016
+
+- Prompt ejecutado: `MIDD IOT — PROMPT 016`
+- Fecha de revisión: `2026-07-28`
+- Commit revisado: `3d16d9bc5420d641320ac4215cf821df33d7f20c`
+- Alcance: revisión técnica final del upgrade mayor, análisis de overrides, repetición de validaciones críticas y recomendación controlada de integración
+- Resultado: no se detectaron cambios funcionales accidentales en el diff del Prompt 015
+
+## 28. Revisión del diff del upgrade
+
+- `package.json`
+  - cambio: `next` a `16.2.12` y `overrides` de `postcss`/`sharp`
+  - conclusión: cambio alineado al objetivo de seguridad; sin expansión funcional
+- `tsconfig.json`
+  - cambio: `jsx: react-jsx` y agregado `.next/dev/types/**/*.ts`
+  - conclusión: ajuste de compatibilidad mecánica de Next 16
+- `src/app/login/page.tsx`
+  - cambio: `searchParams` convertido a async con preservación de `callbackUrl` y `error`
+  - conclusión: cambio mecánico, sin alteración funcional
+- `src/app/api/**/[param]/route.ts`
+  - cambio: `params` convertido a `Promise<...>` y consumo vía `await params`
+  - conclusión: cambio mecánico, sin cambios de códigos HTTP, validadores, servicios ni autorización
+- `docs/releases/topology_next_major_upgrade_readiness.md`
+  - cambio: documentación de Prompt 015 y esta revisión final
+  - conclusión: trazabilidad técnica necesaria
+
+## 29. Revisión final de overrides
+
+### `postcss`
+
+- versión forzada: `8.5.24`
+- origen upstream observado: `next@16.2.12` declara `postcss: 8.4.31`
+- sin override: quedan dos instancias:
+  - `next -> postcss@8.4.31`
+  - `vite -> postcss@8.5.24`
+- advisory reintroducido sin override:
+  - `GHSA-6g55-p6wh-862q`
+  - `GHSA-r28c-9q8g-f849`
+  - adicional moderado `GHSA-qx2v-qp2m-jg93`
+- severidad observada sin override: `high`
+- compatibilidad semver con la declaración de `next`: no satisface el pin exacto `8.4.31`
+- comportamiento observado con override: tests, typecheck y build siguen en PASS
+- decisión: mantener como override temporal por seguridad
+- criterio futuro de retiro: una versión de `next` que ya no dependa de `postcss <=8.5.17`
+
+### `sharp`
+
+- versión forzada: `0.35.3`
+- origen upstream observado: `next@16.2.12` declara `optionalDependencies.sharp = ^0.34.5`
+- sin override: `next -> sharp@0.34.5`
+- advisory reintroducido sin override:
+  - `GHSA-f88m-g3jw-g9cj`
+- severidad observada sin override: `high`
+- compatibilidad semver con la declaración de `next`: `0.35.3` no satisface `^0.34.5`
+- comportamiento observado con override:
+  - audit `0/0`
+  - tests, typecheck y build PASS
+  - `npm ls --json` reporta `extraneous` explicados:
+    - `@img/sharp-wasm32@0.35.3`
+    - `@emnapi/runtime@1.11.3`
+- explicación del warning:
+  - `@emnapi/runtime` entra vía `@img/sharp-wasm32`
+  - `@img/sharp-wasm32` no figura en el lockfile definitivo, pero queda materializado por la instalación de `sharp@0.35.3`
+- riesgo: warning real de consistencia del árbol, no bloqueo funcional comprobado
+- decisión: mantener como override temporal por seguridad, con revisión humana obligatoria
+- criterio futuro de retiro: una versión de `next` que declare un rango de `sharp` no vulnerable y reinstale sin `extraneous`
+
+## 30. Experimento controlado sin overrides
+
+- entorno: `/tmp/midd-iot-prompt016-topology-next-no-overrides`
+- método:
+  - copia aislada del frontend
+  - remoción de `overrides`
+  - fijación de versiones raíz al mismo baseline instalado
+  - reinstalación limpia y validación
+- resultado del árbol sin overrides:
+  - `next -> postcss@8.4.31`
+  - `next -> sharp@0.34.5`
+  - `npm ls --json`: sin `problems`
+- audit sin overrides:
+  - `critical = 0`
+  - `high = 3`
+  - `moderate = 1`
+  - `low = 0`
+- advisories reintroducidos:
+  - `postcss` por debajo de `8.5.18`
+  - `sharp` por debajo de `0.35.0`
+  - `next-auth` moderado por efecto de `next`
+- validaciones sin overrides:
+  - `npm test`: PASS (`72 passed`)
+  - `npm run typecheck`: PASS
+  - `npm run build`: PASS
+- clasificación del experimento:
+  - `OVERRIDES_REQUIRED_FOR_SECURITY`
+
+## 31. Revalidación final del árbol definitivo
+
+- comando de reinstalación: `npm ci`
+- audit definitivo:
+  - archivo: `/tmp/midd-iot-prompt016-audit-final.json`
+  - `critical = 0`
+  - `high = 0`
+  - `moderate = 0`
+  - `low = 0`
+- validaciones frontend:
+  - `npm test`: PASS (`72 passed`)
+  - `npm run typecheck`: PASS
+  - `npm run build`: PASS
+- validaciones backend:
+  - Python focalizado: `18 passed`
+  - `apps/parametric-control-engine`: `35 passed`
+  - `docker compose -f infra/containers/docker-compose.yaml config`: PASS
+- validación visual mínima:
+  - home carga en `3101`
+  - `/control` redirige a `/login?callbackUrl=%2Fcontrol`
+  - sin errores de consola del navegador
+  - sin overflow horizontal en `1024` y `390`
+- smoke E2E:
+  - intento ejecutado desde el clon limpio
+  - resultado: `NOT_RUN_REPOSITORY_PRESERVATION`
+  - motivo: el clon limpio no dispone del entorno Python local requerido por el script y falla en `ModuleNotFoundError: sqlalchemy`
+- decisión técnica de integración:
+  - `READY_FOR_CONTROLLED_INTEGRATION_REVIEW_WITH_WARNINGS`
+- justificación:
+  - el árbol definitivo cumple seguridad y compatibilidad funcional
+  - el override de `sharp` queda con warning por rango semver no satisfecho y `extraneous` opcionales explicados
