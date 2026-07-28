@@ -6,18 +6,20 @@ import { ProjectService } from "@/lib/services/project.service";
 const projectService = new ProjectService();
 
 interface RouteParams {
-  params: {
+  params: Promise<{
     projectId: string;
-  };
+  }>;
 }
 
 export const GET = withRouteErrorHandling(async (_request: Request, { params }: RouteParams) => {
-  const project = await projectService.getById(params.projectId);
+  const { projectId } = await params;
+  const project = await projectService.getById(projectId);
   return ok(project);
 });
 
 export const PATCH = withRouteErrorHandling(async (request: Request, { params }: RouteParams) => {
+  const { projectId } = await params;
   const payload = updateProjectSchema.parse(await request.json());
-  const updated = await projectService.update(params.projectId, payload);
+  const updated = await projectService.update(projectId, payload);
   return ok(updated);
 });

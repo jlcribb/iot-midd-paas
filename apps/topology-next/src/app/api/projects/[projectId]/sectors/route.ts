@@ -5,12 +5,13 @@ import { SectorService } from "@/lib/services/sector.service";
 const sectorService = new SectorService();
 
 interface RouteParams {
-  params: {
+  params: Promise<{
     projectId: string;
-  };
+  }>;
 }
 
 export const GET = withRouteErrorHandling(async (_request: Request, { params }: RouteParams) => {
-  const sectors = await sectorService.listByProject(params.projectId);
+  const { projectId } = await params;
+  const sectors = await sectorService.listByProject(projectId);
   return ok(sectors);
 });

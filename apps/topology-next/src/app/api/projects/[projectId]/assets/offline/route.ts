@@ -6,12 +6,13 @@ import { AssetService } from "@/lib/services/asset.service";
 const assetService = new AssetService();
 
 interface RouteParams {
-  params: {
+  params: Promise<{
     projectId: string;
-  };
+  }>;
 }
 
 export const GET = withRouteErrorHandling(async (request: Request, { params }: RouteParams) => {
+  const { projectId } = await params;
   const { searchParams } = new URL(request.url);
   const minutesParam = searchParams.get("minutes");
   let minutes = 15;
@@ -22,6 +23,6 @@ export const GET = withRouteErrorHandling(async (request: Request, { params }: R
     }
     minutes = parsed;
   }
-  const assets = await assetService.getOfflineAssets(params.projectId, minutes);
+  const assets = await assetService.getOfflineAssets(projectId, minutes);
   return ok(assets);
 });

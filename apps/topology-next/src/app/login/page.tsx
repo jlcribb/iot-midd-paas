@@ -4,10 +4,10 @@ import { OAuthLoginPanel } from "@/components/auth/oauth-login-panel";
 import { authOptions, getConfiguredAuthProviderIds } from "@/lib/auth/auth-options";
 
 interface LoginPageProps {
-  searchParams?: {
+  searchParams?: Promise<{
     callbackUrl?: string;
     error?: string;
-  };
+  }>;
 }
 
 function loginErrorMessage(error?: string) {
@@ -29,7 +29,8 @@ function loginErrorMessage(error?: string) {
 
 export default async function LoginPage({ searchParams }: LoginPageProps) {
   const session = await getServerSession(authOptions);
-  const callbackUrl = searchParams?.callbackUrl ?? "/control";
+  const resolvedSearchParams = (await searchParams) ?? {};
+  const callbackUrl = resolvedSearchParams.callbackUrl ?? "/control";
 
   if (session?.user) {
     redirect(callbackUrl);
@@ -39,7 +40,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
     <OAuthLoginPanel
       availableProviders={getConfiguredAuthProviderIds()}
       callbackUrl={callbackUrl}
-      error={loginErrorMessage(searchParams?.error)}
+      error={loginErrorMessage(resolvedSearchParams.error)}
     />
   );
 }

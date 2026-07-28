@@ -5,12 +5,13 @@ import { AssetService } from "@/lib/services/asset.service";
 const assetService = new AssetService();
 
 interface RouteParams {
-  params: {
+  params: Promise<{
     id: string;
-  };
+  }>;
 }
 
 export const GET = withRouteErrorHandling(async (_request: Request, { params }: RouteParams) => {
-  const devices = await assetService.getNodeDevices(params.id);
+  const { id } = await params;
+  const devices = await assetService.getNodeDevices(id);
   return ok(devices);
 });

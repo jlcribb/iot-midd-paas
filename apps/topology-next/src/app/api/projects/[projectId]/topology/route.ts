@@ -5,12 +5,13 @@ import { TopologyService } from "@/lib/services/topology.service";
 const topologyService = new TopologyService();
 
 interface RouteParams {
-  params: {
+  params: Promise<{
     projectId: string;
-  };
+  }>;
 }
 
 export const GET = withRouteErrorHandling(async (_request: Request, { params }: RouteParams) => {
-  const topology = await topologyService.getProjectTopology(params.projectId);
+  const { projectId } = await params;
+  const topology = await topologyService.getProjectTopology(projectId);
   return ok(topology);
 });

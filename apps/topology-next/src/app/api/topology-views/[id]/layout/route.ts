@@ -6,18 +6,20 @@ import { TopologyViewService } from "@/lib/services/topology-view.service";
 const topologyViewService = new TopologyViewService();
 
 interface RouteParams {
-  params: {
+  params: Promise<{
     id: string;
-  };
+  }>;
 }
 
 export const GET = withRouteErrorHandling(async (_request: Request, { params }: RouteParams) => {
-  const layout = await topologyViewService.getLayout(params.id);
+  const { id } = await params;
+  const layout = await topologyViewService.getLayout(id);
   return ok(layout);
 });
 
 export const PUT = withRouteErrorHandling(async (request: Request, { params }: RouteParams) => {
+  const { id } = await params;
   const payload = saveTopologyViewLayoutSchema.parse(await request.json());
-  const saved = await topologyViewService.saveLayout(params.id, payload);
+  const saved = await topologyViewService.saveLayout(id, payload);
   return ok(saved);
 });

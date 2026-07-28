@@ -7,12 +7,13 @@ import { ValidationError } from "@/lib/errors/domain-errors";
 const topologyViewService = new TopologyViewService();
 
 interface RouteParams {
-  params: {
+  params: Promise<{
     projectId: string;
-  };
+  }>;
 }
 
 export const GET = withRouteErrorHandling(async (request: Request, { params }: RouteParams) => {
+  const { projectId } = await params;
   const { searchParams } = new URL(request.url);
   const viewTypeParam = searchParams.get("view_type");
 
@@ -21,14 +22,15 @@ export const GET = withRouteErrorHandling(async (request: Request, { params }: R
   }
 
   const views = await topologyViewService.listByProject(
-    params.projectId,
+    projectId,
     (viewTypeParam as "logical" | "physical" | "geographic" | null) ?? undefined
   );
   return ok(views);
 });
 
 export const POST = withRouteErrorHandling(async (request: Request, { params }: RouteParams) => {
+  const { projectId } = await params;
   const payload = createTopologyViewSchema.parse(await request.json());
-  const created = await topologyViewService.create(params.projectId, payload);
+  const created = await topologyViewService.create(projectId, payload);
   return ok(created, 201);
 });

@@ -6,23 +6,26 @@ import { AssetService } from "@/lib/services/asset.service";
 const assetService = new AssetService();
 
 interface RouteParams {
-  params: {
+  params: Promise<{
     id: string;
-  };
+  }>;
 }
 
 export const GET = withRouteErrorHandling(async (_request: Request, { params }: RouteParams) => {
-  const asset = await assetService.getById(params.id);
+  const { id } = await params;
+  const asset = await assetService.getById(id);
   return ok(asset);
 });
 
 export const PATCH = withRouteErrorHandling(async (request: Request, { params }: RouteParams) => {
+  const { id } = await params;
   const payload = updateAssetSchema.parse(await request.json());
-  const updated = await assetService.update(params.id, payload);
+  const updated = await assetService.update(id, payload);
   return ok(updated);
 });
 
 export const DELETE = withRouteErrorHandling(async (_request: Request, { params }: RouteParams) => {
-  const deleted = await assetService.deleteSafe(params.id);
+  const { id } = await params;
+  const deleted = await assetService.deleteSafe(id);
   return ok(deleted);
 });
