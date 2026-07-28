@@ -6,6 +6,7 @@ export interface ApiProject {
   name: string;
   status: "draft" | "active" | "inactive" | "archived";
   description: string | null;
+  parametric_control_enabled: boolean;
   metadata: Record<string, unknown>;
 }
 

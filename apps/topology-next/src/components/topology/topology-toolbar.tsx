@@ -25,16 +25,37 @@ export function TopologyToolbar(props: TopologyToolbarProps) {
 
   return (
     <header className="topology-toolbar">
-      <div className="toolbar-title">
-        <h1>Project Topology Workspace</h1>
-        <p>{props.project ? `${props.project.name} (${props.project.status})` : "Selecciona un proyecto"}</p>
+      <div className="toolbar-primary">
+        <div className="toolbar-title">
+          <span className="panel-kicker">Midd IOT / Topology</span>
+          <h1>Network Workspace</h1>
+          <p>{props.project ? `${props.project.name} · ${props.project.status}` : "Selecciona un proyecto"}</p>
+        </div>
+
+        <div className="toolbar-quick-actions">
+          <div className="toolbar-health">
+            <span className="health-chip">{warningCount} warnings</span>
+            <span className={errorCount > 0 ? "health-chip health-chip-error" : "health-chip"}>{errorCount} errors</span>
+          </div>
+          <Link href="/control" className="btn btn-secondary toolbar-link">
+            Control Engine
+          </Link>
+          <button
+            type="button"
+            className="btn btn-primary toolbar-save"
+            onClick={props.onSaveLayout}
+            disabled={!props.isDirty || props.isSavingLayout}
+          >
+            {props.isSavingLayout ? "Guardando..." : "Guardar workspace"}
+          </button>
+        </div>
       </div>
 
       <div className="toolbar-controls">
         <select
           value={props.viewType}
           onChange={(event) => props.onViewTypeChange(event.target.value as ViewType)}
-          className="input-select"
+          className="input-select toolbar-select"
         >
           <option value="logical">Vista lógica</option>
           <option value="physical">Vista física</option>
@@ -58,14 +79,6 @@ export function TopologyToolbar(props: TopologyToolbarProps) {
           </button>
         </div>
 
-        <button
-          type="button"
-          className="btn btn-primary"
-          onClick={props.onSaveLayout}
-          disabled={!props.isDirty || props.isSavingLayout}
-        >
-          {props.isSavingLayout ? "Guardando..." : "Guardar workspace"}
-        </button>
         <button type="button" className="btn btn-secondary" onClick={props.onAutoLayout}>
           Auto organizar
         </button>
@@ -78,14 +91,6 @@ export function TopologyToolbar(props: TopologyToolbarProps) {
         <button type="button" className="btn btn-secondary" onClick={props.onRefresh}>
           Refrescar
         </button>
-        <Link href="/control" className="btn btn-secondary">
-          Control Engine
-        </Link>
-      </div>
-
-      <div className="toolbar-health">
-        <span className="health-chip">{warningCount} warnings</span>
-        <span className={errorCount > 0 ? "health-chip health-chip-error" : "health-chip"}>{errorCount} errors</span>
       </div>
     </header>
   );

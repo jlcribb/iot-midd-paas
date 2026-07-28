@@ -43,6 +43,7 @@ export async function updateProject(id: string, payload: {
   name?: string;
   description?: string | null;
   status?: ApiProject["status"];
+  parametric_control_enabled?: boolean;
   metadata?: Record<string, unknown>;
 }): Promise<ApiProject> {
   return request<ApiProject>(`/api/projects/${id}`, {

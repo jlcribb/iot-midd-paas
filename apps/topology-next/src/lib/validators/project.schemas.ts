@@ -5,6 +5,7 @@ export const createProjectSchema = z.object({
   name: z.string().trim().min(1),
   description: z.string().trim().nullable().optional(),
   status: projectStatusSchema.default("draft"),
+  parametric_control_enabled: z.boolean().default(false),
   metadata: metadataSchema
 });
 
@@ -13,6 +14,7 @@ export const updateProjectSchema = createProjectSchema
     name: true,
     description: true,
     status: true,
+    parametric_control_enabled: true,
     metadata: true
   })
   .partial()

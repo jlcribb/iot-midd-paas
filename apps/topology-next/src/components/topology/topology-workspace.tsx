@@ -100,6 +100,7 @@ export function TopologyWorkspace() {
   const initialViewTypeFromQueryRef = useRef<ViewType | null>(null);
   const workspaceLoadSequenceRef = useRef(0);
   const [projectStylesDraft, setProjectStylesDraft] = useState<ProjectTopologyStyles>(getDefaultProjectTopologyStyles);
+  const [isProjectControlTogglePending, setIsProjectControlTogglePending] = useState(false);
 
   if (typeof window !== "undefined" && initialProjectFromQueryRef.current === null) {
     const params = new URLSearchParams(window.location.search);
@@ -390,6 +391,23 @@ export function TopologyWorkspace() {
     });
   }
 
+  async function handleProjectControlToggle(enabled: boolean) {
+    if (!selectedProject) return;
+    setIsProjectControlTogglePending(true);
+    setErrorMessage(null);
+    try {
+      const updated = await updateProject(selectedProject.id, {
+        parametric_control_enabled: enabled
+      });
+      const currentProjects = useTopologyStore.getState().projects;
+      setProjects(currentProjects.map((project) => (project.id === updated.id ? updated : project)));
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "No se pudo actualizar el feature flag de control");
+    } finally {
+      setIsProjectControlTogglePending(false);
+    }
+  }
+
   function getNormalizedNodeLayoutsFromCanvas(sourceNodes: Node[] = flowRef.current?.getNodes() ?? nodes) {
     return normalizeNodeLayouts(sectors, assets, toNodeLayouts(sourceNodes));
   }
@@ -669,6 +687,27 @@ export function TopologyWorkspace() {
     flowRef.current = instance;
   }, []);
 
+  const handleSidebarNodeSelect = useCallback(
+    (nodeId: string) => {
+      setSelectedNodeId(nodeId);
+      setSelectedEdgeId(null);
+      window.requestAnimationFrame(() => {
+        const targetNode = flowRef.current?.getNode(nodeId);
+        if (!targetNode) {
+          return;
+        }
+        flowRef.current?.fitView({
+          nodes: [targetNode],
+          padding: 0.45,
+          duration: 350,
+          minZoom: 0.4,
+          maxZoom: 1.25
+        });
+      });
+    },
+    [setSelectedEdgeId, setSelectedNodeId]
+  );
+
   return (
     <ReactFlowProvider>
       <div className="topology-workspace">
@@ -704,10 +743,15 @@ export function TopologyWorkspace() {
             statusFilters={statusFilters}
             showHierarchyEdges={showHierarchyEdges}
             showTopologyEdges={showTopologyEdges}
+            selectedNodeId={selectedNodeId}
+            issues={issues}
             mode={mode}
+            viewType={viewType}
             projectStyles={projectStylesDraft}
             isProjectStylesDirty={hasProjectStyleChanges}
+            isProjectControlTogglePending={isProjectControlTogglePending}
             onProjectSelect={(projectId) => setSelectedProjectId(projectId)}
+            onProjectControlToggle={(enabled) => void handleProjectControlToggle(enabled)}
             onSearchChange={setSearch}
             onSectorFiltersChange={setSectorFilters}
             onTypeFiltersChange={setTypeFilters}
@@ -722,9 +766,25 @@ export function TopologyWorkspace() {
             onCreateNode={handleCreateNode}
             onCreateSensor={() => void handleCreateChildAsset("sensor")}
             onCreateActuator={() => void handleCreateChildAsset("actuator")}
+            onSelectNode={handleSidebarNodeSelect}
           />
 
           <section className="workspace-canvas">
+            <div className="workspace-canvas-head">
+              <div>
+                <span className="panel-kicker">Canvas</span>
+                <h2>{selectedProject ? `${selectedProject.name} topology` : "Project topology"}</h2>
+                <p>
+                  {mode === "design"
+                    ? "Arrastra nodos, conecta relaciones y guarda el layout cuando termines."
+                    : "Explora la infraestructura sin modificar la topologia."}
+                </p>
+              </div>
+              <div className="workspace-canvas-meta">
+                <span>{viewType}</span>
+                <span>{isDirty ? "Cambios sin guardar" : "Layout sincronizado"}</span>
+              </div>
+            </div>
             <TopologyCanvas
               nodes={nodes}
               edges={edges}

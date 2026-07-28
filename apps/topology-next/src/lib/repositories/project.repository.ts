@@ -6,16 +6,31 @@ import type { Project } from "@/lib/dto/project.dto";
 import type { IProjectRepository } from "@/lib/repositories/contracts";
 import type { CreateProjectInput, UpdateProjectInput } from "@/lib/validators/project.schemas";
 
-function mapProject(row: QueryResultRow): Project {
+export function mapProject(row: QueryResultRow): Project {
   return {
     id: String(row.id),
     name: String(row.name),
     description: row.description as string | null,
     status: row.status as Project["status"],
+    parametric_control_enabled: Boolean(row.parametric_control_enabled ?? false),
     metadata: (row.metadata ?? {}) as Record<string, unknown>,
     created_at: String(row.created_at),
     updated_at: String(row.updated_at)
   };
+}
+
+export function buildProjectWritePayload(
+  input: Partial<CreateProjectInput & UpdateProjectInput>
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = {};
+  if (input.name !== undefined) payload.name = input.name;
+  if (input.description !== undefined) payload.description = input.description ?? null;
+  if (input.status !== undefined) payload.status = input.status;
+  if (input.parametric_control_enabled !== undefined) {
+    payload.parametric_control_enabled = input.parametric_control_enabled;
+  }
+  if (input.metadata !== undefined) payload.metadata = JSON.stringify(input.metadata ?? {});
+  return payload;
 }
 
 export class ProjectRepository implements IProjectRepository {
@@ -24,11 +39,17 @@ export class ProjectRepository implements IProjectRepository {
   async create(input: CreateProjectInput): Promise<Project> {
     const result = await this.db.query(
       `
-      INSERT INTO projects (name, description, status, metadata)
-      VALUES ($1, $2, $3::project_status_enum, $4::jsonb)
+      INSERT INTO projects (name, description, status, parametric_control_enabled, metadata)
+      VALUES ($1, $2, $3::project_status_enum, $4, $5::jsonb)
       RETURNING *
       `,
-      [input.name, input.description ?? null, input.status, JSON.stringify(input.metadata ?? {})]
+      [
+        input.name,
+        input.description ?? null,
+        input.status,
+        input.parametric_control_enabled ?? false,
+        JSON.stringify(input.metadata ?? {})
+      ]
     );
     return mapProject(result.rows[0]);
   }
@@ -51,11 +72,7 @@ export class ProjectRepository implements IProjectRepository {
   }
 
   async update(id: string, input: UpdateProjectInput): Promise<Project | null> {
-    const payload: Record<string, unknown> = {};
-    if (input.name !== undefined) payload.name = input.name;
-    if (input.description !== undefined) payload.description = input.description ?? null;
-    if (input.status !== undefined) payload.status = input.status;
-    if (input.metadata !== undefined) payload.metadata = JSON.stringify(input.metadata ?? {});
+    const payload = buildProjectWritePayload(input);
 
     if (Object.keys(payload).length === 0) {
       return this.findById(id);

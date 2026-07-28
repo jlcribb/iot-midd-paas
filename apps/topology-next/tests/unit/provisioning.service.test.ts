@@ -64,7 +64,16 @@ describe("ProvisioningService", () => {
       transactionRunner: txRunner,
       contextFactory: (() => ({
         projectRepo: {
-          findById: vi.fn().mockResolvedValue({ id: bootstrapInput.project_id })
+          findById: vi.fn().mockResolvedValue({
+            id: bootstrapInput.project_id,
+            name: "Proyecto Demo",
+            description: null,
+            status: "active",
+            parametric_control_enabled: false,
+            metadata: {},
+            created_at: "2026-01-01T00:00:00.000Z",
+            updated_at: "2026-01-01T00:00:00.000Z"
+          })
         },
         sectorRepo: {
           findById: vi.fn()
@@ -114,7 +123,16 @@ describe("ProvisioningService", () => {
       transactionRunner: txRunner,
       contextFactory: (() => ({
         projectRepo: {
-          findById: vi.fn().mockResolvedValue({ id: bootstrapInput.project_id })
+          findById: vi.fn().mockResolvedValue({
+            id: bootstrapInput.project_id,
+            name: "Proyecto Demo",
+            description: null,
+            status: "active",
+            parametric_control_enabled: false,
+            metadata: {},
+            created_at: "2026-01-01T00:00:00.000Z",
+            updated_at: "2026-01-01T00:00:00.000Z"
+          })
         },
         sectorRepo: {
           findById: vi.fn()

@@ -68,6 +68,7 @@ describe("ControlPolicyService", () => {
         name: "Proyecto Demo",
         description: null,
         status: "active",
+        parametric_control_enabled: false,
         metadata: {},
         created_at: "2026-01-01T00:00:00.000Z",
         updated_at: "2026-01-01T00:00:00.000Z"

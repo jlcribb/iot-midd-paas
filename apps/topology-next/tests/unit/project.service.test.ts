@@ -9,6 +9,7 @@ describe("ProjectService", () => {
       name: "Proyecto Demo",
       description: null,
       status: "active",
+      parametric_control_enabled: false,
       metadata: {},
       created_at: "2026-01-01T00:00:00.000Z",
       updated_at: "2026-01-01T00:00:00.000Z"
@@ -27,11 +28,13 @@ describe("ProjectService", () => {
       name: "Proyecto Demo",
       description: null,
       status: "active",
+      parametric_control_enabled: false,
       metadata: {}
     });
 
     expect(create).toHaveBeenCalledTimes(1);
     expect(result.id).toBe("project-1");
     expect(result.status).toBe("active");
+    expect(result.parametric_control_enabled).toBe(false);
   });
 });
