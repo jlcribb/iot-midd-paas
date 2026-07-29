@@ -128,3 +128,25 @@ Preservar conceptualmente el commit previo de `main` antes de autorizar la integ
   - sí
 - resultado operativo:
   - integración local retenida con warnings conocidos, sin autorización de publicación
+
+## Estado posterior a Prompt 021
+
+- gate visual postintegracion:
+  - cerrado
+- commit exacto de Prompt 020:
+  - `2851fcbbadedc5d6538af6a1d437572ed4629516`
+- HEAD de `main` al iniciar Prompt 021:
+  - `2851fcbbadedc5d6538af6a1d437572ed4629516`
+- HEAD final de `main` tras el cierre documental de Prompt 021:
+  - el commit local de cierre documental de Prompt 021 en `main`; su hash exacto se registra en la evidencia Git final de la sesión y no se incrusta aquí para evitar autorreferencia del propio commit
+- publicacion autorizada:
+  - no
+- push autorizado:
+  - no
+- precondiciones restantes:
+  - decisión humana explícita de publicación
+  - validación OAuth real en entorno con providers, si se requiere antes de publicar
+- autorización siguiente necesaria:
+  - autorización humana explícita para publicar `main` de forma controlada
+- resultado operativo:
+  - `main` queda listo solo para una autorización posterior de publicación, con warnings heredados y sin cambios productivos adicionales

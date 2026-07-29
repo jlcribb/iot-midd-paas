@@ -1014,3 +1014,82 @@ Motivos:
 ### Próximo paso
 
 - realizar una revisión humana final y decidir si se autoriza la publicación controlada de `main`, manteniendo mientras tanto la integración solo en estado local
+
+## 36. Prompt 021 - Cierre del gate visual postintegración
+
+### Criterio parcial heredado
+
+- Prompt 020 había dejado un único criterio parcial:
+  - rerun visual directo independiente en `tablet` y `móvil`
+  - identificación concluyente del toggle `parametric_control_enabled`
+
+### Validaciones ejecutadas
+
+- Git:
+  - identificación del commit exacto de Prompt 020:
+    - `2851fcbbadedc5d6538af6a1d437572ed4629516`
+  - confirmación de historia limpia postintegración:
+    - rama de upgrade intacta en `f03ec4a2052f2eb855fa466f490b06c4f6fe2689`
+    - `main` con un commit documental exclusivo al inicio de Prompt 021
+- preflight técnico sobre `main`:
+  - `npm ci`: PASS
+  - `npm audit --json`: `0` critical, `0` high, `0` moderate, `0` low
+  - `npm test`: PASS (`72 passed`)
+  - `npm run typecheck`: PASS
+  - `npm run build`: PASS
+  - `docker compose -f infra/containers/docker-compose.yaml config`: PASS
+- visual directo:
+  - desktop `1440 x 900`: PASS
+  - tablet `1024 x 768`: PASS
+  - móvil `390 x 844`: PASS
+- auth:
+  - `/control` redirige a `/login?callbackUrl=%2Fcontrol`
+  - `/api/control/access` devuelve `401` sin sesión
+  - providers visibles y deshabilitados al no haber credenciales OAuth configuradas
+- feature flag:
+  - toggle identificado en la tarjeta `Proyecto`
+  - estado inicial `false`
+  - cambio a `true` con `PATCH 200`
+  - restauración a `false` con `PATCH 200`
+  - persistencia restaurada al valor original
+
+### Resultados
+
+- clasificación del feature flag:
+  - `FEATURE_FLAG_VISUAL_AND_STRUCTURAL_PASS`
+- clasificación de auth:
+  - `AUTH_REDIRECT_PASS_OAUTH_NOT_RUN`
+- clasificación documental:
+  - `POST_INTEGRATION_VISUAL_TRACEABILITY_COMPLETE_WITH_WARNINGS`
+- clasificación Git final esperada tras el commit documental:
+  - `MAIN_READY_LOCAL_ONLY_WITH_WARNINGS`
+
+### Estado final
+
+- el gate visual postintegración quedó cerrado
+- `main` local quedó retenido con:
+  - upgrade integrado
+  - cierre documental de Prompt 020
+  - readiness listo para una eventual autorización humana de publicación
+- `origin/main` continuó intacto en `6ababdbe2fb9c7ff35c1afe769b48ecea6f133ff`
+
+### Warnings
+
+- override temporal `sharp@0.35.3`
+- override temporal `postcss@8.5.24`
+- warnings locales de `NEXTAUTH_URL` y `NO_SECRET` en entorno dev
+- OAuth real no ejecutado con providers configurados
+
+### Readiness para publicación
+
+- decisión técnica:
+  - `READY_FOR_EXPLICIT_PUBLICATION_AUTHORIZATION_WITH_WARNINGS`
+- alcance:
+  - no autoriza push
+  - no autoriza tag
+  - no autoriza release
+  - solo declara que `main` local queda listo para una autorización humana posterior
+
+### Próximo paso
+
+- solicitar una autorización humana explícita si se desea publicar `main` de forma controlada
