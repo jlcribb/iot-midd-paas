@@ -931,3 +931,86 @@ Motivos:
 ### Próximo paso recomendado
 
 - solicitar una autorización explícita posterior si se desea ejecutar el fast-forward local documentado en el manifiesto
+
+## 35. Prompt 020 - Integración local fast-forward controlada
+
+### Estado previo
+
+- `main` en `9937d2ad5d93c9e96c7a7632909a1047ea9f8311`
+- rama fuente `chore/topology-next-major-upgrade` en `f03ec4a2052f2eb855fa466f490b06c4f6fe2689`
+- merge base igual a `main`
+- `0` commits exclusivos de `main`
+- `4` commits exclusivos de la rama fuente
+- fast-forward validado como posible y sin conflictos
+
+### Autorización
+
+- Prompt 020 constituyó la autorización explícita requerida por el manifiesto para ejecutar:
+  - `git switch main`
+  - `git merge --ff-only chore/topology-next-major-upgrade`
+
+### Fast-forward
+
+- resultado del merge:
+  - PASS
+  - sin conflictos
+  - sin merge commit
+- `main` alcanzó:
+  - `f03ec4a2052f2eb855fa466f490b06c4f6fe2689`
+- después del merge:
+  - `main` y `chore/topology-next-major-upgrade` quedaron idénticos
+
+### Resultado
+
+- clasificación del merge:
+  - `LOCAL_FAST_FORWARD_PASS`
+- clasificación del smoke sobre `main`:
+  - `SMOKE_E2E_PASS_INTEGRATED_MAIN`
+- clasificación Git final esperada tras el commit documental:
+  - `INTEGRATED_MAIN_CLEAN_WITH_DOCUMENTATION_COMMIT`
+
+### Validaciones postintegración
+
+- frontend:
+  - `npm ci`: PASS
+  - `npm audit --json`: `0` critical, `0` high, `0` moderate, `0` low
+  - `npm test`: PASS (`72 passed`)
+  - `npm run typecheck`: PASS
+  - `npm run build`: PASS
+- Sharp:
+  - importación y transformación nativa PASS
+  - `sharp 0.35.3`
+  - `vips 8.18.3`
+  - `darwin arm64`
+- auth y feature flag:
+  - `NextAuth 4.24.15` preservado
+  - estrategia `jwt` preservada
+  - `/control` protegido y redirigiendo a `/login?callbackUrl=%2Fcontrol`
+  - `parametric_control_enabled` preservado
+- backend y plataforma:
+  - `18 passed`
+  - `35 passed`
+  - `docker compose -f infra/containers/docker-compose.yaml config`: PASS
+  - smoke E2E real en `main`: PASS
+
+### Warnings
+
+- override temporal `sharp@0.35.3`
+- override temporal `postcss@8.5.24`
+- OAuth real no ejecutado
+- warnings locales de NextAuth en el entorno dev
+- validación visual postintegración directa ejecutada en desktop y redirect auth; tablet/móvil quedaron sin rerun independiente, aunque no hubo delta de contenido respecto del hash ya validado en Prompt 018
+
+### Estado final de `main`
+
+- `main` quedó retenido localmente con la integración aplicada
+- `origin/main` continuó intacto en `6ababdbe2fb9c7ff35c1afe769b48ecea6f133ff`
+- la rama fuente siguió preservada en `f03ec4a2052f2eb855fa466f490b06c4f6fe2689`
+
+### Prohibición de push
+
+- esta fase no autoriza push, publicación, tag ni release
+
+### Próximo paso
+
+- realizar una revisión humana final y decidir si se autoriza la publicación controlada de `main`, manteniendo mientras tanto la integración solo en estado local
