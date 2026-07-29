@@ -12,7 +12,7 @@
 - clasificación del push principal: `MAIN_PUSH_PASS`
 - clasificación de sincronización:
   - push principal: `REMOTE_MAIN_SYNC_CONFIRMED`
-  - estado Git final esperado tras publicar este commit documental: `MAIN_PUBLISHED_WITH_DOCUMENTATION_SYNC`
+  - estado Git final tras publicar este commit documental: `MAIN_PUBLISHED_WITH_DOCUMENTATION_SYNC`
 - clasificación Git final:
   - tras el primer push: `REMOTE_MAIN_SYNC_CONFIRMED`
   - tras el commit documental y su publicación: `MAIN_PUBLISHED_WITH_DOCUMENTATION_SYNC`
@@ -22,9 +22,9 @@
 - HEAD Prompt 021: `8036bf79b49314cfef490f2cf107ff72f96747be`
 - `origin/main` inicial: `6ababdbe2fb9c7ff35c1afe769b48ecea6f133ff`
 - HEAD publicado principal: `8036bf79b49314cfef490f2cf107ff72f96747be`
-- commit documental Prompt 022: el commit local de cierre documental de Prompt 022 en `main`; su hash exacto se registra en la evidencia Git final de la sesión y no se incrusta aquí para evitar autorreferencia del propio commit
-- HEAD final: el commit local de cierre documental de Prompt 022 en `main`; su hash exacto se registra en la evidencia Git final de la sesión y no se incrusta aquí para evitar autorreferencia del propio commit
-- `origin/main` final: el hash exacto del commit documental de Prompt 022 una vez publicado por el segundo push; el valor exacto se registra en la evidencia Git final de la sesión y no se incrusta aquí para evitar autorreferencia del propio commit
+- commit documental Prompt 022: `46ee3157370d3e0975cec80e3d5d625325754fff`
+- HEAD final: `46ee3157370d3e0975cec80e3d5d625325754fff`
+- `origin/main` final: `46ee3157370d3e0975cec80e3d5d625325754fff`
 
 ## 2. Contexto leído
 
@@ -303,35 +303,39 @@
 ## 14. Commit documental
 
 - hash:
-  - el commit local de cierre documental de Prompt 022 en `main`; el hash exacto se registra en la evidencia Git final de la sesión y no se incrusta aquí para evitar autorreferencia del propio commit
+  - `46ee3157370d3e0975cec80e3d5d625325754fff`
 - padre:
   - `8036bf79b49314cfef490f2cf107ff72f96747be`
 - mensaje:
   - `docs(topology): record controlled main publication`
 - autor:
-  - registrado por Git al crear el commit
+  - `jlcribb <jl.cribb@gmail.com>`
 - fecha:
-  - registrada por Git al crear el commit
+  - `2026-07-29 09:20:17 -0300`
 - archivos:
   - `docs/releases/prompt022_controlled_main_publication_report_2026-07-29.md`
   - `docs/releases/topology_next_major_upgrade_readiness.md`
   - `docs/releases/topology_next_controlled_integration_manifest.md`
 - inserciones:
-  - registradas por Git al crear el commit
+  - `627`
 - eliminaciones:
-  - registradas por Git al crear el commit
+  - `0`
 
 ## 15. Segundo fetch
 
-- estado remoto esperado antes del segundo push:
-  - `origin/main` debe seguir en `8036bf79b49314cfef490f2cf107ff72f96747be`
-- commits exclusivos esperados:
+- comando:
+  - `git fetch --prune origin`
+- estado remoto antes del segundo push:
+  - `origin/main = 8036bf79b49314cfef490f2cf107ff72f96747be`
+- estado remoto después del segundo fetch:
+  - `origin/main = 8036bf79b49314cfef490f2cf107ff72f96747be`
+- commits exclusivos confirmados:
   - remoto: `0`
-  - local: `1`, únicamente el commit documental de Prompt 022
-- precondición:
+  - local: `1`, únicamente `46ee3157370d3e0975cec80e3d5d625325754fff`
+- precondición confirmada:
   - sin commits remotos nuevos
-- resultado esperado:
-  - PASS si el fetch confirma ese estado
+- resultado:
+  - PASS
 
 ## 16. Segundo dry-run y push
 
@@ -340,34 +344,35 @@
 - push:
   - `git push origin main:main`
 - códigos:
-  - esperados en `0`
+  - dry-run `0`
+  - push `0`
 - rango:
-  - desde `8036bf7` al commit documental de Prompt 022
-- clasificación esperada:
+  - `8036bf7..46ee315`
+- clasificación:
   - dry-run PASS
   - push PASS
 
 ## 17. Verificación remota final
 
 - main:
-  - el commit documental de Prompt 022 en `main`
+  - `46ee3157370d3e0975cec80e3d5d625325754fff`
 - origin/main:
-  - el mismo commit documental una vez publicado
+  - `46ee3157370d3e0975cec80e3d5d625325754fff`
 - ls-remote:
-  - debe reflejar el mismo hash
+  - `46ee3157370d3e0975cec80e3d5d625325754fff refs/heads/main`
 - divergencia:
   - `0 0`
 - diff:
   - ninguno
 - resultado:
-  - sincronización final completa esperada
+  - sincronización final completa confirmada
 
 ## 18. Estado final de ramas
 
 - `main`:
-  - sincronizado con `origin/main` una vez publicado el commit documental de Prompt 022
+  - sincronizado con `origin/main` en `46ee3157370d3e0975cec80e3d5d625325754fff`
 - `origin/main`:
-  - actualizado primero a `8036bf7` y luego al commit documental de Prompt 022
+  - actualizado primero a `8036bf7` y luego a `46ee3157370d3e0975cec80e3d5d625325754fff`
 - rama de upgrade:
   - preservada localmente
   - sin upstream
@@ -420,6 +425,7 @@
   - validación real pendiente con providers configurados
 - publicación:
   - publicación principal confirmada
+  - segundo push documental confirmado
   - tag no creado
   - release no creada
 - deuda heredada:
@@ -500,11 +506,11 @@
 - manifiesto actualizado: PASS
 - staging selectivo: PASS
 - commit documental creado: PASS
-- segundo fetch ejecutado: PASS si el fetch posterior al commit documental confirma que el remoto no avanzó
-- segundo dry-run PASS: PASS si el dry-run posterior al commit documental publica solo ese commit
-- segundo push PASS: PASS si el push posterior al commit documental publica solo ese commit
-- hash remoto final confirmado: PASS si `ls-remote` coincide con el commit documental
-- cero divergencia final: PASS si `origin/main...main` vuelve a `0 0`
+- segundo fetch ejecutado: PASS
+- segundo dry-run PASS: PASS
+- segundo push PASS: PASS
+- hash remoto final confirmado: PASS
+- cero divergencia final: PASS
 - rama de upgrade no publicada: PASS
 - repositorio original preservado: PASS
 - sin force push: PASS
@@ -519,11 +525,11 @@
 
 ## 24. Resultado ejecutivo
 
-La publicación principal de `main` sobre `origin/main` se ejecutó como fast-forward remoto puro desde `6ababdb` hasta `8036bf7`, sin force, sin rebase y sin divergencia. La verificación inmediata confirmó coincidencia exacta entre `main`, `origin/main` y `ls-remote`. Las validaciones mínimas posteriores sobre el commit publicado quedaron en verde: audit `0/0/0/0`, `72` tests PASS, typecheck PASS, build PASS y Compose PASS. La única deuda remanente sigue siendo la ya conocida: `sharp`, `postcss`, OAuth real no ejecutado y warnings locales de NextAuth. Este commit documental cierra la trazabilidad de la publicación controlada y queda listo para ser publicado mediante el segundo push autorizado, siempre que el remoto continúe sin avances nuevos.
+La publicación principal de `main` sobre `origin/main` se ejecutó como fast-forward remoto puro desde `6ababdb` hasta `8036bf7`, sin force, sin rebase y sin divergencia. Después se creó el commit documental `46ee3157370d3e0975cec80e3d5d625325754fff`, se ejecutó el segundo fetch, el dry-run y el segundo push autorizados, y la verificación final confirmó coincidencia exacta entre `main`, `origin/main` y `ls-remote` en ese hash. Las validaciones mínimas posteriores quedaron en verde: audit `0/0/0/0`, `72` tests PASS, typecheck PASS, build PASS y Compose PASS. La deuda remanente sigue siendo la ya conocida: `sharp`, `postcss`, OAuth real no ejecutado y warnings locales de NextAuth.
 
 ## 25. Próximo paso recomendado
 
-Evaluar una autorización humana posterior para crear un tag de release sobre `origin/main`, sin ejecutarlo en esta fase.
+Ejecutar una verificación independiente del estado remoto y de la readiness para tag, sin crear tag ni release en esta fase.
 
 ## 26. Estado final
 

@@ -162,7 +162,13 @@ Preservar conceptualmente el commit previo de `main` antes de autorizar la integ
 - hash remoto publicado principal:
   - `8036bf79b49314cfef490f2cf107ff72f96747be`
 - commit documental Prompt 022:
-  - el commit local de cierre documental de Prompt 022 en `main`; su hash exacto se registra en la evidencia Git final de la sesión y no se incrusta aquí para evitar autorreferencia del propio commit
+  - `46ee3157370d3e0975cec80e3d5d625325754fff`
+- segundo push documental:
+  - completado
+- hash remoto definitivo:
+  - `46ee3157370d3e0975cec80e3d5d625325754fff`
+- baseline remota creada:
+  - `docs/releases/topology_next_remote_baseline_after_prompt022.md`
 - tag creado:
   - no
 - release creada:
@@ -170,4 +176,30 @@ Preservar conceptualmente el commit previo de `main` antes de autorizar la integ
 - próxima autorización necesaria:
   - autorización humana explícita para crear tag y/o release, si se desea formalizar la publicación
 - resultado operativo:
-  - `main` quedó publicado y sincronizado en el push principal, y este commit documental completa la trazabilidad antes de su publicación final
+  - `main` y `origin/main` quedaron completamente sincronizados en `46ee3157370d3e0975cec80e3d5d625325754fff`, sin merge commits nuevos y con la trazabilidad documental de Prompt 022 ya publicada
+
+## Estado posterior a Prompt 023
+
+- objetivo:
+  - cierre verificable de la publicación y readiness para tag
+- baseline remota verificada:
+  - sí
+- clasificación de publicación:
+  - `PUBLICATION_FULLY_CLOSED_AND_VERIFIED`
+- clasificación del estado Git final:
+  - `REMOTE_BASELINE_VERIFIED_LOCAL_DOC_AHEAD`
+- `origin/main`:
+  - `46ee3157370d3e0975cec80e3d5d625325754fff`
+- `main` local:
+  - reservado para un único commit documental adicional de Prompt 023, no publicado en esta fase
+- divergencia esperada al cierre documental de Prompt 023:
+  - remoto `0`
+  - local `1`
+- tag creado:
+  - no
+- release creada:
+  - no
+- rama de upgrade publicada:
+  - no
+- próxima autorización necesaria:
+  - decidir si se publica el commit documental de Prompt 023 por separado o si se combina con una autorización explícita de tag

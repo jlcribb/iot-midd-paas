@@ -1169,3 +1169,85 @@ Motivos:
 ### Próximo paso
 
 - evaluar una autorización humana posterior para crear un tag de release sobre `origin/main`, sin ejecutarlo en esta fase
+
+## 38. Prompt 023 - Cierre verificable de publicación y readiness para tag
+
+### Verificación Git
+
+- commit documental exacto de Prompt 022:
+  - `46ee3157370d3e0975cec80e3d5d625325754fff`
+- padre del commit documental:
+  - `8036bf79b49314cfef490f2cf107ff72f96747be`
+- contenido del commit documental:
+  - `docs/releases/prompt022_controlled_main_publication_report_2026-07-29.md`
+  - `docs/releases/topology_next_major_upgrade_readiness.md`
+  - `docs/releases/topology_next_controlled_integration_manifest.md`
+- ramas que contienen el commit:
+  - local `main`
+  - remoto `origin/main`
+- fetch de verificación:
+  - `git fetch --prune origin`: PASS
+- hash remoto tras fetch:
+  - `origin/main = 46ee3157370d3e0975cec80e3d5d625325754fff`
+- `ls-remote`:
+  - `46ee3157370d3e0975cec80e3d5d625325754fff refs/heads/main`
+- divergencia:
+  - `origin/main...main = 0 0`
+- árbol de decisión aplicado:
+  - `PROMPT022_SECOND_PUSH_ALREADY_COMPLETE`
+
+### Validaciones mínimas reejecutadas en Prompt 023
+
+- `npm audit --json`:
+  - `critical=0`
+  - `high=0`
+  - `moderate=0`
+  - `low=0`
+- `npm test`:
+  - PASS
+  - `72 passed`
+- `npm run typecheck`:
+  - PASS
+- `npm run build`:
+  - PASS
+  - `Next.js 16.2.12 (Turbopack)`
+- `docker compose -f infra/containers/docker-compose.yaml config`:
+  - PASS
+
+### Baseline remota
+
+- archivo de baseline:
+  - `docs/releases/topology_next_remote_baseline_after_prompt022.md`
+- baseline remota estable:
+  - sí
+- hash remoto estable:
+  - `46ee3157370d3e0975cec80e3d5d625325754fff`
+- merge commits nuevos:
+  - ninguno
+- rama de upgrade publicada:
+  - no
+
+### Readiness para tag
+
+- decisión:
+  - `READY_FOR_EXPLICIT_TAG_AUTHORIZATION_WITH_WARNINGS`
+- fundamentos:
+  - publicación de Prompt 022 completamente reconciliada
+  - baseline remota verificable creada
+  - validaciones mínimas de Prompt 023 en verde
+  - no hubo regresiones productivas entre Prompt 022 y Prompt 023
+- warnings vigentes:
+  - override temporal `sharp@0.35.3`
+  - override temporal `postcss@8.5.24`
+  - OAuth real pendiente con providers configurados
+  - warnings locales de `NEXTAUTH_URL` y `NO_SECRET`
+- no autorizado en esta fase:
+  - crear tag
+  - crear release
+  - publicar el commit documental de Prompt 023
+
+### Estado final
+
+- `origin/main` queda fijado como baseline remota en `46ee3157370d3e0975cec80e3d5d625325754fff`
+- `main` local queda reservado para un único commit documental adicional de Prompt 023
+- la publicación funcional queda cerrada y la siguiente decisión humana ya no es de publicación técnica de Prompt 022, sino de publicación documental de Prompt 023 y/o autorización explícita de tag
