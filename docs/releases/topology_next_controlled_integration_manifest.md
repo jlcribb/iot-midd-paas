@@ -203,3 +203,30 @@ Preservar conceptualmente el commit previo de `main` antes de autorizar la integ
   - no
 - próxima autorización necesaria:
   - decidir si se publica el commit documental de Prompt 023 por separado o si se combina con una autorización explícita de tag
+
+## Estado posterior a Prompt 024
+
+- objetivo:
+  - publicación del cierre Prompt 023 y creación controlada del tag release candidate
+- commit Prompt 023 publicado:
+  - sí
+- hash remoto definitivo de `origin/main`:
+  - `a231887f332265a4773cfb0d574de268f43f2bdf`
+- tag creado:
+  - `topology-next-next16-security-rc1`
+- tag remoto:
+  - publicado y verificado
+- objeto tag:
+  - `6f65fd4d5a1ca716fc2ffe25ee23889f71f980ea`
+- target del tag:
+  - `a231887f332265a4773cfb0d574de268f43f2bdf`
+- baseline etiquetada:
+  - `docs/releases/topology_next_tagged_baseline_after_prompt024.md`
+- release creada:
+  - no
+- rama de upgrade publicada:
+  - no
+- próxima autorización necesaria:
+  - autorización humana explícita para crear una release basada en `topology-next-next16-security-rc1`, si se desea formalizar el RC
+- resultado operativo:
+  - `origin/main` quedó sincronizado con el cierre documental de Prompt 023 y el release candidate quedó fijado por un tag anotado local y remoto, mientras el cierre documental de Prompt 024 queda reservado como commit local posterior

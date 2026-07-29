@@ -101,3 +101,14 @@
 ## Recomendacion
 
 - la siguiente acción ya no es re-publicar Prompt 022, sino decidir explícitamente si se publica el cierre documental de Prompt 023 y/o si se autoriza la creación formal de tag sobre esta baseline remota
+
+## Evolucion posterior
+
+- commit Prompt 023 publicado posteriormente:
+  - `a231887f332265a4773cfb0d574de268f43f2bdf`
+- tag release candidate creado posteriormente:
+  - `topology-next-next16-security-rc1`
+- baseline etiquetada posterior:
+  - `docs/releases/topology_next_tagged_baseline_after_prompt024.md`
+- nota:
+  - esta baseline sigue siendo la referencia exacta del estado remoto inmediatamente posterior al Prompt 022; la publicación del Prompt 023 y el tag RC quedaron formalizados en la baseline etiquetada creada en Prompt 024

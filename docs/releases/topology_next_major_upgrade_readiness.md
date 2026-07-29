@@ -1251,3 +1251,99 @@ Motivos:
 - `origin/main` queda fijado como baseline remota en `46ee3157370d3e0975cec80e3d5d625325754fff`
 - `main` local queda reservado para un único commit documental adicional de Prompt 023
 - la publicación funcional queda cerrada y la siguiente decisión humana ya no es de publicación técnica de Prompt 022, sino de publicación documental de Prompt 023 y/o autorización explícita de tag
+
+## 39. Prompt 024 - Publicación del cierre Prompt 023 y tag RC
+
+### Publicación de Prompt 023
+
+- commit documental de Prompt 023:
+  - `a231887f332265a4773cfb0d574de268f43f2bdf`
+- padre:
+  - `46ee3157370d3e0975cec80e3d5d625325754fff`
+- `git fetch --prune origin`:
+  - PASS
+- `origin/main` previo:
+  - `46ee3157370d3e0975cec80e3d5d625325754fff`
+- dry-run de `main`:
+  - PASS
+  - `46ee315..a231887`
+- `git push origin main:main`:
+  - PASS
+- sincronización post-push:
+  - `main = origin/main = a231887f332265a4773cfb0d574de268f43f2bdf`
+  - divergencia `0 0`
+  - `ls-remote` coincidente
+
+### Convención de tag
+
+- tags existentes previos:
+  - `control-engine-mvp-rc1.1`
+- convención explícita documentada en repositorio:
+  - no se encontró una convención formal adicional
+- nombre recomendado por Prompt 024:
+  - `topology-next-next16-security-rc1`
+- adaptación:
+  - no fue necesaria
+- disponibilidad:
+  - libre local y remotamente al momento de crear el tag
+
+### Validaciones mínimas reejecutadas en Prompt 024
+
+- `npm audit --json`:
+  - `critical=0`
+  - `high=0`
+  - `moderate=0`
+  - `low=0`
+- `npm test`:
+  - PASS
+  - `72 passed`
+- `npm run typecheck`:
+  - PASS
+- `npm run build`:
+  - PASS
+  - `Next.js 16.2.12 (Turbopack)`
+- `docker compose -f infra/containers/docker-compose.yaml config`:
+  - PASS
+
+### Tag release candidate
+
+- tag creado:
+  - `topology-next-next16-security-rc1`
+- tipo:
+  - anotado
+- objeto tag:
+  - `6f65fd4d5a1ca716fc2ffe25ee23889f71f980ea`
+- commit target:
+  - `a231887f332265a4773cfb0d574de268f43f2bdf`
+- `git push origin refs/tags/topology-next-next16-security-rc1`:
+  - PASS
+- verificación remota:
+  - `refs/tags/topology-next-next16-security-rc1 = 6f65fd4d5a1ca716fc2ffe25ee23889f71f980ea`
+  - `refs/tags/topology-next-next16-security-rc1^{} = a231887f332265a4773cfb0d574de268f43f2bdf`
+- baseline etiquetada:
+  - `docs/releases/topology_next_tagged_baseline_after_prompt024.md`
+
+### Readiness para release
+
+- decisión:
+  - `READY_FOR_EXPLICIT_RELEASE_AUTHORIZATION_WITH_WARNINGS`
+- fundamentos:
+  - Prompt 023 ya quedó publicado y sincronizado
+  - el tag RC ya existe local y remoto
+  - las validaciones mínimas volvieron a pasar sobre el commit etiquetado
+  - la baseline etiquetada ya quedó documentada
+- warnings vigentes:
+  - override temporal `sharp@0.35.3`
+  - override temporal `postcss@8.5.24`
+  - OAuth real pendiente con providers configurados
+  - warnings locales de `NEXTAUTH_URL` y `NO_SECRET`
+- no autorizado en esta fase:
+  - crear GitHub Release
+  - publicar artefactos
+  - mover el tag para incluir la documentación de Prompt 024
+
+### Estado final
+
+- `origin/main` queda sincronizado en `a231887f332265a4773cfb0d574de268f43f2bdf`
+- `topology-next-next16-security-rc1` fija esa baseline publicada como release candidate
+- la siguiente decisión humana ya no es de publicación ni de tagging, sino de autorización explícita de release
