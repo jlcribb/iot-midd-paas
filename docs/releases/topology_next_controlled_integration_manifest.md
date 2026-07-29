@@ -150,3 +150,24 @@ Preservar conceptualmente el commit previo de `main` antes de autorizar la integ
   - autorización humana explícita para publicar `main` de forma controlada
 - resultado operativo:
   - `main` queda listo solo para una autorización posterior de publicación, con warnings heredados y sin cambios productivos adicionales
+
+## Estado posterior a Prompt 022
+
+- integracion local:
+  - completada
+- gate visual:
+  - completado
+- publicacion principal de `main`:
+  - completada
+- hash remoto publicado principal:
+  - `8036bf79b49314cfef490f2cf107ff72f96747be`
+- commit documental Prompt 022:
+  - el commit local de cierre documental de Prompt 022 en `main`; su hash exacto se registra en la evidencia Git final de la sesión y no se incrusta aquí para evitar autorreferencia del propio commit
+- tag creado:
+  - no
+- release creada:
+  - no
+- próxima autorización necesaria:
+  - autorización humana explícita para crear tag y/o release, si se desea formalizar la publicación
+- resultado operativo:
+  - `main` quedó publicado y sincronizado en el push principal, y este commit documental completa la trazabilidad antes de su publicación final

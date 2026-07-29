@@ -1093,3 +1093,79 @@ Motivos:
 ### Próximo paso
 
 - solicitar una autorización humana explícita si se desea publicar `main` de forma controlada
+
+## 37. Prompt 022 - Publicación controlada de `main`
+
+### Autorización
+
+- Prompt 022 constituyó la autorización explícita para:
+  - `git fetch --prune origin`
+  - `git push --dry-run origin main:main`
+  - `git push origin main:main`
+  - validación post-push
+  - documentación local posterior
+  - segundo push exclusivo para el commit documental de esta fase
+
+### Precondiciones
+
+- `main` en `8036bf79b49314cfef490f2cf107ff72f96747be`
+- `origin/main` en `6ababdbe2fb9c7ff35c1afe769b48ecea6f133ff`
+- rama de upgrade preservada en `f03ec4a2052f2eb855fa466f490b06c4f6fe2689`
+- historia local íntegra y lineal
+- worktree limpio salvo el residual excluido
+- validaciones críticas heredadas en PASS
+
+### Fetch y remoto
+
+- `git fetch --prune origin`: PASS
+- `origin/main` no avanzó
+- `origin/main` siguió siendo ancestro de `main`
+- divergencia previa:
+  - remoto `0`
+  - local `7`
+- clasificación remota:
+  - `REMOTE_FAST_FORWARD_SAFE`
+
+### Dry-run y push principal
+
+- `git push --dry-run origin main:main`: PASS
+- rango anunciado:
+  - `6ababdb..8036bf7`
+- `git push origin main:main`: PASS
+- hash publicado principal:
+  - `8036bf79b49314cfef490f2cf107ff72f96747be`
+
+### Verificación post-push
+
+- `git fetch origin`: PASS
+- `git rev-parse main` = `git rev-parse origin/main`
+- `git ls-remote --heads origin refs/heads/main` confirmó el mismo hash
+- divergencia:
+  - `0 0`
+
+### Validación post-push
+
+- `npm audit --json`: `0` critical, `0` high, `0` moderate, `0` low
+- `npm test`: PASS (`72 passed`)
+- `npm run typecheck`: PASS
+- `npm run build`: PASS
+- `docker compose -f infra/containers/docker-compose.yaml config`: PASS
+
+### Warnings
+
+- override temporal `sharp@0.35.3`
+- override temporal `postcss@8.5.24`
+- OAuth real no ejecutado
+- warnings locales `NEXTAUTH_URL` y `NO_SECRET`
+
+### Estado final
+
+- `main` quedó publicado en `origin/main`
+- el commit documental de Prompt 022 deja trazabilidad adicional local antes de su publicación
+- sin force push
+- sin tag
+- sin release
+
+### Próximo paso
+
+- evaluar una autorización humana posterior para crear un tag de release sobre `origin/main`, sin ejecutarlo en esta fase
