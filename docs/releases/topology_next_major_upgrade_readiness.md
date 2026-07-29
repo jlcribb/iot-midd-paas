@@ -861,3 +861,73 @@ Motivos:
   - `COMPLETED_LOCAL_MERGE_REHEARSAL_WITH_WARNINGS`
 - interpretación:
   - la integración local futura puede planificarse sin esperar más validaciones técnicas de este mismo alcance, pero manteniendo explícita la deuda temporal de Sharp y sin asumir que este ensayo autoriza merge oficial, push, tag o release por sí solo
+
+## 34. Prompt 019 - Cierre documental y paquete controlado de integración
+
+### Estado documental inicial
+
+- `docs/releases/prompt017_sharp_clean_repo_gate_report_2026-07-28.md` existía en working tree pero seguía untracked
+- `docs/releases/prompt018_local_merge_rehearsal_report_2026-07-28.md` ya estaba tracked mediante `c80c18b`
+- `docs/releases/topology_next_major_upgrade_readiness.md` ya incluía Prompt 017 y Prompt 018
+- persistía el residuo excluido:
+  - `docs/informe_intervencion_codex_chatgpt_2026-07-27.md`
+
+### Inconsistencias encontradas
+
+- el informe de Prompt 018 todavía declaraba campos pendientes o autorreferenciales:
+  - `ver respuesta final de la sesión`
+  - `pendiente de registrar`
+  - `pendiente del commit documental`
+- el estado Git real ya no coincidía con esos placeholders porque el cierre documental de Prompt 018 sí había sido committeado en `c80c18b`
+- `prompt017` seguía fuera del índice y de la historia pese a ser parte de la trazabilidad oficial
+
+### Documentos incorporados
+
+- `docs/releases/prompt017_sharp_clean_repo_gate_report_2026-07-28.md`
+- `docs/releases/prompt018_local_merge_rehearsal_report_2026-07-28.md`
+- `docs/releases/topology_next_major_upgrade_readiness.md`
+- `docs/releases/topology_next_controlled_integration_manifest.md`
+
+### Correcciones realizadas
+
+- normalización del informe de Prompt 018 con el commit real `c80c18b08bce147fcd9ef26db9ad63583e561c29`
+- cierre de los campos pendientes de commit, staged y worktree final del Prompt 018
+- creación del manifiesto declarativo de integración futura sin ejecutar el fast-forward
+- consolidación de Prompt 019 en este readiness
+
+### Commit padre de la fase
+
+- `c80c18b08bce147fcd9ef26db9ad63583e561c29`
+
+### Estado final de trazabilidad
+
+- trazabilidad 015 -> 016 -> 017 -> 018 -> 019 consolidada
+- sin cambios productivos
+- sin secretos ni credenciales detectadas en los documentos revisados
+- con deuda explícita preservada sobre `sharp`, `postcss` y validación OAuth real
+
+### Relación con `main`
+
+- merge base estable en `9937d2ad5d93c9e96c7a7632909a1047ea9f8311`
+- `main` sin commits exclusivos respecto del branch de upgrade
+- fast-forward sigue siendo la expectativa técnica
+
+### Relación con `origin/main`
+
+- `origin/main` permanece en `6ababdbe2fb9c7ff35c1afe769b48ecea6f133ff`
+- la rama de upgrade continúa local y sin publicación
+
+### Decisión final
+
+- clasificación documental:
+  - `DOCUMENTATION_TRACEABILITY_COMPLETE_WITH_WARNINGS`
+- decisión técnica:
+  - `READY_FOR_EXPLICIT_LOCAL_FAST_FORWARD_AUTHORIZATION_WITH_WARNINGS`
+
+### Prohibición de publicación
+
+- Prompt 019 no autoriza merge real, push, tag, release ni publicación de rama
+
+### Próximo paso recomendado
+
+- solicitar una autorización explícita posterior si se desea ejecutar el fast-forward local documentado en el manifiesto

@@ -18,7 +18,7 @@
 - `main`: `9937d2ad5d93c9e96c7a7632909a1047ea9f8311`
 - `origin/main`: `6ababdbe2fb9c7ff35c1afe769b48ecea6f133ff`
 - rama de upgrade: `41bd4ab61fbce3311e86937619e51d3a61164b4b`
-- commit nuevo, si existe: `ver respuesta final de la sesión; no se autoembebe en este archivo porque el hash del commit que contiene el propio informe es autorreferencial`
+- commit nuevo, si existe: `c80c18b08bce147fcd9ef26db9ad63583e561c29`
 
 ## 2. Contexto leído
 
@@ -331,21 +331,21 @@
 
 ## 19. Commit
 
-- hash: `ver respuesta final de la sesión`
+- hash: `c80c18b08bce147fcd9ef26db9ad63583e561c29`
 - mensaje: `docs(topology): record local Next.js merge rehearsal`
-- autor: `pendiente de registrar al crear el commit local`
-- fecha: `pendiente de registrar al crear el commit local`
+- autor: `jlcribb <jl.cribb@gmail.com>`
+- fecha: `2026-07-28 20:15:12 -0300`
 - archivos:
   - `docs/releases/prompt018_local_merge_rehearsal_report_2026-07-28.md`
   - `docs/releases/topology_next_major_upgrade_readiness.md`
-- inserciones: `pendiente de registrar al crear el commit local`
-- eliminaciones: `pendiente de registrar al crear el commit local`
+- inserciones: `918`
+- eliminaciones: `0`
 
 ## 20. Estado final de ramas
 
 - `origin/main`: intacto en `6ababdbe2fb9c7ff35c1afe769b48ecea6f133ff`
 - `main`: intacto en `9937d2ad5d93c9e96c7a7632909a1047ea9f8311`
-- rama de upgrade: intacta en `41bd4ab61fbce3311e86937619e51d3a61164b4b`
+- rama de upgrade: intacta y actualizada en `c80c18b08bce147fcd9ef26db9ad63583e561c29`
 - rama temporal: eliminada
 - merge oficial: no realizado
 - push: no realizado
@@ -353,13 +353,11 @@
 
 ## 21. Worktree final
 
-- staged: `pendiente del commit documental`
-- unstaged:
-  - `docs/releases/topology_next_major_upgrade_readiness.md`
+- staged: ninguno
+- unstaged: ninguno
 - untracked:
   - `docs/informe_intervencion_codex_chatgpt_2026-07-27.md`
   - `docs/releases/prompt017_sharp_clean_repo_gate_report_2026-07-28.md`
-  - `docs/releases/prompt018_local_merge_rehearsal_report_2026-07-28.md`
 - ignored:
   - `.next`
   - `node_modules`
