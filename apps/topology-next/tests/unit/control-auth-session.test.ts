@@ -7,6 +7,8 @@ import {
 } from "@/lib/auth/control-auth-session";
 import { resolveRoleFromEmail } from "@/lib/auth/control-access";
 
+vi.mock("server-only", () => ({}));
+
 function makeSession(partial?: Partial<Session>): Session {
   return {
     expires: "2026-12-31T00:00:00.000Z",

@@ -11,5 +11,7 @@ node_modules/
 .next/
 .next-docker/
 *.tsbuildinfo
+.env.local
+.env.*.local
 .playwright-mcp/
 .DS_Store

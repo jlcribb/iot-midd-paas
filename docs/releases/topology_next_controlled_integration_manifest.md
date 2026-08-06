@@ -259,3 +259,28 @@ Preservar conceptualmente el commit previo de `main` antes de autorizar la integ
   - pendiente de reanudación en el nuevo clon operativo
 - resultado operativo:
   - el trabajo futuro debe continuar en `/Users/joseluis/dev/iot-midd-paas-auth-work`, manteniendo el clon fuente solo como baseline preservada de lectura
+
+## Estado posterior a Prompt 030
+
+- objetivo:
+  - cerrar la preparación OAuth pendiente dentro del clon operativo writable
+- repositorio operativo usado:
+  - `/Users/joseluis/dev/iot-midd-paas-auth-work`
+- seguridad de `.env.local`:
+  - corregida
+- archivo `.env.local.example`:
+  - creado
+- helper OAuth:
+  - creado
+- GitHub:
+  - preparado para credenciales reales
+- Google:
+  - preparado para credenciales reales
+- OAuth real ejecutado:
+  - no
+- push:
+  - no
+- cambios funcionales fuera de auth:
+  - no
+- resultado operativo:
+  - el clon operativo queda listo para configuración manual de credenciales OAuth locales, con tests, build y smoke cerrados en verde y sin exposición de secretos

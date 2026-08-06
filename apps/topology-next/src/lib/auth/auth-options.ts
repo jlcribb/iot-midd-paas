@@ -2,28 +2,39 @@ import type { NextAuthOptions } from "next-auth";
 import GitHubProvider from "next-auth/providers/github";
 import GoogleProvider from "next-auth/providers/google";
 import { resolveRoleFromEmail } from "@/lib/auth/control-access";
+import {
+  getOAuthConfigurationStatus,
+  getResolvedNextAuthSecret,
+  getResolvedNextAuthUrl
+} from "@/lib/auth/oauth-provider-config";
 
-if (!process.env.NEXTAUTH_URL && process.env.AUTH_URL) {
-  process.env.NEXTAUTH_URL = process.env.AUTH_URL;
+const resolvedNextAuthUrl = getResolvedNextAuthUrl();
+if (!process.env.NEXTAUTH_URL && resolvedNextAuthUrl) {
+  process.env.NEXTAUTH_URL = resolvedNextAuthUrl;
 }
 
 function buildProviders() {
-  const providers = [];
+  const providers: NextAuthOptions["providers"] = [];
+  const oauthStatus = getOAuthConfigurationStatus();
+  const googleClientId = process.env.AUTH_GOOGLE_ID?.trim();
+  const googleClientSecret = process.env.AUTH_GOOGLE_SECRET?.trim();
+  const githubClientId = process.env.AUTH_GITHUB_ID?.trim();
+  const githubClientSecret = process.env.AUTH_GITHUB_SECRET?.trim();
 
-  if (process.env.AUTH_GOOGLE_ID && process.env.AUTH_GOOGLE_SECRET) {
+  if (oauthStatus.google.configured && googleClientId && googleClientSecret) {
     providers.push(
       GoogleProvider({
-        clientId: process.env.AUTH_GOOGLE_ID,
-        clientSecret: process.env.AUTH_GOOGLE_SECRET
+        clientId: googleClientId,
+        clientSecret: googleClientSecret
       })
     );
   }
 
-  if (process.env.AUTH_GITHUB_ID && process.env.AUTH_GITHUB_SECRET) {
+  if (oauthStatus.github.configured && githubClientId && githubClientSecret) {
     providers.push(
       GitHubProvider({
-        clientId: process.env.AUTH_GITHUB_ID,
-        clientSecret: process.env.AUTH_GITHUB_SECRET
+        clientId: githubClientId,
+        clientSecret: githubClientSecret
       })
     );
   }
@@ -32,7 +43,7 @@ function buildProviders() {
 }
 
 export const authOptions: NextAuthOptions = {
-  secret: process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET,
+  secret: getResolvedNextAuthSecret(),
   session: {
     strategy: "jwt"
   },
@@ -74,5 +85,5 @@ export const authOptions: NextAuthOptions = {
 };
 
 export function getConfiguredAuthProviderIds() {
-  return authOptions.providers.map((provider) => provider.id);
+  return buildProviders().map((provider) => provider.id);
 }

@@ -1371,3 +1371,26 @@ Motivos:
   - sin copia del residual `docs/informe_intervencion_codex_chatgpt_2026-07-27.md`
 - siguiente fase habilitada:
   - reanudar Prompt 028 exclusivamente en `/Users/joseluis/dev/iot-midd-paas-auth-work`
+
+## Prompt 030 - Preparacion OAuth en clon writable
+
+- estado:
+  - completado en `/Users/joseluis/dev/iot-midd-paas-auth-work`
+- `.env.local`:
+  - ignorado y creado solo como archivo local
+- `.env.local.example`:
+  - creado y trackeado
+- helper OAuth:
+  - agregado para placeholders, parcialidad y prioridad `NEXTAUTH_*`
+- GitHub:
+  - listo para credenciales reales
+- Google:
+  - listo para credenciales reales
+- validaciones:
+  - `npm audit --json`: `0/0/0/0`
+  - `npm test`: `83 passed`
+  - `npm run typecheck`: PASS
+  - `npm run build`: PASS
+  - smoke local: `/login 200`, `/control 307`, `/api/control/access 401`
+- OAuth real:
+  - pendiente por decisión humana y credenciales reales
