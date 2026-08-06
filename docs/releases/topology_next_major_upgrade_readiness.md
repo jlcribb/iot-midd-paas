@@ -1347,3 +1347,27 @@ Motivos:
 - `origin/main` queda sincronizado en `a231887f332265a4773cfb0d574de268f43f2bdf`
 - `topology-next-next16-security-rc1` fija esa baseline publicada como release candidate
 - la siguiente decisión humana ya no es de publicación ni de tagging, sino de autorización explícita de release
+
+## Prompt 029 - Clon operativo writable
+
+- bloqueo resuelto:
+  - `BLOCKED_REPOSITORY_WRITE_ACCESS`
+- clon fuente preservado:
+  - `/Users/joseluis/dev/iot-midd-paas-clean`
+- nueva ruta operativa para las siguientes fases:
+  - `/Users/joseluis/dev/iot-midd-paas-auth-work`
+- baseline local retenida en el nuevo clon:
+  - `main = 55e2af58e71896770ad65e008656fcfa3c2d0342`
+  - `origin/main = a231887f332265a4773cfb0d574de268f43f2bdf`
+  - divergencia `0 1` antes del cierre documental de Prompt 029
+- historia preservada:
+  - commit local pendiente de Prompt 024
+  - rama `chore/topology-next-major-upgrade`
+  - tag `topology-next-next16-security-rc1`
+- seguridad operativa:
+  - sin copia de `.env.local`
+  - sin copia de `.next`
+  - sin copia de `node_modules`
+  - sin copia del residual `docs/informe_intervencion_codex_chatgpt_2026-07-27.md`
+- siguiente fase habilitada:
+  - reanudar Prompt 028 exclusivamente en `/Users/joseluis/dev/iot-midd-paas-auth-work`

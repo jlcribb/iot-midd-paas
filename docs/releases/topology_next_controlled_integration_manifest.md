@@ -230,3 +230,32 @@ Preservar conceptualmente el commit previo de `main` antes de autorizar la integ
   - autorización humana explícita para crear una release basada en `topology-next-next16-security-rc1`, si se desea formalizar el RC
 - resultado operativo:
   - `origin/main` quedó sincronizado con el cierre documental de Prompt 023 y el release candidate quedó fijado por un tag anotado local y remoto, mientras el cierre documental de Prompt 024 queda reservado como commit local posterior
+
+## Estado posterior a Prompt 029
+
+- objetivo:
+  - resolver el bloqueo `BLOCKED_REPOSITORY_WRITE_ACCESS` sin modificar el clon fuente preservado
+- clon fuente preservado:
+  - `/Users/joseluis/dev/iot-midd-paas-clean`
+- nueva ruta operativa writable:
+  - `/Users/joseluis/dev/iot-midd-paas-auth-work`
+- metodo:
+  - clon local con `git clone --no-hardlinks`
+- baseline local preservada:
+  - sí
+- `main` preservado:
+  - `55e2af58e71896770ad65e008656fcfa3c2d0342`
+- `origin/main` preservado:
+  - `a231887f332265a4773cfb0d574de268f43f2bdf`
+- rama de upgrade preservada:
+  - sí
+- tag RC preservado:
+  - sí
+- push realizado:
+  - no
+- cambios funcionales:
+  - no
+- Prompt 028:
+  - pendiente de reanudación en el nuevo clon operativo
+- resultado operativo:
+  - el trabajo futuro debe continuar en `/Users/joseluis/dev/iot-midd-paas-auth-work`, manteniendo el clon fuente solo como baseline preservada de lectura
