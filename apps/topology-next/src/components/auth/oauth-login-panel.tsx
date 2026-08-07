@@ -57,11 +57,8 @@ export function OAuthLoginPanel({ callbackUrl, availableProviders, error }: OAut
             Entrar con GitHub
           </button>
         </div>
-        {!hasGoogle && !hasGitHub ? (
-          <p className="control-empty">
-            No hay providers OAuth configurados todavía. Revisá `AUTH_GOOGLE_*` y `AUTH_GITHUB_*`.
-          </p>
-        ) : null}
+        {!hasGoogle ? <p className="control-empty">Google no está configurado en este entorno.</p> : null}
+        {!hasGitHub ? <p className="control-empty">GitHub no está configurado en este entorno.</p> : null}
       </section>
     </main>
   );

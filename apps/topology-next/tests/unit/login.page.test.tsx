@@ -72,10 +72,12 @@ describe("login page", () => {
 
     const html = renderToStaticMarkup(element);
 
-    expect(html).toContain("/api/auth/signin/google?callbackUrl=%2Fcontrol%2Fpolicies");
-    expect(html).toContain("/api/auth/signin/github?callbackUrl=%2Fcontrol%2Fpolicies");
+    expect(html).toContain("Entrar con Google");
+    expect(html).toContain("Entrar con GitHub");
     expect(html).not.toContain("Google no est");
     expect(html).not.toContain("GitHub no est");
+    expect(html).not.toContain("/api/auth/signin/google");
+    expect(html).not.toContain("/api/auth/signin/github");
   });
 
   it("redirects authenticated users to the resolved callbackUrl", async () => {
