@@ -212,7 +212,7 @@ services:
       - NEXT_DIST_DIR=.next-docker
       - AUTH_SECRET=dev-local-auth-secret
       - AUTH_URL=http://localhost:3000
-      - CONTROL_RBAC_ALLOW_DEV_FALLBACK=true
+      - CONTROL_RBAC_ALLOW_DEV_FALLBACK=${CONTROL_RBAC_ALLOW_DEV_FALLBACK:-true}
       - CONTROL_RBAC_DEFAULT_USER_ID=local-control-admin
       - CONTROL_RBAC_DEFAULT_USER_NAME=Local Control Admin
       - CONTROL_RBAC_DEFAULT_ROLE=admin

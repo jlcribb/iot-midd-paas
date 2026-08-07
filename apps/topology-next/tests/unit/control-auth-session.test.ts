@@ -75,6 +75,19 @@ describe("control-auth-session", () => {
     });
   });
 
+  it("keeps the fallback disabled when the flag is absent", async () => {
+    delete process.env.CONTROL_RBAC_ALLOW_DEV_FALLBACK;
+
+    expect(isDevFallbackEnabled()).toBe(false);
+
+    await expect(resolveAuthenticatedControlActorFromSources({
+      session: null,
+      request: new Request("http://localhost/api/control/access")
+    })).rejects.toMatchObject({
+      status: 401
+    });
+  });
+
   it("uses dev fallback only when explicitly enabled", async () => {
     process.env.CONTROL_RBAC_ALLOW_DEV_FALLBACK = "true";
     process.env.CONTROL_RBAC_DEFAULT_ROLE = "operator";
@@ -94,5 +107,26 @@ describe("control-auth-session", () => {
     expect(actor.user_id).toBe("fallback-operator");
     expect(actor.auth_source).toBe("dev_fallback");
     expect(actor.role).toBe("operator");
+  });
+
+  it("prefers an OAuth session over the enabled development fallback", async () => {
+    process.env.CONTROL_RBAC_ALLOW_DEV_FALLBACK = "true";
+
+    const actor = await resolveAuthenticatedControlActorFromSources({
+      session: makeSession({
+        control: {
+          actorId: "viewer@example.com",
+          role: "viewer",
+          provider: "github",
+          providerAccountId: "github-account-1",
+          allProjects: true,
+          projectIds: []
+        }
+      }),
+      request: new Request("http://localhost/api/control/access")
+    });
+
+    expect(actor.auth_source).toBe("oauth_session");
+    expect(actor.auth_provider).toBe("github");
   });
 });
