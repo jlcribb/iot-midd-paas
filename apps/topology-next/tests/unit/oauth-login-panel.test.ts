@@ -74,6 +74,20 @@ describe("OAuthLoginPanel", () => {
   });
 
   it("renders provider-specific messages when a provider is unavailable", () => {
+    signInMock.mockReset();
+
+    const tree = OAuthLoginPanel({
+      callbackUrl: "/control",
+      availableProviders: ["github"]
+    });
+    const buttons = collectButtons(tree);
+    const googleButton = buttons.find((button) => button.label === "Entrar con Google");
+
+    expect(googleButton?.props.disabled).toBe(true);
+    expect(googleButton?.props.onClick).toBeUndefined();
+    googleButton?.props.onClick?.();
+    expect(signInMock).not.toHaveBeenCalled();
+
     const html = renderToStaticMarkup(
       OAuthLoginPanel({
         callbackUrl: "/control",

@@ -8,9 +8,14 @@ interface OAuthLoginPanelProps {
   error?: string;
 }
 
+type OAuthProvider = "google" | "github";
+
 export function OAuthLoginPanel({ callbackUrl, availableProviders, error }: OAuthLoginPanelProps) {
   const hasGoogle = availableProviders.includes("google");
   const hasGitHub = availableProviders.includes("github");
+  const startSignIn = (provider: OAuthProvider) => {
+    void signIn(provider, { callbackUrl });
+  };
 
   return (
     <main className="control-dashboard">
@@ -43,7 +48,7 @@ export function OAuthLoginPanel({ callbackUrl, availableProviders, error }: OAut
           <button
             className="btn btn-primary"
             disabled={!hasGoogle}
-            onClick={() => void signIn("google", { callbackUrl })}
+            onClick={hasGoogle ? () => startSignIn("google") : undefined}
             type="button"
           >
             Entrar con Google
@@ -51,7 +56,7 @@ export function OAuthLoginPanel({ callbackUrl, availableProviders, error }: OAut
           <button
             className="btn btn-secondary"
             disabled={!hasGitHub}
-            onClick={() => void signIn("github", { callbackUrl })}
+            onClick={hasGitHub ? () => startSignIn("github") : undefined}
             type="button"
           >
             Entrar con GitHub
