@@ -14,21 +14,24 @@ const PERMISSIONS_BY_ROLE: Record<ControlRole, ControlPermissions> = {
     view_policies: true,
     edit_policies: false,
     toggle_policies: false,
-    delete_policies: false
+    delete_policies: false,
+    manage_parametric_control: false
   },
   operator: {
     view_dashboard: true,
     view_policies: true,
     edit_policies: true,
     toggle_policies: true,
-    delete_policies: false
+    delete_policies: false,
+    manage_parametric_control: false
   },
   admin: {
     view_dashboard: true,
     view_policies: true,
     edit_policies: true,
     toggle_policies: true,
-    delete_policies: true
+    delete_policies: true,
+    manage_parametric_control: true
   }
 };
 
@@ -153,6 +156,16 @@ export function getControlPermissions(role: ControlRole): ControlPermissions {
   return PERMISSIONS_BY_ROLE[role];
 }
 
+export function getControlRoleForProject(actor: ControlActor, projectId?: string): ControlRole {
+  if (projectId && actor.auth_source === "oauth_session") {
+    return actor.project_roles?.[projectId] ?? "viewer";
+  }
+  if (projectId && actor.project_roles?.[projectId]) {
+    return actor.project_roles[projectId];
+  }
+  return actor.role;
+}
+
 export function resolveRoleFromEmail(email: string | null | undefined): ControlRole {
   const normalizedEmail = normalizeEmail(email);
   if (!normalizedEmail) {
@@ -183,9 +196,10 @@ export function assertControlPermission(
   permission: ControlPermissionName,
   projectId?: string
 ) {
-  const permissions = getControlPermissions(actor.role);
+  const role = getControlRoleForProject(actor, projectId);
+  const permissions = getControlPermissions(role);
   if (!permissions[permission]) {
-    throw new ForbiddenError(`Role ${actor.role} cannot perform ${permission}`);
+    throw new ForbiddenError(`Role ${role} cannot perform ${permission}`);
   }
   if (projectId && !canAccessProject(actor, projectId)) {
     throw new ForbiddenError("Project is outside the user's operational scope");

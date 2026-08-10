@@ -14,6 +14,7 @@ export interface ControlActor {
   auth_source?: "oauth_session" | "dev_fallback";
   role: ControlRole;
   project_ids: string[];
+  project_roles?: Record<string, ControlRole>;
   all_projects: boolean;
 }
 
@@ -23,6 +24,7 @@ export interface ControlPermissions {
   edit_policies: boolean;
   toggle_policies: boolean;
   delete_policies: boolean;
+  manage_parametric_control: boolean;
 }
 
 export interface ControlAccessSnapshot {

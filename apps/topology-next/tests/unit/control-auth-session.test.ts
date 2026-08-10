@@ -53,7 +53,8 @@ describe("control-auth-session", () => {
         provider: "google",
         providerAccountId: "google-account-1",
         allProjects: true,
-        projectIds: []
+        projectIds: [],
+        projectRoles: {}
       }
     }));
 
@@ -62,6 +63,7 @@ describe("control-auth-session", () => {
     expect(actor.role).toBe("operator");
     expect(actor.auth_provider).toBe("google");
     expect(actor.provider_account_id).toBe("google-account-1");
+    expect(actor.all_projects).toBe(false);
   });
 
   it("returns 401 when no session is present and dev fallback is disabled", async () => {
@@ -118,9 +120,10 @@ describe("control-auth-session", () => {
           actorId: "viewer@example.com",
           role: "viewer",
           provider: "github",
-          providerAccountId: "github-account-1",
-          allProjects: true,
-          projectIds: []
+        providerAccountId: "github-account-1",
+        allProjects: true,
+        projectIds: [],
+        projectRoles: {}
         }
       }),
       request: new Request("http://localhost/api/control/access")

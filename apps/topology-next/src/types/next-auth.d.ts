@@ -12,6 +12,7 @@ declare module "next-auth" {
       providerAccountId: string | null;
       allProjects: boolean;
       projectIds: string[];
+      projectRoles: Record<string, "viewer" | "operator" | "admin">;
     };
   }
 }
@@ -23,5 +24,6 @@ declare module "next-auth/jwt" {
     controlRole?: "viewer" | "operator" | "admin";
     allProjects?: boolean;
     projectIds?: string[];
+    projectRoles?: Record<string, "viewer" | "operator" | "admin">;
   }
 }

@@ -2,6 +2,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
+const resolvePersistedProjectControlAccess = vi.fn();
+vi.mock("@/lib/services/project-control-membership.service", () => ({
+  resolvePersistedProjectControlAccess
+}));
+
 async function loadAuthOptionsModule() {
   vi.resetModules();
   return import("@/lib/auth/auth-options");
@@ -13,6 +18,7 @@ describe("auth-options", () => {
   afterEach(() => {
     process.env = { ...envSnapshot };
     vi.restoreAllMocks();
+    resolvePersistedProjectControlAccess.mockReset();
   });
 
   it("preserves jwt sessions and the custom sign-in page", async () => {
@@ -62,5 +68,26 @@ describe("auth-options", () => {
     const module = await loadAuthOptionsModule();
 
     expect(module.authOptions.secret).toBe("test-nextauth-secret");
+  });
+
+  it("resolves OAuth project scope from persistent memberships without implicit global access", async () => {
+    resolvePersistedProjectControlAccess.mockResolvedValue({
+      role: "admin",
+      projectIds: ["project-1"],
+      projectRoles: { "project-1": "admin" },
+      allProjects: false
+    });
+    const module = await loadAuthOptionsModule();
+    const callback = module.authOptions.callbacks?.jwt;
+
+    const token = await callback?.({ token: { email: "admin@example.com" } } as never);
+
+    expect(resolvePersistedProjectControlAccess).toHaveBeenCalledWith("admin@example.com");
+    expect(token).toMatchObject({
+      controlRole: "admin",
+      projectIds: ["project-1"],
+      projectRoles: { "project-1": "admin" },
+      allProjects: false
+    });
   });
 });

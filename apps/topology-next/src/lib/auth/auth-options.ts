@@ -1,7 +1,7 @@
 import type { NextAuthOptions } from "next-auth";
 import GitHubProvider from "next-auth/providers/github";
 import GoogleProvider from "next-auth/providers/google";
-import { resolveRoleFromEmail } from "@/lib/auth/control-access";
+import { resolvePersistedProjectControlAccess } from "@/lib/services/project-control-membership.service";
 import {
   getOAuthConfigurationStatus,
   getResolvedNextAuthSecret,
@@ -58,9 +58,11 @@ export const authOptions: NextAuthOptions = {
         token.providerAccountId = account.providerAccountId ?? null;
       }
 
-      token.controlRole = resolveRoleFromEmail(token.email ?? null);
-      token.allProjects = true;
-      token.projectIds = [];
+      const access = await resolvePersistedProjectControlAccess(token.email ?? null);
+      token.controlRole = access.role;
+      token.allProjects = access.allProjects;
+      token.projectIds = access.projectIds;
+      token.projectRoles = access.projectRoles;
 
       return token;
     },
@@ -75,8 +77,9 @@ export const authOptions: NextAuthOptions = {
         role: token.controlRole ?? "viewer",
         provider: token.authProvider ?? null,
         providerAccountId: token.providerAccountId ?? null,
-        allProjects: token.allProjects ?? true,
-        projectIds: token.projectIds ?? []
+        allProjects: token.allProjects ?? false,
+        projectIds: token.projectIds ?? [],
+        projectRoles: token.projectRoles ?? {}
       };
 
       return session;

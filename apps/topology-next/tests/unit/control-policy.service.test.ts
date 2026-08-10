@@ -15,6 +15,8 @@ function createAuditRepoMock(): IControlPolicyAuditRepository {
 }
 
 function makeActor(partial?: Partial<ControlActor>): ControlActor {
+  const projectIds = partial?.project_ids ?? ["project-1"];
+  const role = partial?.role ?? "operator";
   return {
     actor_id: partial?.actor_id ?? partial?.user_id ?? "operator-1",
     user_id: partial?.user_id ?? "operator-1",
@@ -25,9 +27,10 @@ function makeActor(partial?: Partial<ControlActor>): ControlActor {
     auth_provider: partial?.auth_provider ?? "google",
     provider_account_id: partial?.provider_account_id ?? "google-account-1",
     auth_source: partial?.auth_source ?? "oauth_session",
-    role: partial?.role ?? "operator",
+    role,
     all_projects: partial?.all_projects ?? false,
-    project_ids: partial?.project_ids ?? ["project-1"]
+    project_ids: projectIds,
+    project_roles: partial?.project_roles ?? Object.fromEntries(projectIds.map((projectId) => [projectId, role]))
   };
 }
 

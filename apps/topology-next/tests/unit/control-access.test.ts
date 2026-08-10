@@ -3,6 +3,7 @@ import {
   assertControlPermission,
   canAccessProject,
   getControlPermissions,
+  getControlRoleForProject,
   getScopedProjectIds,
   resolveControlActor
 } from "@/lib/auth/control-access";
@@ -28,6 +29,44 @@ describe("control-access", () => {
     expect(getControlPermissions("viewer").edit_policies).toBe(false);
     expect(getControlPermissions("operator").toggle_policies).toBe(true);
     expect(getControlPermissions("admin").delete_policies).toBe(true);
+    expect(getControlPermissions("operator").manage_parametric_control).toBe(false);
+    expect(getControlPermissions("admin").manage_parametric_control).toBe(true);
+  });
+
+  it("uses the persisted role assigned to the requested project", () => {
+    const actor = {
+      actor_id: "multi-role-1",
+      user_id: "multi-role-1",
+      display_name: null,
+      role: "admin" as const,
+      project_ids: ["project-1", "project-2"],
+      project_roles: { "project-1": "admin" as const, "project-2": "viewer" as const },
+      all_projects: false
+    };
+
+    expect(getControlRoleForProject(actor, "project-1")).toBe("admin");
+    expect(getControlRoleForProject(actor, "project-2")).toBe("viewer");
+    expect(() => assertControlPermission(actor, "manage_parametric_control", "project-2")).toThrow(
+      "Role viewer cannot perform manage_parametric_control"
+    );
+  });
+
+  it("fails closed for an OAuth actor without a persisted project role", () => {
+    const actor = {
+      actor_id: "legacy-admin-1",
+      user_id: "legacy-admin-1",
+      display_name: null,
+      auth_source: "oauth_session" as const,
+      role: "admin" as const,
+      project_ids: ["project-1"],
+      project_roles: {},
+      all_projects: false
+    };
+
+    expect(getControlRoleForProject(actor, "project-1")).toBe("viewer");
+    expect(() => assertControlPermission(actor, "manage_parametric_control", "project-1")).toThrow(
+      "Role viewer cannot perform manage_parametric_control"
+    );
   });
 
   it("checks project scope access", () => {

@@ -56,8 +56,11 @@ export function buildAuthenticatedControlActorFromSession(session: Session): Con
     provider_account_id: providerAccountId,
     auth_source: "oauth_session",
     role: session.control?.role ?? resolveRoleFromEmail(email),
-    all_projects: session.control?.allProjects ?? true,
-    project_ids: session.control?.projectIds ?? []
+    // OAuth sessions are always scoped by persisted memberships. Development
+    // fallback remains the only explicit path that can use all-project scope.
+    all_projects: false,
+    project_ids: session.control?.projectIds ?? [],
+    project_roles: session.control?.projectRoles ?? {}
   };
 }
 
