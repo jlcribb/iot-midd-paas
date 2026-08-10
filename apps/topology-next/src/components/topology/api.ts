@@ -9,6 +9,7 @@ import type {
   ApiTopologyViewLayoutPayload,
   ViewType
 } from "@/components/topology/types";
+import type { ControlAccessSnapshot } from "@/lib/dto/control-access.dto";
 
 interface ApiResponse<T> {
   success: boolean;
@@ -37,6 +38,10 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
 
 export async function listProjects(): Promise<ApiProject[]> {
   return request<ApiProject[]>("/api/projects");
+}
+
+export async function getControlAccess(): Promise<ControlAccessSnapshot> {
+  return request<ControlAccessSnapshot>("/api/control/access");
 }
 
 export async function updateProject(id: string, payload: {

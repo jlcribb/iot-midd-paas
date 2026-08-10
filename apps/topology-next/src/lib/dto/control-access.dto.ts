@@ -31,4 +31,5 @@ export interface ControlAccessSnapshot {
   actor: ControlActor;
   permissions: ControlPermissions;
   allowed_projects: Project[];
+  manageable_parametric_control_project_ids: string[];
 }

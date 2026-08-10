@@ -18,6 +18,7 @@ import {
   deleteAsset,
   deleteSector,
   deleteTopologyLink,
+  getControlAccess,
   getTopologyViewLayout,
   listAssets,
   listProjects,
@@ -31,6 +32,7 @@ import {
   updateTopologyLink
 } from "@/components/topology/api";
 import { buildDefaultNodeLayouts, buildGraph, normalizeNodeLayouts, parseNodeRef } from "@/components/topology/mappers";
+import { resolveProjectControlUiState } from "@/components/topology/project-control-access";
 import {
   getDefaultProjectTopologyStyles,
   resolveProjectTopologyStyles,
@@ -49,6 +51,7 @@ import type {
   ApiTopologyNodeLayout,
   ViewType
 } from "@/components/topology/types";
+import type { ControlAccessSnapshot } from "@/lib/dto/control-access.dto";
 
 function inferRelationType(source: ApiAsset | null, target: ApiAsset | null): ApiTopologyLink["relation_type"] {
   if (source?.asset_type === "programmable_node" && target?.asset_type === "sensor") return "reads";
@@ -101,6 +104,10 @@ export function TopologyWorkspace() {
   const workspaceLoadSequenceRef = useRef(0);
   const [projectStylesDraft, setProjectStylesDraft] = useState<ProjectTopologyStyles>(getDefaultProjectTopologyStyles);
   const [isProjectControlTogglePending, setIsProjectControlTogglePending] = useState(false);
+  const [projectControlToggleConfirmationTarget, setProjectControlToggleConfirmationTarget] = useState<boolean | null>(null);
+  const [projectControlFeedback, setProjectControlFeedback] = useState<string | null>(null);
+  const [controlAccess, setControlAccess] = useState<ControlAccessSnapshot | null>(null);
+  const [isControlAccessLoading, setIsControlAccessLoading] = useState(true);
 
   if (typeof window !== "undefined" && initialProjectFromQueryRef.current === null) {
     const params = new URLSearchParams(window.location.search);
@@ -171,6 +178,16 @@ export function TopologyWorkspace() {
     () => JSON.stringify(projectStylesDraft) !== JSON.stringify(persistedProjectStyles),
     [persistedProjectStyles, projectStylesDraft]
   );
+  const projectControlUiState = useMemo(
+    () => resolveProjectControlUiState({
+      projectId: selectedProject?.id ?? null,
+      isAccessLoading: isControlAccessLoading,
+      hasAccessSnapshot: controlAccess !== null,
+      allowedProjectIds: controlAccess?.allowed_projects.map((project) => project.id) ?? [],
+      manageableProjectIds: controlAccess?.manageable_parametric_control_project_ids ?? []
+    }),
+    [controlAccess, isControlAccessLoading, selectedProject?.id]
+  );
 
   const selectedNode = useMemo(() => nodes.find((node) => node.id === selectedNodeId) ?? null, [nodes, selectedNodeId]);
   const selectedEdge = useMemo(() => edges.find((edge) => edge.id === selectedEdgeId) ?? null, [edges, selectedEdgeId]);
@@ -179,6 +196,23 @@ export function TopologyWorkspace() {
   useEffect(() => {
     setProjectStylesDraft(persistedProjectStyles);
   }, [persistedProjectStyles]);
+
+  useEffect(() => {
+    let mounted = true;
+    void getControlAccess()
+      .then((snapshot) => {
+        if (mounted) setControlAccess(snapshot);
+      })
+      .catch(() => {
+        if (mounted) setControlAccess(null);
+      })
+      .finally(() => {
+        if (mounted) setIsControlAccessLoading(false);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const rebuildGraph = useCallback(
     (nodeLayouts: ApiTopologyNodeLayout[], linkLayouts: ApiTopologyLinkLayout[]) => {
@@ -392,7 +426,20 @@ export function TopologyWorkspace() {
   }
 
   async function handleProjectControlToggle(enabled: boolean) {
-    if (!selectedProject) return;
+    if (!selectedProject || !projectControlUiState.canManage || isProjectControlTogglePending) return;
+    setProjectControlFeedback(null);
+    setProjectControlToggleConfirmationTarget(enabled);
+  }
+
+  async function confirmProjectControlToggle() {
+    if (
+      !selectedProject
+      || !projectControlUiState.canManage
+      || isProjectControlTogglePending
+      || projectControlToggleConfirmationTarget === null
+    ) return;
+    const enabled = projectControlToggleConfirmationTarget;
+    setProjectControlToggleConfirmationTarget(null);
     setIsProjectControlTogglePending(true);
     setErrorMessage(null);
     try {
@@ -401,8 +448,10 @@ export function TopologyWorkspace() {
       });
       const currentProjects = useTopologyStore.getState().projects;
       setProjects(currentProjects.map((project) => (project.id === updated.id ? updated : project)));
+      setProjectControlFeedback(`Control paramétrico ${enabled ? "habilitado" : "deshabilitado"} para este proyecto.`);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "No se pudo actualizar el feature flag de control");
+      setProjectControlFeedback("No se pudo actualizar el control paramétrico. Intentá nuevamente.");
     } finally {
       setIsProjectControlTogglePending(false);
     }
@@ -750,8 +799,19 @@ export function TopologyWorkspace() {
             projectStyles={projectStylesDraft}
             isProjectStylesDirty={hasProjectStyleChanges}
             isProjectControlTogglePending={isProjectControlTogglePending}
-            onProjectSelect={(projectId) => setSelectedProjectId(projectId)}
+            projectControlToggleConfirmationTarget={projectControlToggleConfirmationTarget}
+            canManageProjectControl={projectControlUiState.canManage}
+            isProjectControlAccessLoading={projectControlUiState.isAccessLoading}
+            projectControlAccessMessage={projectControlUiState.message}
+            projectControlFeedback={projectControlFeedback}
+            onProjectSelect={(projectId) => {
+              setSelectedProjectId(projectId);
+              setProjectControlToggleConfirmationTarget(null);
+              setProjectControlFeedback(null);
+            }}
             onProjectControlToggle={(enabled) => void handleProjectControlToggle(enabled)}
+            onConfirmProjectControlToggle={() => void confirmProjectControlToggle()}
+            onCancelProjectControlToggle={() => setProjectControlToggleConfirmationTarget(null)}
             onSearchChange={setSearch}
             onSectorFiltersChange={setSectorFilters}
             onTypeFiltersChange={setTypeFilters}

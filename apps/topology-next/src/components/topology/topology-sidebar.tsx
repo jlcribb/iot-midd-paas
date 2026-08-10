@@ -52,8 +52,15 @@ interface TopologySidebarProps {
   projectStyles: ProjectTopologyStyles;
   isProjectStylesDirty: boolean;
   isProjectControlTogglePending: boolean;
+  projectControlToggleConfirmationTarget: boolean | null;
+  canManageProjectControl: boolean;
+  isProjectControlAccessLoading: boolean;
+  projectControlAccessMessage: string;
+  projectControlFeedback: string | null;
   onProjectSelect: (projectId: string) => void;
   onProjectControlToggle: (enabled: boolean) => void;
+  onConfirmProjectControlToggle: () => void;
+  onCancelProjectControlToggle: () => void;
   onSearchChange: (value: string) => void;
   onSectorFiltersChange: (value: string[]) => void;
   onTypeFiltersChange: (value: ApiAsset["asset_type"][]) => void;
@@ -120,12 +127,27 @@ export function TopologySidebar(props: TopologySidebarProps) {
               <input
                 type="checkbox"
                 checked={props.project.parametric_control_enabled}
-                disabled={props.isProjectControlTogglePending}
+                disabled={props.isProjectControlTogglePending || props.isProjectControlAccessLoading || !props.canManageProjectControl}
                 onChange={(event) => props.onProjectControlToggle(event.target.checked)}
               />
-              Control Paramétrico habilitado
+              Control Paramétrico: {props.project.parametric_control_enabled ? "Enabled" : "Disabled"}
             </label>
             {props.isProjectControlTogglePending ? <p className="panel-note">Actualizando feature flag del proyecto...</p> : null}
+            <p className="panel-note">{props.projectControlAccessMessage}</p>
+            {props.projectControlFeedback ? <p className="panel-note" role="status">{props.projectControlFeedback}</p> : null}
+            {props.projectControlToggleConfirmationTarget !== null ? (
+              <div className="panel-note" role="status">
+                <p>
+                  Confirmá {props.projectControlToggleConfirmationTarget ? "habilitar" : "deshabilitar"} el control paramétrico para este proyecto.
+                </p>
+                <button type="button" className="btn btn-primary" onClick={props.onConfirmProjectControlToggle}>
+                  Confirmar cambio
+                </button>
+                <button type="button" className="btn btn-secondary" onClick={props.onCancelProjectControlToggle}>
+                  Cancelar
+                </button>
+              </div>
+            ) : null}
           </>
         ) : null}
         <p className="panel-note">

@@ -31,6 +31,13 @@ Un cambio efectivo actualiza el proyecto e inserta
 transacción. La auditoría conserva actor, rol, proyecto, before/after, timestamp y el
 identificador de solicitud cuando está disponible. Los no-op no generan auditoría.
 
+La barra lateral del workspace de Topology muestra el estado persistido de control
+paramétrico por proyecto. Consume el snapshot de acceso existente y sólo habilita el
+toggle cuando el backend informó la capacidad derivada para ese proyecto. `viewer` y
+`operator` pueden ver el estado dentro de su scope, pero quedan en modo read-only;
+los proyectos fuera de scope tampoco ofrecen mutación. La UI pide confirmación y el
+backend sigue siendo la autoridad final para autorización y auditoría.
+
 ## Bootstrap administrativo
 
 La migración crea la tabla vacía para preservar el principio fail-closed. Antes de
