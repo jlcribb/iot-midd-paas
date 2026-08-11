@@ -4,6 +4,7 @@ import { ConflictError } from "@/lib/errors/domain-errors";
 import { ControlPolicyService } from "@/lib/services/control-policy.service";
 import type {
   IControlPolicyAuditRepository,
+  IAssetRepository,
   IControlPolicyRepository,
   IProjectRepository
 } from "@/lib/repositories/contracts";
@@ -12,6 +13,14 @@ function createAuditRepoMock(): IControlPolicyAuditRepository {
   return {
     recordChange: vi.fn().mockResolvedValue(undefined)
   };
+}
+
+const BOUND_ASSET_ID = "8a954f52-c7b1-4fd6-84ea-a6b897f4d7f3";
+
+function createAssetRepoMock(projectId = "project-1"): IAssetRepository {
+  return {
+    findById: vi.fn().mockResolvedValue({ id: BOUND_ASSET_ID, project_id: projectId })
+  } as unknown as IAssetRepository;
 }
 
 function makeActor(partial?: Partial<ControlActor>): ControlActor {
@@ -40,6 +49,7 @@ describe("ControlPolicyService", () => {
       id: "policy-1",
       project_id: "project-1",
       variable: "tank_level",
+      binding: { asset_id: BOUND_ASSET_ID, variable_key: "tank_level" },
       context_selector: {},
       policy_type: "proportional",
       params: {
@@ -81,10 +91,16 @@ describe("ControlPolicyService", () => {
     };
 
     const auditRepo = createAuditRepoMock();
-    const service = new ControlPolicyService({ controlPolicyRepo, projectRepo, controlPolicyAuditRepo: auditRepo });
+    const service = new ControlPolicyService({
+      controlPolicyRepo,
+      projectRepo,
+      assetRepo: createAssetRepoMock(),
+      controlPolicyAuditRepo: auditRepo
+    });
     const created = await service.create(makeActor(), {
       project_id: "project-1",
       variable: "tank_level",
+      binding: { asset_id: BOUND_ASSET_ID, variable_key: "tank_level" },
       policy_type: "proportional",
       context_selector: {},
       params: {
@@ -112,6 +128,7 @@ describe("ControlPolicyService", () => {
       id: "policy-1",
       project_id: "project-1",
       variable: "tank_level",
+      binding: { asset_id: BOUND_ASSET_ID, variable_key: "tank_level" },
       context_selector: { sector: "tank_B" },
       policy_type: "proportional",
       params: {
@@ -135,6 +152,7 @@ describe("ControlPolicyService", () => {
         id: "policy-1",
         project_id: "project-1",
         variable: "tank_level",
+        binding: null,
         context_selector: { sector: "tank_A" },
         policy_type: "proportional",
         params: {
@@ -163,9 +181,15 @@ describe("ControlPolicyService", () => {
     };
 
     const auditRepo = createAuditRepoMock();
-    const service = new ControlPolicyService({ controlPolicyRepo, projectRepo, controlPolicyAuditRepo: auditRepo });
+    const service = new ControlPolicyService({
+      controlPolicyRepo,
+      projectRepo,
+      assetRepo: createAssetRepoMock(),
+      controlPolicyAuditRepo: auditRepo
+    });
     const updated = await service.update(makeActor(), "policy-1", {
       context_selector: { sector: "tank_B" },
+      binding: { asset_id: BOUND_ASSET_ID, variable_key: "tank_level" },
       params: {
         variable_name: "Tank",
         actuator_name: "pump",
@@ -182,7 +206,9 @@ describe("ControlPolicyService", () => {
     expect(updated.version).toBe(4);
     expect(auditRepo.recordChange).toHaveBeenCalledWith(expect.objectContaining({
       entityId: "policy-1",
-      action: "CONTROL_POLICY_UPDATED"
+      action: "CONTROL_POLICY_UPDATED",
+      before: expect.objectContaining({ binding: null }),
+      after: expect.objectContaining({ binding: { asset_id: BOUND_ASSET_ID, variable_key: "tank_level" } })
     }));
   });
 
@@ -250,6 +276,7 @@ describe("ControlPolicyService", () => {
           id: "policy-existing",
           project_id: "project-1",
           variable: "tank_level",
+          binding: { asset_id: BOUND_ASSET_ID, variable_key: "tank_level" },
           context_selector: { sector: "tank_A" },
           policy_type: "proportional",
           params: {
@@ -288,12 +315,14 @@ describe("ControlPolicyService", () => {
     const service = new ControlPolicyService({
       controlPolicyRepo,
       projectRepo,
+      assetRepo: createAssetRepoMock(),
       controlPolicyAuditRepo: createAuditRepoMock()
     });
 
     await expect(service.create(makeActor(), {
       project_id: "project-1",
       variable: "tank_level",
+      binding: { asset_id: BOUND_ASSET_ID, variable_key: "tank_level" },
       policy_type: "proportional",
       context_selector: { sector: "tank_A" },
       params: {
@@ -397,6 +426,7 @@ describe("ControlPolicyService", () => {
     await expect(service.create(makeActor({ project_ids: ["project-9"] }), {
       project_id: "project-1",
       variable: "tank_level",
+      binding: { asset_id: BOUND_ASSET_ID, variable_key: "tank_level" },
       policy_type: "proportional",
       context_selector: {},
       params: {
@@ -442,6 +472,7 @@ describe("ControlPolicyService", () => {
     await expect(service.create(makeActor({ role: "viewer" }), {
       project_id: "project-1",
       variable: "tank_level",
+      binding: { asset_id: BOUND_ASSET_ID, variable_key: "tank_level" },
       policy_type: "proportional",
       context_selector: {},
       params: {
@@ -525,5 +556,55 @@ describe("ControlPolicyService", () => {
       version: 8
     });
     expect(disabled.enabled).toBe(false);
+  });
+
+  it("rejects a binding asset owned by a different project", async () => {
+    const service = new ControlPolicyService({
+      controlPolicyRepo: {
+        create: vi.fn(), findById: vi.fn(), findAll: vi.fn().mockResolvedValue([]), update: vi.fn()
+      },
+      projectRepo: {
+        create: vi.fn(), findById: vi.fn().mockResolvedValue({ id: "project-1" }), findAll: vi.fn(), update: vi.fn()
+      } as unknown as IProjectRepository,
+      assetRepo: createAssetRepoMock("project-2"),
+      controlPolicyAuditRepo: createAuditRepoMock()
+    });
+
+    await expect(service.create(makeActor(), {
+      project_id: "project-1",
+      variable: "tank_level",
+      binding: { asset_id: BOUND_ASSET_ID, variable_key: "tank_level" },
+      policy_type: "proportional",
+      context_selector: {},
+      params: { variable_name: "Tank", actuator_name: "pump", setpoint_value: 70, gain: 1, deadband: 0, min_action: 0 },
+      priority: 0,
+      enabled: true
+    })).rejects.toBeInstanceOf(ConflictError);
+  });
+
+  it("rejects a binding asset that does not exist", async () => {
+    const assetRepo = createAssetRepoMock();
+    vi.mocked(assetRepo.findById).mockResolvedValue(null);
+    const service = new ControlPolicyService({
+      controlPolicyRepo: {
+        create: vi.fn(), findById: vi.fn(), findAll: vi.fn().mockResolvedValue([]), update: vi.fn()
+      },
+      projectRepo: {
+        create: vi.fn(), findById: vi.fn().mockResolvedValue({ id: "project-1" }), findAll: vi.fn(), update: vi.fn()
+      } as unknown as IProjectRepository,
+      assetRepo,
+      controlPolicyAuditRepo: createAuditRepoMock()
+    });
+
+    await expect(service.create(makeActor(), {
+      project_id: "project-1",
+      variable: "tank_level",
+      binding: { asset_id: BOUND_ASSET_ID, variable_key: "tank_level" },
+      policy_type: "proportional",
+      context_selector: {},
+      params: { variable_name: "Tank", actuator_name: "pump", setpoint_value: 70, gain: 1, deadband: 0, min_action: 0 },
+      priority: 0,
+      enabled: true
+    })).rejects.toMatchObject({ status: 404 });
   });
 });

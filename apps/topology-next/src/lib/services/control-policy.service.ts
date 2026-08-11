@@ -4,18 +4,21 @@ import { isDeepStrictEqual } from "node:util";
 import { ConflictError, NotFoundError } from "@/lib/errors/domain-errors";
 import type { ControlPolicy, ControlPolicyPreviewResponse } from "@/lib/dto/control-policy.dto";
 import type {
+  IAssetRepository,
   IControlPolicyAuditRepository,
   IControlPolicyRepository,
   IProjectRepository
 } from "@/lib/repositories/contracts";
 import { ControlPolicyAuditRepository } from "@/lib/repositories/control-policy-audit.repository";
 import { ControlPolicyRepository } from "@/lib/repositories/control-policy.repository";
+import { AssetRepository } from "@/lib/repositories/asset.repository";
 import { ProjectRepository } from "@/lib/repositories/project.repository";
 import type { CreateControlPolicyInput, UpdateControlPolicyInput } from "@/lib/validators/control-policy.schemas";
 import { validatePolicyParams } from "@/lib/validators/control-policy.schemas";
 import { buildPreviewResponse, detectPolicyConflicts } from "@/lib/utils/control-policy-governance";
 
 interface ControlPolicyServiceDeps {
+  assetRepo?: IAssetRepository;
   controlPolicyRepo?: IControlPolicyRepository;
   projectRepo?: IProjectRepository;
   controlPolicyAuditRepo?: IControlPolicyAuditRepository;
@@ -23,11 +26,13 @@ interface ControlPolicyServiceDeps {
 
 export class ControlPolicyService {
   private readonly controlPolicyRepo: IControlPolicyRepository;
+  private readonly assetRepo: IAssetRepository;
   private readonly projectRepo: IProjectRepository;
   private readonly controlPolicyAuditRepo: IControlPolicyAuditRepository;
 
   constructor(deps: ControlPolicyServiceDeps = {}) {
     this.controlPolicyRepo = deps.controlPolicyRepo ?? new ControlPolicyRepository();
+    this.assetRepo = deps.assetRepo ?? new AssetRepository();
     this.projectRepo = deps.projectRepo ?? new ProjectRepository();
     this.controlPolicyAuditRepo = deps.controlPolicyAuditRepo ?? new ControlPolicyAuditRepository();
   }
@@ -46,11 +51,13 @@ export class ControlPolicyService {
     if (!project) {
       throw new NotFoundError("Project not found");
     }
+    await this.assertBindingBelongsToProject(input.project_id, input.binding.asset_id);
 
     validatePolicyParams(input.policy_type, input.params);
     await this.assertNoBlockingConflicts({
       project_id: input.project_id,
       variable: input.variable,
+      binding: input.binding,
       policy_type: input.policy_type,
       context_selector: input.context_selector,
       params: input.params,
@@ -92,6 +99,7 @@ export class ControlPolicyService {
     }
     const nextState = {
       ...existing,
+      binding: input.binding ?? existing.binding,
       context_selector: input.context_selector ?? existing.context_selector,
       params: input.params ?? existing.params,
       priority: input.priority ?? existing.priority,
@@ -102,6 +110,9 @@ export class ControlPolicyService {
     if (input.params !== undefined) {
       validatePolicyParams(existing.policy_type, input.params);
     }
+    if (input.binding !== undefined) {
+      await this.assertBindingBelongsToProject(existing.project_id, input.binding.asset_id);
+    }
 
     if (this.isNoopUpdate(existing, input)) {
       return existing;
@@ -111,6 +122,7 @@ export class ControlPolicyService {
       id: existing.id,
       project_id: existing.project_id,
       variable: existing.variable,
+      binding: nextState.binding,
       policy_type: existing.policy_type,
       context_selector: nextState.context_selector,
       params: nextState.params,
@@ -177,6 +189,7 @@ export class ControlPolicyService {
   async previewSelection(actor: ControlActor, input: {
     projectId: string;
     variable: string;
+    assetId?: string;
     context: Record<string, unknown>;
     candidatePolicy?: {
       id?: string;
@@ -188,9 +201,16 @@ export class ControlPolicyService {
       priority: number;
       enabled: boolean;
       version?: number;
+      binding?: ControlPolicy["binding"];
     };
   }): Promise<ControlPolicyPreviewResponse> {
     assertControlPermission(actor, "view_policies", input.projectId);
+    if (input.assetId) {
+      await this.assertBindingBelongsToProject(input.projectId, input.assetId);
+    }
+    if (input.candidatePolicy?.binding) {
+      await this.assertBindingBelongsToProject(input.projectId, input.candidatePolicy.binding.asset_id);
+    }
     const existingPolicies = (await this.controlPolicyRepo.findAll({
       projectId: input.projectId,
       projectIds: getScopedProjectIds(actor, input.projectId),
@@ -201,6 +221,7 @@ export class ControlPolicyService {
       project_id: input.projectId,
       variable: input.variable,
       context: input.context,
+      asset_id: input.assetId ?? input.candidatePolicy?.binding?.asset_id,
       existingPolicies,
       candidate: input.candidatePolicy
     });
@@ -219,6 +240,9 @@ export class ControlPolicyService {
     if (input.params !== undefined && !isDeepStrictEqual(input.params, existing.params)) {
       return false;
     }
+    if (input.binding !== undefined && !isDeepStrictEqual(input.binding, existing.binding)) {
+      return false;
+    }
     return true;
   }
 
@@ -226,6 +250,7 @@ export class ControlPolicyService {
     id?: string;
     project_id: string;
     variable: string;
+    binding: ControlPolicy["binding"];
     policy_type: ControlPolicy["policy_type"];
     context_selector: Record<string, unknown>;
     params: Record<string, unknown>;
@@ -243,6 +268,16 @@ export class ControlPolicyService {
       throw new ConflictError(blockingTie.message, {
         conflicting_policy_ids: blockingTie.conflicting_policy_ids
       });
+    }
+  }
+
+  private async assertBindingBelongsToProject(projectId: string, assetId: string) {
+    const asset = await this.assetRepo.findById(assetId);
+    if (!asset) {
+      throw new NotFoundError("Binding asset not found");
+    }
+    if (asset.project_id !== projectId) {
+      throw new ConflictError("Binding asset belongs to a different project");
     }
   }
 }

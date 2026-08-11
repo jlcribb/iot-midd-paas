@@ -7,7 +7,7 @@ import type {
 
 type PolicyLike = Pick<
   ControlPolicy,
-  "id" | "project_id" | "variable" | "context_selector" | "priority" | "enabled" | "version" | "created_at" | "updated_at"
+  "id" | "project_id" | "variable" | "binding" | "context_selector" | "priority" | "enabled" | "version" | "created_at" | "updated_at"
 >;
 
 function normalizeJsonValue(value: unknown): unknown {
@@ -34,6 +34,20 @@ export function hasExactContextSelector(left: Record<string, unknown>, right: Re
 
 export function matchesRequiredContext(required: Record<string, unknown>, actual: Record<string, unknown>) {
   return Object.entries(required).every(([key, value]) => actual[key] === value);
+}
+
+export function hasSameStructuralBinding(
+  left: Pick<ControlPolicy, "binding">,
+  right: Pick<ControlPolicy, "binding">
+) {
+  return left.binding?.asset_id === right.binding?.asset_id;
+}
+
+export function selectBindingEligiblePolicies(policies: ControlPolicy[], assetId?: string) {
+  const bound = assetId
+    ? policies.filter((policy) => policy.binding?.asset_id === assetId)
+    : [];
+  return bound.length > 0 ? bound : policies.filter((policy) => !policy.binding);
 }
 
 function compareSelectionRank(left: PolicyLike, right: PolicyLike) {
@@ -75,6 +89,7 @@ export function toPreviewPolicy(
     id: candidate.id ?? "preview-candidate",
     project_id: candidate.project_id,
     variable: candidate.variable,
+    binding: candidate.binding ?? null,
     context_selector: candidate.context_selector,
     policy_type: candidate.policy_type,
     params: candidate.params,
@@ -98,6 +113,7 @@ export function detectPolicyConflicts(
     policy.enabled &&
     policy.project_id === candidate.project_id &&
     policy.variable === candidate.variable &&
+    hasSameStructuralBinding(policy, candidate) &&
     policy.id !== candidate.id &&
     hasExactContextSelector(policy.context_selector, candidate.context_selector)
   ));
@@ -147,9 +163,10 @@ export function detectPolicyConflicts(
 
 export function selectPolicyForContext(
   policies: ControlPolicy[],
-  context: Record<string, unknown>
+  context: Record<string, unknown>,
+  assetId?: string
 ) {
-  const matchingCandidates = policies
+  const matchingCandidates = selectBindingEligiblePolicies(policies, assetId)
     .filter((policy) => policy.enabled)
     .filter((policy) => matchesRequiredContext(policy.context_selector, context));
 
@@ -186,6 +203,7 @@ export function buildPreviewResponse(args: {
   project_id: string;
   variable: string;
   context: Record<string, unknown>;
+  asset_id?: string;
   existingPolicies: ControlPolicy[];
   candidate?: ControlPolicyPreviewCandidate;
 }): ControlPolicyPreviewResponse {
@@ -194,7 +212,7 @@ export function buildPreviewResponse(args: {
     policy.variable === args.variable
   ));
 
-  const currentSelection = selectPolicyForContext(scopedPolicies, args.context);
+  const currentSelection = selectPolicyForContext(scopedPolicies, args.context, args.asset_id);
   const conflicts = args.candidate ? detectPolicyConflicts(args.candidate, scopedPolicies) : [];
 
   const hypotheticalPolicies = args.candidate
@@ -204,7 +222,7 @@ export function buildPreviewResponse(args: {
       ]
     : scopedPolicies;
 
-  const hypotheticalSelection = selectPolicyForContext(hypotheticalPolicies, args.context);
+  const hypotheticalSelection = selectPolicyForContext(hypotheticalPolicies, args.context, args.asset_id);
 
   const warnings = conflicts.map((conflict) => conflict.message);
   if (args.candidate?.enabled && hypotheticalSelection.selected?.id !== (args.candidate.id ?? "preview-candidate")) {

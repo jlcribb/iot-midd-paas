@@ -1127,8 +1127,12 @@ def get_project_control_settings(project_id: str) -> Dict[str, Any]:
         return default_settings
 
 
-def list_project_control_policies(project_id: str, variable_id: str) -> List[Dict[str, Any]]:
-    """Carga políticas persistidas candidatas para un proyecto y variable."""
+def list_project_control_policies(
+    project_id: str,
+    variable_id: str,
+    asset_id: Optional[str] = None,
+) -> List[Dict[str, Any]]:
+    """Carga policies candidatas por proyecto, variable y binding de asset opcional."""
     try:
         project_uuid = str(uuid.UUID(str(project_id)))
     except (TypeError, ValueError):
@@ -1142,6 +1146,14 @@ def list_project_control_policies(project_id: str, variable_id: str) -> List[Dic
         logger.warning("variable_id inválido para list_project_control_policies: %s", variable_id)
         return []
 
+    asset_uuid: Optional[str] = None
+    if asset_id:
+        try:
+            asset_uuid = str(uuid.UUID(str(asset_id)))
+        except (TypeError, ValueError):
+            logger.warning("asset_id inválido para list_project_control_policies: %s", asset_id)
+            return []
+
     try:
         from sqlalchemy import text
 
@@ -1151,6 +1163,7 @@ def list_project_control_policies(project_id: str, variable_id: str) -> List[Dic
             SELECT
                 id::text AS id,
                 project_id::text AS project_id,
+                bound_asset_id::text AS bound_asset_id,
                 variable,
                 context_selector,
                 policy_type,
@@ -1164,6 +1177,7 @@ def list_project_control_policies(project_id: str, variable_id: str) -> List[Dic
             WHERE project_id = CAST(:project_id AS uuid)
               AND variable = :variable
               AND enabled = TRUE
+              AND (bound_asset_id IS NULL OR bound_asset_id = CAST(:asset_id AS uuid))
             ORDER BY priority DESC, version DESC, updated_at DESC, created_at DESC
             """
         )
@@ -1174,6 +1188,7 @@ def list_project_control_policies(project_id: str, variable_id: str) -> List[Dic
                 {
                     "project_id": project_uuid,
                     "variable": str(variable_id),
+                    "asset_id": asset_uuid,
                 },
             ).mappings().all()
 

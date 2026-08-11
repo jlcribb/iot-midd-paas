@@ -100,4 +100,55 @@ describe("control-policy-governance", () => {
     expect(preview.hypothetical_selected_policy?.id).toBe("preview-candidate");
     expect(preview.candidate_would_be_selected).toBe(true);
   });
+
+  it("selects a bound policy only for its matching asset and otherwise preserves legacy compatibility", () => {
+    const policies = [
+      {
+        id: "legacy",
+        project_id: "project-1",
+        variable: "tank_level",
+        binding: null,
+        context_selector: {},
+        policy_type: "proportional" as const,
+        params: { gain: 1, actuator_name: "pump", setpoint_value: 70, deadband: 0, min_action: 0, variable_name: "Tank" },
+        priority: 99,
+        enabled: true,
+        version: 1,
+        created_at: "2026-01-01T00:00:00.000Z",
+        updated_at: "2026-01-01T00:00:00.000Z"
+      },
+      {
+        id: "bound-a",
+        project_id: "project-1",
+        variable: "tank_level",
+        binding: { asset_id: "asset-a", variable_key: "tank_level" },
+        context_selector: {},
+        policy_type: "proportional" as const,
+        params: { gain: 1, actuator_name: "pump", setpoint_value: 70, deadband: 0, min_action: 0, variable_name: "Tank" },
+        priority: 1,
+        enabled: true,
+        version: 1,
+        created_at: "2026-01-01T00:00:00.000Z",
+        updated_at: "2026-01-01T00:00:00.000Z"
+      }
+    ];
+
+    const boundPreview = buildPreviewResponse({
+      project_id: "project-1",
+      variable: "tank_level",
+      asset_id: "asset-a",
+      context: {},
+      existingPolicies: policies
+    });
+    const legacyPreview = buildPreviewResponse({
+      project_id: "project-1",
+      variable: "tank_level",
+      asset_id: "asset-b",
+      context: {},
+      existingPolicies: policies
+    });
+
+    expect(boundPreview.current_selected_policy?.id).toBe("bound-a");
+    expect(legacyPreview.current_selected_policy?.id).toBe("legacy");
+  });
 });

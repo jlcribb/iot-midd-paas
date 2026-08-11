@@ -6,6 +6,24 @@ const numericValue = z.number().finite();
 
 export const controlPolicyTypeSchema = z.enum(["proportional", "threshold"]);
 
+export function normalizeControlVariableKey(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+const canonicalVariableKeySchema = z.string().trim().min(1).transform(normalizeControlVariableKey).refine(
+  (value) => value.length > 0,
+  "variable must contain at least one alphanumeric character"
+);
+
+const policyBindingSchema = z.object({
+  asset_id: uuidSchema,
+  variable_key: canonicalVariableKeySchema
+});
+
 const proportionalParamsSchema = z.object({
   variable_name: z.string().trim().min(1),
   variable_unit: z.string().trim().min(1).optional(),
@@ -88,7 +106,8 @@ export function validatePolicyParams(policyType: z.infer<typeof controlPolicyTyp
 
 const createPolicyBaseSchema = z.object({
   project_id: uuidSchema,
-  variable: z.string().trim().min(1),
+  variable: canonicalVariableKeySchema,
+  binding: policyBindingSchema,
   policy_type: controlPolicyTypeSchema,
   context_selector: jsonObjectSchema.default({}),
   params: jsonObjectSchema,
@@ -97,6 +116,13 @@ const createPolicyBaseSchema = z.object({
 });
 
 export const createControlPolicySchema = createPolicyBaseSchema.superRefine((payload, ctx) => {
+  if (payload.binding.variable_key !== payload.variable) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "binding.variable_key must match variable",
+      path: ["binding", "variable_key"]
+    });
+  }
   try {
     validatePolicyParams(payload.policy_type, payload.params);
   } catch (error) {
@@ -118,6 +144,7 @@ export const createControlPolicySchema = createPolicyBaseSchema.superRefine((pay
 });
 
 export const updateControlPolicySchema = z.object({
+  binding: policyBindingSchema.optional(),
   context_selector: jsonObjectSchema.optional(),
   params: jsonObjectSchema.optional(),
   priority: z.number().int().min(0).optional(),
@@ -127,7 +154,8 @@ export const updateControlPolicySchema = z.object({
 const previewCandidateSchema = z.object({
   id: uuidSchema.optional(),
   project_id: uuidSchema,
-  variable: z.string().trim().min(1),
+  variable: canonicalVariableKeySchema,
+  binding: policyBindingSchema.nullable().default(null),
   policy_type: controlPolicyTypeSchema,
   context_selector: jsonObjectSchema.default({}),
   params: jsonObjectSchema,
@@ -151,7 +179,8 @@ const previewCandidateSchema = z.object({
 
 export const previewControlPolicySchema = z.object({
   project_id: uuidSchema,
-  variable: z.string().trim().min(1),
+  variable: canonicalVariableKeySchema,
+  asset_id: uuidSchema.optional(),
   context: jsonObjectSchema.default({}),
   candidate_policy: previewCandidateSchema.optional()
 }).superRefine((payload, ctx) => {
@@ -167,6 +196,24 @@ export const previewControlPolicySchema = z.object({
       code: z.ZodIssueCode.custom,
       message: "candidate_policy.variable must match variable",
       path: ["candidate_policy", "variable"]
+    });
+  }
+  if (payload.candidate_policy?.binding && payload.candidate_policy.binding.variable_key !== payload.variable) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "candidate_policy.binding.variable_key must match variable",
+      path: ["candidate_policy", "binding", "variable_key"]
+    });
+  }
+  if (
+    payload.candidate_policy?.binding &&
+    payload.asset_id &&
+    payload.candidate_policy.binding.asset_id !== payload.asset_id
+  ) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "candidate_policy.binding.asset_id must match asset_id",
+      path: ["candidate_policy", "binding", "asset_id"]
     });
   }
 });

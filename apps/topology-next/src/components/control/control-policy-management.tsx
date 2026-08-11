@@ -10,6 +10,7 @@ import type {
   ControlPolicyPreviewResponse
 } from "@/lib/dto/control-policy.dto";
 import type { Project } from "@/lib/dto/project.dto";
+import type { Asset } from "@/lib/dto/asset.dto";
 import {
   buildPreviewPayload,
   buildCreatePolicyPayload,
@@ -74,6 +75,7 @@ function buildAccessDeniedMessage() {
 export function ControlPolicyManagement() {
   const [policies, setPolicies] = useState<ControlPolicy[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
+  const [assetsByProject, setAssetsByProject] = useState<Record<string, Asset[]>>({});
   const [access, setAccess] = useState<ControlAccessSnapshot | null>(null);
   const [drafts, setDrafts] = useState<Record<string, ControlPolicyDraft>>({});
   const [createForm, setCreateForm] = useState<ControlPolicyCreateFormState>(createEmptyPolicyFormState());
@@ -94,6 +96,10 @@ export function ControlPolicyManagement() {
           fetchApi<ControlPolicy[]>("/api/control/policies"),
         ]);
         const projectsData = accessData.allowed_projects;
+        const assetEntries = await Promise.all(projectsData.map(async (project) => [
+          project.id,
+          await fetchApi<Asset[]>(`/api/projects/${project.id}/assets`)
+        ] as const));
 
         if (cancelled) {
           return;
@@ -102,6 +108,7 @@ export function ControlPolicyManagement() {
         setAccess(accessData);
         setPolicies(policiesData);
         setProjects(projectsData);
+        setAssetsByProject(Object.fromEntries(assetEntries));
         setDrafts(buildDraftMap(policiesData));
         setCreateForm((current) => ({
           ...current,
@@ -179,7 +186,11 @@ export function ControlPolicyManagement() {
     setNotice(null);
 
     try {
-      const payload = buildUpdatePolicyPayload(draft);
+      const policy = policies.find((item) => item.id === policyId);
+      if (!policy) {
+        return;
+      }
+      const payload = buildUpdatePolicyPayload(draft, policy.variable);
       await fetchApi<ControlPolicy>(`/api/control/policies/${policyId}`, {
         method: "PATCH",
         body: JSON.stringify(payload)
@@ -254,6 +265,7 @@ export function ControlPolicyManagement() {
         variable: createForm.variable,
         draft: createForm,
         policy_type: createForm.policy_type,
+        binding_asset_id: createForm.binding_asset_id,
         version: 1
       });
       const preview = await fetchApi<ControlPolicyPreviewResponse>("/api/control/policies/preview", {
@@ -284,7 +296,8 @@ export function ControlPolicyManagement() {
         draft,
         policy_type: policy.policy_type,
         policy_id: policy.id,
-        version: policy.version + 1
+        version: policy.version + 1,
+        binding_asset_id: draft.binding_asset_id
       });
       const preview = await fetchApi<ControlPolicyPreviewResponse>("/api/control/policies/preview", {
         method: "POST",
@@ -402,7 +415,12 @@ export function ControlPolicyManagement() {
             <select
               className="input-select"
               value={createForm.project_id}
-              onChange={(event) => setCreateForm((current) => ({ ...current, project_id: event.target.value }))}
+              onChange={(event) => setCreateForm((current) => ({
+                ...current,
+                project_id: event.target.value,
+                binding_asset_id: "",
+                preview_asset_id: ""
+              }))}
               disabled={!access?.permissions.edit_policies}
             >
               {projects.length === 0 ? <option value="">Sin proyectos</option> : null}
@@ -423,6 +441,23 @@ export function ControlPolicyManagement() {
               placeholder="tank_level"
               disabled={!access?.permissions.edit_policies}
             />
+          </label>
+
+          <label className="control-field control-field-wide">
+            <span>Entidad topológica gobernada</span>
+            <select
+              className="input-select"
+              value={createForm.binding_asset_id}
+              onChange={(event) => setCreateForm((current) => ({ ...current, binding_asset_id: event.target.value, preview_asset_id: event.target.value }))}
+              disabled={!access?.permissions.edit_policies}
+            >
+              <option value="">Selecciona un asset</option>
+              {(assetsByProject[createForm.project_id] ?? []).map((asset) => (
+                <option key={asset.id} value={asset.id}>
+                  {asset.name} · {asset.asset_type} · {asset.id}
+                </option>
+              ))}
+            </select>
           </label>
 
           <label className="control-field">
@@ -564,6 +599,11 @@ export function ControlPolicyManagement() {
                       <p className="control-policy-meta">
                         project_id: <code>{policy.project_id}</code>
                       </p>
+                      <p className="control-policy-meta">
+                        {policy.binding
+                          ? <>Binding: <code>{policy.binding.asset_id}</code> · variable canónica <code>{policy.binding.variable_key}</code></>
+                          : <>Estado: <strong>Legacy / Unbound</strong></>}
+                      </p>
                     </div>
                     <div className="control-policy-badges">
                       <span className={policy.enabled ? "status-badge status-active" : "status-badge status-inactive"}>
@@ -593,6 +633,25 @@ export function ControlPolicyManagement() {
 
                   {draft ? (
                     <div className="control-form-grid">
+                      <label className="control-field control-field-wide">
+                        <span>Entidad topológica gobernada</span>
+                        <select
+                          className="input-select"
+                          value={draft.binding_asset_id}
+                          onChange={(event) => updateDraft(policy.id, {
+                            binding_asset_id: event.target.value,
+                            preview_asset_id: event.target.value
+                          })}
+                          disabled={!access?.permissions.edit_policies}
+                        >
+                          <option value="">{policy.binding ? "Selecciona un asset" : "Legacy / Unbound — seleccionar para vincular"}</option>
+                          {(assetsByProject[policy.project_id] ?? []).map((asset) => (
+                            <option key={asset.id} value={asset.id}>
+                              {asset.name} · {asset.asset_type} · {asset.id}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
                       <label className="control-field control-field-wide">
                         <span>Params JSON</span>
                         <textarea

@@ -14,11 +14,13 @@ describe("control-policies.helpers", () => {
     const form = createEmptyPolicyFormState();
     form.project_id = "8a954f52-c7b1-4fd6-84ea-a6b897f4d7f2";
     form.variable = "tank_level";
+    form.binding_asset_id = "8a954f52-c7b1-4fd6-84ea-a6b897f4d7f3";
 
     const payload = buildCreatePolicyPayload(form);
 
     expect(payload.project_id).toBe("8a954f52-c7b1-4fd6-84ea-a6b897f4d7f2");
     expect(payload.variable).toBe("tank_level");
+    expect(payload.binding.asset_id).toBe("8a954f52-c7b1-4fd6-84ea-a6b897f4d7f3");
     expect(payload.priority).toBe(0);
     expect(payload.params).toMatchObject({
       actuator_name: "control_output",
@@ -34,12 +36,14 @@ describe("control-policies.helpers", () => {
   it("rejects invalid JSON objects in update payload", () => {
     expect(() =>
       buildUpdatePolicyPayload({
+        binding_asset_id: "",
         params_text: "[]",
         context_selector_text: "{}",
         priority: "1",
         enabled: true,
-        preview_context_text: "{}"
-      })
+        preview_context_text: "{}",
+        preview_asset_id: ""
+      }, "tank_level")
     ).toThrow("params must be a JSON object");
   });
 
@@ -48,6 +52,7 @@ describe("control-policies.helpers", () => {
       id: "policy-1",
       project_id: "project-1",
       variable: "tank_level",
+      binding: null,
       context_selector: { sector: "tank_A" },
       policy_type: "proportional",
       params: { gain: 1, actuator_name: "pump", setpoint_value: 70, deadband: 0, min_action: 0, variable_name: "Tank" },
@@ -71,11 +76,13 @@ describe("control-policies.helpers", () => {
       policy_type: "proportional",
       version: 2,
       draft: {
+        binding_asset_id: "8a954f52-c7b1-4fd6-84ea-a6b897f4d7f3",
         params_text: defaultParamsText("proportional"),
         context_selector_text: '{"sector":"tank_A"}',
         priority: "5",
         enabled: true,
-        preview_context_text: '{"sector":"tank_A","mode":"night"}'
+        preview_context_text: '{"sector":"tank_A","mode":"night"}',
+        preview_asset_id: "8a954f52-c7b1-4fd6-84ea-a6b897f4d7f3"
       }
     });
 

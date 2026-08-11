@@ -7,11 +7,13 @@ import type {
 import { detectPolicyConflicts } from "@/lib/utils/control-policy-governance";
 
 export interface ControlPolicyDraft {
+  binding_asset_id: string;
   params_text: string;
   context_selector_text: string;
   priority: string;
   enabled: boolean;
   preview_context_text: string;
+  preview_asset_id: string;
 }
 
 export interface ControlPolicyCreateFormState extends ControlPolicyDraft {
@@ -55,22 +57,26 @@ export function createEmptyPolicyFormState(): ControlPolicyCreateFormState {
   return {
     project_id: "",
     variable: "",
+    binding_asset_id: "",
     policy_type: "proportional",
     params_text: defaultParamsText("proportional"),
     context_selector_text: "{}",
     priority: "0",
     enabled: true,
-    preview_context_text: "{}"
+    preview_context_text: "{}",
+    preview_asset_id: ""
   };
 }
 
 export function policyToDraft(policy: ControlPolicy): ControlPolicyDraft {
   return {
+    binding_asset_id: policy.binding?.asset_id ?? "",
     params_text: formatPolicyJson(policy.params),
     context_selector_text: formatPolicyJson(policy.context_selector),
     priority: String(policy.priority),
     enabled: policy.enabled,
-    preview_context_text: formatPolicyJson(policy.context_selector)
+    preview_context_text: formatPolicyJson(policy.context_selector),
+    preview_asset_id: policy.binding?.asset_id ?? ""
   };
 }
 
@@ -118,10 +124,17 @@ export function buildCreatePolicyPayload(form: ControlPolicyCreateFormState) {
   if (!variable) {
     throw new Error("variable is required");
   }
+  if (!form.binding_asset_id) {
+    throw new Error("Debes seleccionar una entidad topológica para el binding");
+  }
 
   return {
     project_id: projectId,
     variable,
+    binding: {
+      asset_id: form.binding_asset_id,
+      variable_key: variable
+    },
     policy_type: form.policy_type,
     params: parseJsonObject(form.params_text, "params"),
     context_selector: parseJsonObject(form.context_selector_text, "context_selector"),
@@ -130,8 +143,9 @@ export function buildCreatePolicyPayload(form: ControlPolicyCreateFormState) {
   };
 }
 
-export function buildUpdatePolicyPayload(draft: ControlPolicyDraft) {
+export function buildUpdatePolicyPayload(draft: ControlPolicyDraft, variable: string) {
   return {
+    ...(draft.binding_asset_id ? { binding: { asset_id: draft.binding_asset_id, variable_key: variable } } : {}),
     params: parseJsonObject(draft.params_text, "params"),
     context_selector: parseJsonObject(draft.context_selector_text, "context_selector"),
     priority: parsePriority(draft.priority),
@@ -146,15 +160,20 @@ export function buildPreviewPayload(args: {
   policy_type: ControlPolicyType;
   policy_id?: string;
   version?: number;
+  binding_asset_id?: string;
 }) {
+  const bindingAssetId = args.binding_asset_id ?? args.draft.binding_asset_id;
+  const previewAssetId = args.draft.preview_asset_id || bindingAssetId;
   return {
     project_id: args.project_id,
     variable: args.variable,
+    ...(previewAssetId ? { asset_id: previewAssetId } : {}),
     context: parseJsonObject(args.draft.preview_context_text, "preview.context"),
     candidate_policy: {
       id: args.policy_id,
       project_id: args.project_id,
       variable: args.variable,
+      binding: bindingAssetId ? { asset_id: bindingAssetId, variable_key: args.variable } : null,
       policy_type: args.policy_type,
       params: parseJsonObject(args.draft.params_text, "params"),
       context_selector: parseJsonObject(args.draft.context_selector_text, "context_selector"),
@@ -171,6 +190,7 @@ export function collectListWarnings(policy: ControlPolicy, policies: ControlPoli
       id: policy.id,
       project_id: policy.project_id,
       variable: policy.variable,
+      binding: policy.binding,
       policy_type: policy.policy_type,
       context_selector: policy.context_selector,
       params: policy.params,

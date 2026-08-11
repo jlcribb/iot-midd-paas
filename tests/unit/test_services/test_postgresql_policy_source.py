@@ -7,6 +7,8 @@ from iot_middleware.services import postgresql_policy_source as source_module
 
 PROJECT_ID = "00000000-0000-0000-0000-000000000001"
 OTHER_PROJECT_ID = "00000000-0000-0000-0000-000000000002"
+ASSET_A_ID = "00000000-0000-0000-0000-000000000011"
+ASSET_B_ID = "00000000-0000-0000-0000-000000000012"
 
 
 def build_policy_row(
@@ -56,7 +58,7 @@ def test_policy_source_loads_matching_policy(monkeypatch):
     monkeypatch.setattr(
         source_module,
         "list_project_control_policies",
-        lambda project_id, variable_id: [
+        lambda project_id, variable_id, asset_id=None: [
             build_policy_row(
                 policy_id="policy-1",
                 context_selector={"sector": "tank_A"},
@@ -85,7 +87,7 @@ def test_policy_source_skips_disabled_policies(monkeypatch):
     monkeypatch.setattr(
         source_module,
         "list_project_control_policies",
-        lambda project_id, variable_id: [],
+        lambda project_id, variable_id, asset_id=None: [],
     )
 
     source = build_source()
@@ -104,7 +106,7 @@ def test_policy_source_isolates_projects(monkeypatch):
     monkeypatch.setattr(
         source_module,
         "list_project_control_policies",
-        lambda project_id, variable_id: [
+        lambda project_id, variable_id, asset_id=None: [
             build_policy_row(policy_id="policy-main", project_id=project_id),
         ]
         if project_id == PROJECT_ID
@@ -128,7 +130,7 @@ def test_policy_selector_prefers_highest_priority(monkeypatch):
     monkeypatch.setattr(
         source_module,
         "list_project_control_policies",
-        lambda project_id, variable_id: [
+        lambda project_id, variable_id, asset_id=None: [
             build_policy_row(policy_id="policy-low", priority=5, context_selector={"sector": "tank_A"}),
             build_policy_row(policy_id="policy-high", priority=10, context_selector={"sector": "tank_A"}),
         ],
@@ -151,7 +153,7 @@ def test_policy_source_keeps_latest_version_per_signature(monkeypatch):
     monkeypatch.setattr(
         source_module,
         "list_project_control_policies",
-        lambda project_id, variable_id: [
+        lambda project_id, variable_id, asset_id=None: [
             build_policy_row(policy_id="policy-v2", version=2, priority=10, context_selector={"sector": "tank_A"}),
             build_policy_row(policy_id="policy-v1", version=1, priority=10, context_selector={"sector": "tank_A"}),
         ],
@@ -173,7 +175,7 @@ def test_policy_source_supports_threshold_policy(monkeypatch):
     monkeypatch.setattr(
         source_module,
         "list_project_control_policies",
-        lambda project_id, variable_id: [
+        lambda project_id, variable_id, asset_id=None: [
             build_policy_row(
                 policy_id="policy-threshold",
                 policy_type="threshold",
@@ -202,3 +204,60 @@ def test_policy_source_supports_threshold_policy(monkeypatch):
     assert len(result.policies) == 1
     assert result.policies[0].policy_type == "threshold"
     assert result.policies[0].binding.parameters.tolerance == 2.0
+
+
+def test_policy_source_prefers_matching_bound_policy_over_legacy(monkeypatch):
+    monkeypatch.setattr(
+        source_module,
+        "list_project_control_policies",
+        lambda project_id, variable_id, asset_id=None: [
+            {
+                **build_policy_row(policy_id="legacy-policy", priority=99),
+                "bound_asset_id": None,
+            },
+            {
+                **build_policy_row(policy_id="asset-a-policy", priority=1),
+                "bound_asset_id": ASSET_A_ID,
+            },
+            {
+                **build_policy_row(policy_id="asset-b-policy", priority=50),
+                "bound_asset_id": ASSET_B_ID,
+            },
+        ],
+    )
+
+    result = build_source().load_policies(
+        PolicySourceRequest(
+            variable_id="tank_level",
+            context={"project_id": PROJECT_ID, "asset_id": ASSET_A_ID},
+        )
+    )
+
+    assert [policy.policy_id for policy in result.policies] == ["asset-a-policy"]
+    assert result.policies[0].binding.context["bound_asset_id"] == ASSET_A_ID
+
+
+def test_policy_source_uses_legacy_policy_when_no_bound_asset_matches(monkeypatch):
+    monkeypatch.setattr(
+        source_module,
+        "list_project_control_policies",
+        lambda project_id, variable_id, asset_id=None: [
+            {
+                **build_policy_row(policy_id="legacy-policy"),
+                "bound_asset_id": None,
+            },
+            {
+                **build_policy_row(policy_id="asset-a-policy"),
+                "bound_asset_id": ASSET_A_ID,
+            },
+        ],
+    )
+
+    result = build_source().load_policies(
+        PolicySourceRequest(
+            variable_id="tank_level",
+            context={"project_id": PROJECT_ID, "asset_id": ASSET_B_ID},
+        )
+    )
+
+    assert [policy.policy_id for policy in result.policies] == ["legacy-policy"]

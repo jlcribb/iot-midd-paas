@@ -10,6 +10,7 @@ describe("control-policy.schemas", () => {
     const parsed = createControlPolicySchema.parse({
       project_id: "8a954f52-c7b1-4fd6-84ea-a6b897f4d7f2",
       variable: "tank_level",
+      binding: { asset_id: "8a954f52-c7b1-4fd6-84ea-a6b897f4d7f3", variable_key: "tank_level" },
       policy_type: "proportional",
       context_selector: { sector: "tank_A" },
       params: {
@@ -33,6 +34,7 @@ describe("control-policy.schemas", () => {
       createControlPolicySchema.parse({
         project_id: "8a954f52-c7b1-4fd6-84ea-a6b897f4d7f2",
         variable: "tank_level",
+        binding: { asset_id: "8a954f52-c7b1-4fd6-84ea-a6b897f4d7f3", variable_key: "tank_level" },
         policy_type: "threshold",
         context_selector: {},
         params: {
@@ -58,6 +60,7 @@ describe("control-policy.schemas", () => {
       createControlPolicySchema.parse({
         project_id: "8a954f52-c7b1-4fd6-84ea-a6b897f4d7f2",
         variable: "tank_level",
+        binding: { asset_id: "8a954f52-c7b1-4fd6-84ea-a6b897f4d7f3", variable_key: "tank_level" },
         policy_type: "proportional",
         context_selector: {},
         params: {
@@ -80,6 +83,7 @@ describe("control-policy.schemas", () => {
       createControlPolicySchema.parse({
         project_id: "8a954f52-c7b1-4fd6-84ea-a6b897f4d7f2",
         variable: "tank_level",
+        binding: { asset_id: "8a954f52-c7b1-4fd6-84ea-a6b897f4d7f3", variable_key: "tank_level" },
         policy_type: "threshold",
         context_selector: {},
         params: {

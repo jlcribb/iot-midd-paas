@@ -64,21 +64,35 @@ class PostgreSQLPolicySource:
                 source_trace=trace.build(),
             )
 
-        rows = list_project_control_policies(project_id, request.variable_id)
+        asset_id = str(
+            request.context.get("asset_id")
+            or request.context.get("device_id")
+            or ""
+        ).strip() or None
+        rows = list_project_control_policies(project_id, request.variable_id, asset_id)
+        bound_rows = [
+            row
+            for row in rows
+            if asset_id and str(row.get("bound_asset_id") or "") == asset_id
+        ]
+        legacy_rows = [row for row in rows if not row.get("bound_asset_id")]
+        selected_rows = bound_rows if bound_rows else legacy_rows
         trace.add_step(
             "project_policy_rows_loaded",
             {
                 "project_id": project_id,
                 "variable_id": request.variable_id,
                 "row_count": len(rows),
+                "asset_id": asset_id,
+                "binding_mode": "bound" if bound_rows else "legacy_unbound",
             },
         )
 
         policies: List[StaticPolicyDefinition] = []
-        seen_signatures: set[Tuple[str, str, str, int]] = set()
+        seen_signatures: set[Tuple[str, str, str, str, str, int]] = set()
         skipped_rows: List[Dict[str, Any]] = []
 
-        for row in rows:
+        for row in selected_rows:
             signature = self._policy_signature(row)
             if signature in seen_signatures:
                 continue
@@ -121,6 +135,7 @@ class PostgreSQLPolicySource:
         return (
             str(row.get("project_id") or ""),
             str(row.get("variable") or ""),
+            str(row.get("bound_asset_id") or ""),
             json.dumps(context_selector, sort_keys=True),
             str(row.get("policy_type") or "proportional"),
             int(row.get("priority") or 0),
@@ -141,7 +156,12 @@ class PostgreSQLPolicySource:
                     params.get("recommendation_channel")
                     or self._recommendation_channel
                 ),
-                context={"project_id": str(row["project_id"])},
+                context={
+                    "project_id": str(row["project_id"]),
+                    "bound_asset_id": str(row["bound_asset_id"])
+                    if row.get("bound_asset_id")
+                    else None,
+                },
             ),
             required_context=context_selector,
             priority=int(row.get("priority") or 0),

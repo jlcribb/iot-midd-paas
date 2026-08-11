@@ -1,9 +1,15 @@
 export type ControlPolicyType = "proportional" | "threshold";
 
+export interface ControlPolicyBinding {
+  asset_id: string;
+  variable_key: string;
+}
+
 export interface ControlPolicy {
   id: string;
   project_id: string;
   variable: string;
+  binding?: ControlPolicyBinding | null;
   context_selector: Record<string, unknown>;
   policy_type: ControlPolicyType;
   params: Record<string, unknown>;
@@ -25,6 +31,7 @@ export interface ControlPolicyPreviewCandidate {
   id?: string;
   project_id: string;
   variable: string;
+  binding?: ControlPolicyBinding | null;
   policy_type: ControlPolicyType;
   context_selector: Record<string, unknown>;
   params: Record<string, unknown>;

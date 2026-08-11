@@ -12,6 +12,7 @@ export const POST = withRouteErrorHandling(async (request: Request) => {
   const preview = await controlPolicyService.previewSelection(actor, {
     projectId: payload.project_id,
     variable: payload.variable,
+    assetId: payload.asset_id,
     context: payload.context,
     candidatePolicy: payload.candidate_policy
   });

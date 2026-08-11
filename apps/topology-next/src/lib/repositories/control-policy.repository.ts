@@ -18,6 +18,10 @@ export function mapControlPolicy(row: QueryResultRow): ControlPolicy {
     id: String(row.id),
     project_id: String(row.project_id),
     variable: String(row.variable),
+    binding: row.bound_asset_id ? {
+      asset_id: String(row.bound_asset_id),
+      variable_key: String(row.variable)
+    } : null,
     context_selector: asObject(row.context_selector),
     policy_type: String(row.policy_type) as ControlPolicy["policy_type"],
     params: asObject(row.params),
@@ -34,6 +38,7 @@ export function buildControlPolicyUpdatePayload(
 ): Record<string, unknown> {
   const payload: Record<string, unknown> = {};
   if (input.context_selector !== undefined) payload.context_selector = JSON.stringify(input.context_selector);
+  if (input.binding !== undefined) payload.bound_asset_id = input.binding.asset_id;
   if (input.params !== undefined) payload.params = JSON.stringify(input.params);
   if (input.priority !== undefined) payload.priority = input.priority;
   if (input.enabled !== undefined) payload.enabled = input.enabled;
@@ -50,18 +55,20 @@ export class ControlPolicyRepository implements IControlPolicyRepository {
       INSERT INTO public.project_control_policies (
         project_id,
         variable,
+        bound_asset_id,
         context_selector,
         policy_type,
         params,
         priority,
         enabled
       )
-      VALUES ($1::uuid, $2, $3::jsonb, $4, $5::jsonb, $6, $7)
+      VALUES ($1::uuid, $2, $3::uuid, $4::jsonb, $5, $6::jsonb, $7, $8)
       RETURNING *
       `,
       [
         input.project_id,
         input.variable,
+        input.binding.asset_id,
         JSON.stringify(input.context_selector),
         input.policy_type,
         JSON.stringify(input.params),
@@ -135,6 +142,7 @@ export class ControlPolicyRepository implements IControlPolicyRepository {
     const { setClause, values } = buildUpdateSet(payload, {
       startIndex: 2,
       casts: {
+        bound_asset_id: "uuid",
         context_selector: "jsonb",
         params: "jsonb"
       }
