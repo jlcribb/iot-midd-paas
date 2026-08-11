@@ -186,6 +186,7 @@ def test_handle_event_disabled_emits_only_audit(monkeypatch):
 def test_handle_event_enabled_emits_recommendation_and_audit(monkeypatch):
     published = []
     persisted = []
+    monkeypatch.setattr(worker, "SIMULATED_ACTUATION_ENABLED", False)
 
     runtime_event = SimpleNamespace(
         variable_id="tank_level",

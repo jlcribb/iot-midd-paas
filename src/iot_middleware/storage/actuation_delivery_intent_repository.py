@@ -26,6 +26,7 @@ DELIVERY_STATUSES = frozenset(
         "validated",
         "ready_to_dispatch",
         "dispatched",
+        "retry_pending",
         "acknowledged",
         "rejected",
         "expired",
@@ -37,7 +38,8 @@ VALID_TRANSITIONS = {
     "received": {"validated", "rejected", "expired"},
     "validated": {"ready_to_dispatch", "rejected", "expired"},
     "ready_to_dispatch": {"dispatched", "expired", "failed_final"},
-    "dispatched": {"acknowledged", "failed_final"},
+    "dispatched": {"acknowledged", "retry_pending", "failed_final"},
+    "retry_pending": {"dispatched", "failed_final", "expired"},
     "acknowledged": set(),
     "rejected": set(),
     "expired": set(),
@@ -69,6 +71,8 @@ class DeliveryIntent:
     governance_mode: str
     status: str
     retry_count: int
+    last_attempt_at: Optional[datetime]
+    next_retry_at: Optional[datetime]
     created_at: datetime
     updated_at: datetime
     expires_at: datetime
@@ -96,6 +100,8 @@ def _map_row(row: Any) -> DeliveryIntent:
         governance_mode=str(row["governance_mode"]),
         status=str(row["status"]),
         retry_count=int(row["retry_count"]),
+        last_attempt_at=row["last_attempt_at"],
+        next_retry_at=row["next_retry_at"],
         created_at=row["created_at"],
         updated_at=row["updated_at"],
         expires_at=row["expires_at"],
@@ -167,6 +173,9 @@ class ActuationDeliveryIntentRepository:
         from_statuses: Iterable[str],
         to_status: str,
         last_error: Optional[str] = None,
+        increment_retry_count: bool = False,
+        next_retry_at: Optional[datetime] = None,
+        record_attempt: bool = False,
     ) -> DeliveryIntent:
         allowed = set(from_statuses)
         if to_status not in DELIVERY_STATUSES or not allowed:
@@ -179,6 +188,9 @@ class ActuationDeliveryIntentRepository:
             UPDATE public.control_actuation_delivery_intents
             SET status = :to_status,
                 last_error = :last_error,
+                retry_count = retry_count + CASE WHEN :increment_retry_count THEN 1 ELSE 0 END,
+                last_attempt_at = CASE WHEN :record_attempt THEN NOW() ELSE last_attempt_at END,
+                next_retry_at = :next_retry_at,
                 updated_at = NOW()
             WHERE command_id = CAST(:command_id AS uuid)
               AND status = ANY(CAST(:from_statuses AS text[]))
@@ -193,11 +205,31 @@ class ActuationDeliveryIntentRepository:
                     "from_statuses": list(allowed),
                     "to_status": to_status,
                     "last_error": last_error,
+                    "increment_retry_count": increment_retry_count,
+                    "next_retry_at": next_retry_at,
+                    "record_attempt": record_attempt,
                 },
             ).mappings().first()
         if not row:
             raise InvalidDeliveryTransition(f"No intent can transition to {to_status}")
         return _map_row(row)
+
+    def get_due_retries(self, *, now: Optional[datetime] = None, limit: int = 20) -> list[DeliveryIntent]:
+        """Return retryable intents due for one bounded, idempotent retry claim."""
+        query = text(
+            """
+            SELECT *
+            FROM public.control_actuation_delivery_intents
+            WHERE status = 'retry_pending'
+              AND next_retry_at IS NOT NULL
+              AND next_retry_at <= COALESCE(CAST(:now AS timestamptz), NOW())
+            ORDER BY next_retry_at ASC, created_at ASC
+            LIMIT :limit
+            """
+        )
+        with self._engine.connect() as connection:
+            rows = connection.execute(query, {"now": now, "limit": limit}).mappings().all()
+        return [_map_row(row) for row in rows]
 
     def get_by_command_id(self, command_id: str) -> Optional[DeliveryIntent]:
         query = text(

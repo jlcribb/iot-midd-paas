@@ -236,6 +236,8 @@ class RabbitMQClient:
         durable: bool = True,
         auto_delete: bool = False,
         exclusive: bool = False,
+        arguments: Optional[Dict[str, Any]] = None,
+        exchange_name: Optional[str] = None,
     ) -> bool:
         """
         Declara una cola topic y la vincula al exchange actual.
@@ -251,12 +253,13 @@ class RabbitMQClient:
                 durable=durable,
                 auto_delete=auto_delete,
                 exclusive=exclusive,
+                arguments=arguments,
             )
 
             bindings = routing_keys or [queue_name]
             for routing_key in bindings:
                 self.channel.queue_bind(
-                    exchange=self.exchange,
+                    exchange=exchange_name or self.exchange,
                     queue=queue_name,
                     routing_key=routing_key,
                 )
@@ -266,12 +269,35 @@ class RabbitMQClient:
             logger.error(f"❌ Error declarando cola topic {queue_name}: {e}")
             return False
 
+    def declare_exchange(
+        self,
+        exchange_name: str,
+        *,
+        exchange_type: str = "topic",
+        durable: bool = True,
+    ) -> bool:
+        """Declare an exchange idempotently for a scoped delivery topology."""
+        try:
+            if not self._ensure_connected():
+                return False
+            self.channel.exchange_declare(
+                exchange=exchange_name,
+                exchange_type=exchange_type,
+                durable=durable,
+            )
+            return True
+        except Exception as exc:
+            logger.error("❌ Error declarando exchange %s: %s", exchange_name, exc)
+            return False
+
     def publish_json(
         self,
         routing_key: str,
         payload: Dict[str, Any],
         queue_name: Optional[str] = None,
         durable_queue: bool = True,
+        exchange_name: Optional[str] = None,
+        headers: Optional[Dict[str, Any]] = None,
     ) -> bool:
         """
         Publica un payload JSON arbitrario en el exchange topic actual.
@@ -294,13 +320,14 @@ class RabbitMQClient:
 
             message = json.dumps(payload, ensure_ascii=False, default=str)
             self.channel.basic_publish(
-                exchange=self.exchange,
+                exchange=exchange_name or self.exchange,
                 routing_key=routing_key,
                 body=message,
                 properties=pika.BasicProperties(
                     delivery_mode=2,
                     timestamp=int(time.time()),
                     content_type="application/json",
+                    headers=headers,
                 ),
             )
             logger.debug(f"📤 Payload JSON publicado: {routing_key}")
@@ -309,6 +336,26 @@ class RabbitMQClient:
             logger.error(f"❌ Error publicando payload JSON: {e}")
             return False
 
+    def get_raw_message(self, queue_name: str, auto_ack: bool = False) -> Optional[Dict[str, Any]]:
+        """Read a raw broker message, preserving metadata for deterministic ACK/DLQ handling."""
+        try:
+            if not self._ensure_connected():
+                return None
+            method_frame, properties, body = self.channel.basic_get(queue=queue_name, auto_ack=auto_ack)
+            if method_frame is None:
+                return None
+            message = {
+                "body": body,
+                "routing_key": getattr(method_frame, "routing_key", None),
+                "headers": getattr(properties, "headers", None) or {},
+            }
+            if not auto_ack:
+                message["delivery_tag"] = method_frame.delivery_tag
+            return message
+        except Exception as exc:
+            logger.error("❌ Error leyendo mensaje raw desde %s: %s", queue_name, exc)
+            return None
+
     def get_json_message(self, queue_name: str, auto_ack: bool = False) -> Optional[Dict[str, Any]]:
         """
         Lee un mensaje JSON de una cola usando polling (`basic_get`).
@@ -316,23 +363,11 @@ class RabbitMQClient:
         Retorna el payload más el `delivery_tag` cuando `auto_ack=False`.
         """
         try:
-            if not self._ensure_connected():
+            message = self.get_raw_message(queue_name, auto_ack=auto_ack)
+            if message is None:
                 return None
-
-            method_frame, _, body = self.channel.basic_get(
-                queue=queue_name,
-                auto_ack=auto_ack,
-            )
-            if method_frame is None:
-                return None
-
-            decoded = json.loads(body.decode("utf-8"))
-            message = {
-                "payload": decoded,
-                "routing_key": getattr(method_frame, "routing_key", None),
-            }
-            if not auto_ack:
-                message["delivery_tag"] = method_frame.delivery_tag
+            decoded = json.loads(message.pop("body").decode("utf-8"))
+            message["payload"] = decoded
             return message
         except Exception as e:
             logger.error(f"❌ Error leyendo payload JSON desde {queue_name}: {e}")
@@ -347,6 +382,17 @@ class RabbitMQClient:
             return True
         except Exception as e:
             logger.error(f"❌ Error confirmando mensaje RabbitMQ: {e}")
+            return False
+
+    def nack_message(self, delivery_tag: int, *, requeue: bool = False) -> bool:
+        """Reject one delivery. The caller chooses bounded requeue semantics explicitly."""
+        try:
+            if not self._ensure_connected():
+                return False
+            self.channel.basic_nack(delivery_tag=delivery_tag, requeue=requeue)
+            return True
+        except Exception as exc:
+            logger.error("❌ Error rechazando mensaje RabbitMQ: %s", exc)
             return False
 
     def purge_queue(self, queue_name: str) -> bool:

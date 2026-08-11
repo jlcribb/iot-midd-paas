@@ -716,7 +716,20 @@ def publish_event(queue_name: str, payload: Dict[str, Any]) -> Dict[str, Any]:
         for attempt in range(1, PUBLISH_MAX_ATTEMPTS + 1):
             try:
                 client, _ = _load_rabbitmq_client()
-                if client.publish_json(routing_key=queue_name, payload=payload, queue_name=queue_name, durable_queue=True):
+                if queue_name == SIMULATED_RECOMMENDATION_QUEUE:
+                    # The simulated queue carries DLX arguments; declaring it through the
+                    # generic publisher would conflict with that durable topology.
+                    from iot_middleware.services.simulated_actuation_consumer import declare_simulated_delivery_topology
+
+                    if not declare_simulated_delivery_topology(client):
+                        last_error = "could not declare simulated delivery topology"
+                        continue
+                    published = client.publish_json(routing_key=queue_name, payload=payload)
+                else:
+                    published = client.publish_json(
+                        routing_key=queue_name, payload=payload, queue_name=queue_name, durable_queue=True
+                    )
+                if published:
                     logger.info("[CONTROL_PUBLISH] queue=%s attempt=%s status=published", queue_name, attempt)
                     return {"status": "published", "transport": "rabbitmq", "routing_key": queue_name, "attempts": attempt}
                 last_error = "publish_json returned false"
