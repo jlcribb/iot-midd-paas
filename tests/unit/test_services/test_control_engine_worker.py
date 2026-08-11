@@ -263,12 +263,22 @@ def test_handle_event_enabled_emits_recommendation_and_audit(monkeypatch):
     assert result["publish_envelope"]["payload"]["policy_type"] == "proportional"
     assert result["publish_envelope"]["payload"]["policy_version"] == 2
     assert result["publish_envelope"]["payload"]["policy_priority"] == 10
+    assert result["publish_envelope"]["schema_version"] == "1.0"
+    assert result["publish_envelope"]["payload"]["recommendation_id"].startswith("recommendation::")
+    assert result["publish_envelope"]["payload"]["correlation_id"] == "control::unknown-event::tank_level"
+    assert result["publish_envelope"]["payload"]["expires_at"] > result["publish_envelope"]["payload"]["created_at"]
     assert result["audit_envelope"]["payload"]["delivery"]["recommendation_publish"]["routing_key"] == worker.RECOMMENDATION_QUEUE
     assert published == [
         (worker.RECOMMENDATION_QUEUE, result["publish_envelope"]),
         (worker.AUDIT_QUEUE, result["audit_envelope"]),
     ]
     assert persisted == [("CONTROL_RECOMMENDATION_EMITTED", result["audit_envelope"])]
+
+
+def test_correlation_id_preserves_explicit_upstream_value():
+    assert worker._build_correlation_id(
+        {"event_id": "evt-1", "variable": "tank_level", "context": {"correlation_id": "corr-upstream"}}
+    ) == "corr-upstream"
 
 
 def test_handle_event_publishes_audit_with_pending_persistence_before_final_result(monkeypatch):

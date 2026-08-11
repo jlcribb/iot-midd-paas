@@ -23,7 +23,7 @@ import sys
 import time
 import uuid
 from dataclasses import asdict, dataclass, field, is_dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional
 
 from iot_middleware.services.control_runtime_contract import (
@@ -41,6 +41,7 @@ from iot_middleware.services.control_runtime_contract import (
     CONTROL_AUDIT_STATUS_SKIPPED,
     CONTROL_RECOMMENDATION_MESSAGE_TYPE,
     CONTROL_RECOMMENDATIONS_ROUTING_KEY,
+    SIMULATED_ACTUATION_RECOMMENDATIONS_ROUTING_KEY,
     CONTROL_SKIP_REASON_FEATURE_FLAG_DISABLED,
     TELEMETRY_EVENTS_ROUTING_KEY,
 )
@@ -80,6 +81,10 @@ try:
     )
     from parametric_control_engine.contracts.policy_contracts import (
         StaticPolicyDefinition,
+    )
+    from parametric_control_engine.contracts.actuation_contracts import (
+        CONTROL_RECOMMENDATION_SCHEMA_VERSION,
+        stable_recommendation_id,
     )
     from parametric_control_engine.models.control_models import (
         ControlParameters,
@@ -122,6 +127,17 @@ PUBLISH_MODE = os.getenv("CONTROL_WORKER_PUBLISH_MODE", "rabbitmq").strip().lowe
 POLL_INTERVAL_SECONDS = float(os.getenv("CONTROL_WORKER_POLL_INTERVAL_SECONDS", "1.0"))
 PUBLISH_MAX_ATTEMPTS = max(1, int(os.getenv("CONTROL_WORKER_PUBLISH_MAX_ATTEMPTS", "2")))
 PUBLISH_RETRY_DELAY_SECONDS = max(0.0, float(os.getenv("CONTROL_WORKER_PUBLISH_RETRY_DELAY_SECONDS", "0.2")))
+RECOMMENDATION_TTL_SECONDS = max(1, int(os.getenv("CONTROL_RECOMMENDATION_TTL_SECONDS", "300")))
+SIMULATED_ACTUATION_ENABLED = os.getenv("CONTROL_SIMULATED_ACTUATION_ENABLED", "false").strip().lower() in {
+    "1",
+    "true",
+    "yes",
+    "on",
+}
+SIMULATED_RECOMMENDATION_QUEUE = os.getenv(
+    "SIMULATED_ACTUATION_RECOMMENDATION_QUEUE",
+    SIMULATED_ACTUATION_RECOMMENDATIONS_ROUTING_KEY,
+)
 
 sink_adapter = RecommendationSinkAdapter()
 _rabbitmq_client = None
@@ -233,9 +249,55 @@ def _safe_to_dict(value: Any) -> Any:
 
 
 def _build_correlation_id(input_event: Dict[str, Any]) -> str:
+    explicit = input_event.get("correlation_id") or (input_event.get("context") or {}).get("correlation_id")
+    if explicit:
+        return str(explicit)
     event_id = str(input_event.get("event_id") or "unknown-event")
     variable = str(input_event.get("variable") or "unknown-variable")
     return f"control::{event_id}::{variable}"
+
+
+def _source_asset_id(input_event: Dict[str, Any], selection: Any) -> Optional[str]:
+    binding_context = getattr(getattr(selection, "binding", None), "context", {}) or {}
+    value = (
+        binding_context.get("bound_asset_id")
+        or (input_event.get("context") or {}).get("asset_id")
+        or (input_event.get("context") or {}).get("device_id")
+    )
+    return str(value) if value else None
+
+
+def _enrich_versioned_recommendation_envelope(
+    *,
+    publish_payload: Dict[str, Any],
+    input_event: Dict[str, Any],
+    selection: Any,
+) -> None:
+    """Additive v1 fields; legacy consumers retain the existing envelope shape."""
+    payload = publish_payload.setdefault("payload", {})
+    event_id = str(payload.get("event_id") or input_event.get("event_id") or "unknown-event")
+    variable_id = str(payload.get("variable_id") or input_event.get("variable") or "unknown-variable")
+    project_id = str(input_event["project_id"])
+    source_asset_id = _source_asset_id(input_event, selection)
+    created_at = utc_now_iso()
+    expires_at = (datetime.now(timezone.utc) + timedelta(seconds=RECOMMENDATION_TTL_SECONDS)).isoformat()
+    payload.update(
+        {
+            "recommendation_id": stable_recommendation_id(
+                project_id=project_id,
+                event_id=event_id,
+                variable_id=variable_id,
+                policy_id=str(selection.policy_id),
+                policy_version=selection.version,
+                source_asset_id=source_asset_id,
+            ),
+            "correlation_id": _build_correlation_id(input_event),
+            "source_asset_id": source_asset_id,
+            "created_at": created_at,
+            "expires_at": expires_at,
+        }
+    )
+    publish_payload["schema_version"] = CONTROL_RECOMMENDATION_SCHEMA_VERSION
 
 
 def _build_audit_identity(input_event: Dict[str, Any]) -> Dict[str, str]:
@@ -801,6 +863,11 @@ def handle_event(event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         publish_payload["payload"]["policy_type"] = selection.policy_type
         publish_payload["payload"]["policy_version"] = selection.version
         publish_payload["payload"]["policy_priority"] = selection.priority
+        _enrich_versioned_recommendation_envelope(
+            publish_payload=publish_payload,
+            input_event=event,
+            selection=selection,
+        )
 
         audit_payload = _enrich_processed_audit_envelope(
             audit_payload=_safe_to_dict(sink_output.audit_envelope),
@@ -811,6 +878,9 @@ def handle_event(event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         recommendation_publish_result = publish_event(RECOMMENDATION_QUEUE, publish_payload)
         _track_delivery("recommendation", recommendation_publish_result)
         audit_payload["payload"]["delivery"]["recommendation_publish"] = recommendation_publish_result
+        if SIMULATED_ACTUATION_ENABLED:
+            simulated_publish_result = publish_event(SIMULATED_RECOMMENDATION_QUEUE, publish_payload)
+            audit_payload["payload"]["delivery"]["simulated_recommendation_publish"] = simulated_publish_result
         _mark_audit_persistence_pending(audit_payload)
         audit_publish_result = publish_event(AUDIT_QUEUE, audit_payload)
         _track_delivery("audit", audit_publish_result)

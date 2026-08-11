@@ -6,6 +6,7 @@ DEFAULT_CONTROL_EXCHANGE = "iot_middleware"
 
 TELEMETRY_EVENTS_ROUTING_KEY = "telemetry.events"
 CONTROL_RECOMMENDATIONS_ROUTING_KEY = "control.recommendations"
+SIMULATED_ACTUATION_RECOMMENDATIONS_ROUTING_KEY = "control.recommendations.simulated.v1"
 CONTROL_AUDIT_ROUTING_KEY = "control.audit"
 
 CONTROL_RECOMMENDATION_MESSAGE_TYPE = "control.recommendation"
