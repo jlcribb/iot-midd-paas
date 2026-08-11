@@ -10,10 +10,31 @@ from iot_middleware.services.simulated_actuation_consumer import (
     declare_simulated_delivery_topology,
 )
 from iot_middleware.storage.actuation_delivery_intent_repository import DeliveryIntent, InvalidDeliveryTransition, VALID_TRANSITIONS
+from iot_middleware.storage.policy_actuation_binding_repository import PolicyActuationBinding
 
 
 PROJECT_ID = "00000000-0000-0000-0000-000000000001"
 SOURCE_ASSET_ID = "00000000-0000-0000-0000-000000000011"
+TARGET_ASSET_ID = "00000000-0000-0000-0000-000000000012"
+BINDING_ID = "00000000-0000-0000-0000-000000000013"
+
+
+class InMemoryBindingRepository:
+    def __init__(self, binding=None):
+        self.binding = binding or PolicyActuationBinding(
+            id=BINDING_ID, policy_id="policy-test-1", project_id=PROJECT_ID,
+            source_asset_id=SOURCE_ASSET_ID, target_asset_id=TARGET_ASSET_ID,
+            control_point="relay_1", operation="increase", version=1,
+            target_asset_type="actuator",
+            target_metadata={"control_capabilities": [{"key": "relay_1", "operations": ["increase"]}]},
+        )
+
+    def get_active(self, policy_id):
+        return self.binding if self.binding and policy_id == self.binding.policy_id else None
+
+    @staticmethod
+    def supports(binding):
+        return binding.target_asset_type == "actuator"
 
 
 class InMemoryIntentRepository:
@@ -31,6 +52,8 @@ class InMemoryIntentRepository:
             project_id=request.project_id, policy_id=request.policy_id, policy_version=request.policy_version,
             source_asset_id=request.source_asset_id, target_asset_id=request.target_asset_id,
             target_kind=request.target_kind, target_reference=request.target_reference,
+            control_point=request.control_point, actuation_binding_id=request.actuation_binding_id,
+            actuation_binding_version=request.actuation_binding_version,
             variable_id=request.variable_id, operation=request.operation, requested_value=request.requested_value,
             idempotency_key=request.idempotency_key, governance_mode=request.governance_mode,
             status="received", retry_count=0, last_attempt_at=None, next_retry_at=None,
@@ -61,7 +84,7 @@ class InMemoryIntentRepository:
         ][:limit]
 
 
-def recommendation(*, expires_at: str, schema_version: str = "1.0"):
+def recommendation(*, expires_at: str, schema_version: str = "1.0", actuation_binding=True):
     return {
         "message_type": "control.recommendation", "schema_version": schema_version,
         "payload": {
@@ -70,13 +93,17 @@ def recommendation(*, expires_at: str, schema_version: str = "1.0"):
             "event_id": "evt-test-1", "variable_id": "tank_level", "action_label": "increase",
             "command_value": 3.5, "actuator_name": "pump", "source_asset_id": SOURCE_ASSET_ID,
             "created_at": "2026-08-11T00:00:00+00:00", "expires_at": expires_at,
+            **({"actuation_binding": {
+                "binding_id": BINDING_ID, "target_asset_id": TARGET_ASSET_ID,
+                "control_point": "relay_1", "operation": "increase", "version": 1,
+            }} if actuation_binding else {}),
         },
     }
 
 
-def consumer(repo, *, adapter=None, now=None, audits=None, max_attempts=3):
+def consumer(repo, *, adapter=None, binding_repo=None, now=None, audits=None, max_attempts=3):
     return SimulatedActuationConsumer(
-        repository=repo, adapter=adapter, now=now or (lambda: datetime(2026, 8, 11, 0, 1, tzinfo=timezone.utc)),
+        repository=repo, adapter=adapter, binding_repository=binding_repo or InMemoryBindingRepository(), now=now or (lambda: datetime(2026, 8, 11, 0, 1, tzinfo=timezone.utc)),
         audit=lambda action, intent, **kwargs: (audits if audits is not None else []).append((action, intent.status, intent.retry_count)),
         metrics=ConsumerMetrics(), max_retry_attempts=max_attempts, retry_base_delay_seconds=1, retry_jitter_seconds=0,
     )
@@ -157,6 +184,25 @@ def test_legacy_or_invalid_schema_is_quarantined_without_creating_intent():
     assert outcome.status == "rejected"
     assert outcome.should_dead_letter is True
     assert outcome.error_code == "invalid_recommendation"
+    assert repo.by_key == {}
+
+
+def test_recommendation_without_governed_target_is_audited_without_intent_or_dead_letter():
+    repo = InMemoryIntentRepository()
+    outcome = consumer(repo).process(recommendation(expires_at="2026-08-11T00:05:00+00:00", actuation_binding=False))
+    assert outcome.status == "recommendation_only"
+    assert outcome.should_dead_letter is False
+    assert repo.by_key == {}
+
+
+def test_stale_target_binding_is_quarantined_without_creating_intent():
+    repo = InMemoryIntentRepository()
+    binding = InMemoryBindingRepository().binding
+    stale = replace(binding, version=2)
+    outcome = consumer(repo, binding_repo=InMemoryBindingRepository(stale)).process(recommendation(expires_at="2026-08-11T00:05:00+00:00"))
+    assert outcome.status == "rejected"
+    assert outcome.error_code == "invalid_target"
+    assert outcome.should_dead_letter is True
     assert repo.by_key == {}
 
 

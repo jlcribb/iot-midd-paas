@@ -52,3 +52,17 @@ def test_actuation_request_serializes_versioned_contract():
     assert request.to_dict()["schema_version"] == "1.0"
     assert request.to_dict()["simulated"] is True
     assert expires_at_from(datetime(2026, 8, 11, tzinfo=timezone.utc), 60).endswith("+00:00")
+
+
+def test_idempotency_key_changes_when_target_binding_version_changes():
+    common = {
+        "project_id": "00000000-0000-0000-0000-000000000001",
+        "recommendation_id": "recommendation::one",
+        "target_kind": "simulated",
+        "target_reference": "asset:00000000-0000-0000-0000-000000000012:relay_1",
+        "target_asset_id": "00000000-0000-0000-0000-000000000012",
+        "control_point": "relay_1",
+        "operation": "set",
+        "policy_version": 1,
+    }
+    assert stable_idempotency_key(**common, binding_version=1) != stable_idempotency_key(**common, binding_version=2)

@@ -24,6 +24,13 @@ const policyBindingSchema = z.object({
   variable_key: canonicalVariableKeySchema
 });
 
+export const controlOperationSchema = z.enum(["set", "increase", "decrease", "toggle"]);
+const actuationBindingSchema = z.object({
+  target_asset_id: uuidSchema,
+  control_point: z.string().trim().min(1),
+  operation: controlOperationSchema
+});
+
 const proportionalParamsSchema = z.object({
   variable_name: z.string().trim().min(1),
   variable_unit: z.string().trim().min(1).optional(),
@@ -108,6 +115,7 @@ const createPolicyBaseSchema = z.object({
   project_id: uuidSchema,
   variable: canonicalVariableKeySchema,
   binding: policyBindingSchema,
+  actuation_binding: actuationBindingSchema.optional(),
   policy_type: controlPolicyTypeSchema,
   context_selector: jsonObjectSchema.default({}),
   params: jsonObjectSchema,
@@ -145,6 +153,7 @@ export const createControlPolicySchema = createPolicyBaseSchema.superRefine((pay
 
 export const updateControlPolicySchema = z.object({
   binding: policyBindingSchema.optional(),
+  actuation_binding: actuationBindingSchema.nullable().optional(),
   context_selector: jsonObjectSchema.optional(),
   params: jsonObjectSchema.optional(),
   priority: z.number().int().min(0).optional(),

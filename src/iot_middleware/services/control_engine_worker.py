@@ -297,6 +297,9 @@ def _enrich_versioned_recommendation_envelope(
             "expires_at": expires_at,
         }
     )
+    binding_context = getattr(getattr(selection, "binding", None), "context", {}) or {}
+    if binding_context.get("actuation_binding"):
+        payload["actuation_binding"] = binding_context["actuation_binding"]
     publish_payload["schema_version"] = CONTROL_RECOMMENDATION_SCHEMA_VERSION
 
 
@@ -891,9 +894,13 @@ def handle_event(event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         recommendation_publish_result = publish_event(RECOMMENDATION_QUEUE, publish_payload)
         _track_delivery("recommendation", recommendation_publish_result)
         audit_payload["payload"]["delivery"]["recommendation_publish"] = recommendation_publish_result
-        if SIMULATED_ACTUATION_ENABLED:
+        if SIMULATED_ACTUATION_ENABLED and publish_payload["payload"].get("actuation_binding"):
             simulated_publish_result = publish_event(SIMULATED_RECOMMENDATION_QUEUE, publish_payload)
             audit_payload["payload"]["delivery"]["simulated_recommendation_publish"] = simulated_publish_result
+        elif SIMULATED_ACTUATION_ENABLED:
+            audit_payload["payload"]["delivery"]["simulated_recommendation_publish"] = {
+                "status": "skipped", "reason": "recommendation_only_target_unbound"
+            }
         _mark_audit_persistence_pending(audit_payload)
         audit_publish_result = publish_event(AUDIT_QUEUE, audit_payload)
         _track_delivery("audit", audit_publish_result)

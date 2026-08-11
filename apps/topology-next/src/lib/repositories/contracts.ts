@@ -127,7 +127,7 @@ export interface IControlPolicyRepository {
 export interface IControlPolicyAuditRepository {
   recordChange(entry: {
     entityId: string;
-    action: "CONTROL_POLICY_CREATED" | "CONTROL_POLICY_UPDATED" | "CONTROL_POLICY_DISABLED";
+    action: "CONTROL_POLICY_CREATED" | "CONTROL_POLICY_UPDATED" | "CONTROL_POLICY_DISABLED" | "CONTROL_POLICY_ACTUATION_BINDING_CREATED" | "CONTROL_POLICY_ACTUATION_BINDING_UPDATED" | "CONTROL_POLICY_ACTUATION_BINDING_REMOVED";
     before: unknown;
     after: unknown;
     context?: Record<string, unknown>;

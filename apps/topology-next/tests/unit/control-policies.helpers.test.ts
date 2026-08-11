@@ -26,6 +26,21 @@ describe("control-policies.helpers", () => {
       actuator_name: "control_output",
       gain: 1
     });
+    expect(payload).not.toHaveProperty("actuation_binding");
+  });
+
+  it("includes an explicit target binding only when all delivery fields are present", () => {
+    const form = createEmptyPolicyFormState();
+    form.project_id = "8a954f52-c7b1-4fd6-84ea-a6b897f4d7f2";
+    form.variable = "tank_level";
+    form.binding_asset_id = "8a954f52-c7b1-4fd6-84ea-a6b897f4d7f3";
+    form.actuation_target_asset_id = "8a954f52-c7b1-4fd6-84ea-a6b897f4d7f4";
+    form.actuation_control_point = "relay_1";
+    form.actuation_operation = "set";
+
+    expect(buildCreatePolicyPayload(form)).toMatchObject({
+      actuation_binding: { target_asset_id: form.actuation_target_asset_id, control_point: "relay_1", operation: "set" }
+    });
   });
 
   it("switches default params template per policy type", () => {
@@ -37,6 +52,9 @@ describe("control-policies.helpers", () => {
     expect(() =>
       buildUpdatePolicyPayload({
         binding_asset_id: "",
+        actuation_target_asset_id: "",
+        actuation_control_point: "",
+        actuation_operation: "set",
         params_text: "[]",
         context_selector_text: "{}",
         priority: "1",
@@ -77,6 +95,9 @@ describe("control-policies.helpers", () => {
       version: 2,
       draft: {
         binding_asset_id: "8a954f52-c7b1-4fd6-84ea-a6b897f4d7f3",
+        actuation_target_asset_id: "",
+        actuation_control_point: "",
+        actuation_operation: "set",
         params_text: defaultParamsText("proportional"),
         context_selector_text: '{"sector":"tank_A"}',
         priority: "5",

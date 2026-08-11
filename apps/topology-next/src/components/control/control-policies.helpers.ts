@@ -8,6 +8,9 @@ import { detectPolicyConflicts } from "@/lib/utils/control-policy-governance";
 
 export interface ControlPolicyDraft {
   binding_asset_id: string;
+  actuation_target_asset_id: string;
+  actuation_control_point: string;
+  actuation_operation: "set" | "increase" | "decrease" | "toggle";
   params_text: string;
   context_selector_text: string;
   priority: string;
@@ -58,6 +61,9 @@ export function createEmptyPolicyFormState(): ControlPolicyCreateFormState {
     project_id: "",
     variable: "",
     binding_asset_id: "",
+    actuation_target_asset_id: "",
+    actuation_control_point: "",
+    actuation_operation: "set",
     policy_type: "proportional",
     params_text: defaultParamsText("proportional"),
     context_selector_text: "{}",
@@ -71,6 +77,9 @@ export function createEmptyPolicyFormState(): ControlPolicyCreateFormState {
 export function policyToDraft(policy: ControlPolicy): ControlPolicyDraft {
   return {
     binding_asset_id: policy.binding?.asset_id ?? "",
+    actuation_target_asset_id: policy.actuation_binding?.target_asset_id ?? "",
+    actuation_control_point: policy.actuation_binding?.control_point ?? "",
+    actuation_operation: policy.actuation_binding?.operation ?? "set",
     params_text: formatPolicyJson(policy.params),
     context_selector_text: formatPolicyJson(policy.context_selector),
     priority: String(policy.priority),
@@ -128,6 +137,7 @@ export function buildCreatePolicyPayload(form: ControlPolicyCreateFormState) {
     throw new Error("Debes seleccionar una entidad topológica para el binding");
   }
 
+  const actuationBinding = buildActuationBinding(form);
   return {
     project_id: projectId,
     variable,
@@ -139,17 +149,34 @@ export function buildCreatePolicyPayload(form: ControlPolicyCreateFormState) {
     params: parseJsonObject(form.params_text, "params"),
     context_selector: parseJsonObject(form.context_selector_text, "context_selector"),
     priority: parsePriority(form.priority),
-    enabled: form.enabled
+    enabled: form.enabled,
+    ...(actuationBinding ? { actuation_binding: actuationBinding } : {})
   };
 }
 
-export function buildUpdatePolicyPayload(draft: ControlPolicyDraft, variable: string) {
+export function buildUpdatePolicyPayload(draft: ControlPolicyDraft, variable: string, hadActuationBinding = false) {
+  const actuationBinding = buildActuationBinding(draft);
   return {
     ...(draft.binding_asset_id ? { binding: { asset_id: draft.binding_asset_id, variable_key: variable } } : {}),
     params: parseJsonObject(draft.params_text, "params"),
     context_selector: parseJsonObject(draft.context_selector_text, "context_selector"),
     priority: parsePriority(draft.priority),
-    enabled: draft.enabled
+    enabled: draft.enabled,
+    ...(actuationBinding ? { actuation_binding: actuationBinding } : hadActuationBinding ? { actuation_binding: null } : {})
+  };
+}
+
+function buildActuationBinding(form: Pick<ControlPolicyDraft, "actuation_target_asset_id" | "actuation_control_point" | "actuation_operation">) {
+  const targetAssetId = form.actuation_target_asset_id.trim();
+  const controlPoint = form.actuation_control_point.trim();
+  if (!targetAssetId && !controlPoint) return null;
+  if (!targetAssetId || !controlPoint) {
+    throw new Error("Para habilitar delivery simulado debes seleccionar target y control point");
+  }
+  return {
+    target_asset_id: targetAssetId,
+    control_point: controlPoint,
+    operation: form.actuation_operation
   };
 }
 

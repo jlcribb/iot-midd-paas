@@ -32,6 +32,7 @@ from iot_middleware.storage.actuation_delivery_intent_repository import (
     DeliveryIntent,
     InvalidDeliveryTransition,
 )
+from iot_middleware.storage.policy_actuation_binding_repository import PolicyActuationBindingRepository
 from iot_middleware.storage.db_handler import persist_control_audit_record
 
 
@@ -90,6 +91,10 @@ class PermanentDeliveryError(DeliveryError):
 class PersistenceDeliveryError(DeliveryError):
     code = "persistence_delivery_error"
     retryable = True
+
+
+class RecommendationOnlyDelivery(Exception):
+    """A valid recommendation without an opted-in target binding is not dispatchable."""
 
 
 def classify_delivery_error(error: Exception) -> DeliveryError:
@@ -166,13 +171,25 @@ def build_simulated_request(envelope: Dict[str, Any]) -> ActuationRequest:
         expires_at = parse_timestamp(str(payload["expires_at"]))
         if expires_at <= created_at:
             raise InvalidRecommendationError("expires_at must be after created_at")
-        target_reference = f"simulated:{payload.get('actuator_name') or 'control_output'}"
         operation = str(payload["action_label"])
         policy_version = int(payload["policy_version"])
+        target_binding = payload.get("actuation_binding")
+        if target_binding is None:
+            raise RecommendationOnlyDelivery()
+        if not isinstance(target_binding, dict):
+            raise InvalidRecommendationError("actuation_binding must be an object")
+        target_asset_id = str(uuid.UUID(str(target_binding["target_asset_id"])))
+        binding_id = str(uuid.UUID(str(target_binding["binding_id"])))
+        control_point = str(target_binding["control_point"]).strip()
+        operation = str(target_binding["operation"]).strip()
+        binding_version = int(target_binding["version"])
+        if not control_point or operation not in {"set", "increase", "decrease", "toggle"} or binding_version < 1:
+            raise InvalidRecommendationError("invalid actuation_binding fields")
         idempotency_key = stable_idempotency_key(
             project_id=str(payload["project_id"]), recommendation_id=str(payload["recommendation_id"]),
-            target_kind=SIMULATED_TARGET_KIND, target_reference=target_reference,
-            operation=operation, policy_version=policy_version,
+            target_kind=SIMULATED_TARGET_KIND, target_reference=f"asset:{target_asset_id}:{control_point}",
+            operation=operation, policy_version=policy_version, target_asset_id=target_asset_id,
+            control_point=control_point, binding_version=binding_version,
         )
     except DeliveryError:
         raise
@@ -183,11 +200,13 @@ def build_simulated_request(envelope: Dict[str, Any]) -> ActuationRequest:
         command_id=str(uuid.uuid4()), recommendation_id=str(payload["recommendation_id"]),
         correlation_id=str(payload["correlation_id"]), project_id=str(payload["project_id"]),
         policy_id=str(payload["policy_id"]), policy_version=policy_version,
-        source_asset_id=source_asset_id, target_asset_id=None, target_kind=SIMULATED_TARGET_KIND,
-        target_reference=target_reference, variable_id=str(payload["variable_id"]), operation=operation,
+        source_asset_id=source_asset_id, target_kind=SIMULATED_TARGET_KIND,
+        target_reference=f"asset:{target_asset_id}:{control_point}", variable_id=str(payload["variable_id"]), operation=operation,
         requested_value=float(payload["command_value"]), created_at=created_at.isoformat(),
         expires_at=expires_at.isoformat(), governance_mode=SIMULATED_GOVERNANCE_MODE,
-        idempotency_key=idempotency_key, simulated=True,
+        idempotency_key=idempotency_key, control_point=control_point,
+        actuation_binding_id=binding_id, actuation_binding_version=binding_version,
+        target_asset_id=target_asset_id, simulated=True,
     )
 
 
@@ -203,6 +222,8 @@ def request_from_intent(intent: DeliveryIntent) -> ActuationRequest:
         created_at=intent.created_at.astimezone(timezone.utc).isoformat(),
         expires_at=intent.expires_at.astimezone(timezone.utc).isoformat(),
         governance_mode=intent.governance_mode, idempotency_key=intent.idempotency_key,
+        control_point=intent.control_point, actuation_binding_id=intent.actuation_binding_id,
+        actuation_binding_version=intent.actuation_binding_version,
         simulated=intent.simulated,
     )
 
@@ -217,7 +238,9 @@ def _audit_transition(action: str, intent: DeliveryIntent, *, result: Optional[D
             "correlation_id": intent.correlation_id, "project_id": intent.project_id,
             "policy_id": intent.policy_id, "policy_version": intent.policy_version,
             "source_asset_id": intent.source_asset_id, "target_kind": intent.target_kind,
-            "target_reference": intent.target_reference, "status": intent.status,
+            "target_asset_id": intent.target_asset_id, "target_reference": intent.target_reference,
+            "control_point": intent.control_point, "actuation_binding_id": intent.actuation_binding_id,
+            "actuation_binding_version": intent.actuation_binding_version, "status": intent.status,
             "attempt": intent.retry_count, "next_retry_at": intent.next_retry_at.isoformat() if intent.next_retry_at else None,
             "simulated": intent.simulated, "result": result,
         },
@@ -230,6 +253,7 @@ class SimulatedActuationConsumer:
         self,
         repository: Optional[ActuationDeliveryIntentRepository] = None,
         adapter: Optional[SimulatedActuationAdapter] = None,
+        binding_repository: Optional[PolicyActuationBindingRepository] = None,
         audit: Callable[..., None] = _audit_transition,
         now: Callable[[], datetime] = lambda: datetime.now(timezone.utc),
         metrics: Optional[ConsumerMetrics] = None,
@@ -241,6 +265,7 @@ class SimulatedActuationConsumer:
     ) -> None:
         self.repository = repository or ActuationDeliveryIntentRepository()
         self.adapter = adapter or SimulatedActuationAdapter()
+        self.binding_repository = binding_repository or PolicyActuationBindingRepository()
         self.audit = audit
         self.now = now
         self.metrics = metrics or ConsumerMetrics()
@@ -260,7 +285,7 @@ class SimulatedActuationConsumer:
             self.metrics.audit_failures += 1
             logger.error("event=audit_failed action=%s command_id=%s error_type=%s", action, intent.command_id, type(exc).__name__)
 
-    def _audit_invalid(self, envelope: Any, error_code: str) -> None:
+    def _audit_invalid(self, envelope: Any, error_code: str, *, action: str = "CONTROL_ACTUATION_INVALID_RECOMMENDATION") -> None:
         """Audit malformed input without retaining its complete untrusted payload."""
         payload = envelope.get("payload") if isinstance(envelope, dict) else {}
         payload = payload if isinstance(payload, dict) else {}
@@ -278,14 +303,30 @@ class SimulatedActuationConsumer:
                     "correlation_id": safe_payload.get("correlation_id"),
                     "payload": {**safe_payload, "status": "rejected", "error_code": error_code, "simulated": True},
                 },
-                action="CONTROL_ACTUATION_INVALID_RECOMMENDATION",
+                action=action,
                 entity="simulated_actuation_consumer",
             )
             if result.get("status") != "persisted":
                 raise RuntimeError("audit persistence returned failure")
         except Exception as exc:
             self.metrics.audit_failures += 1
-            logger.error("event=audit_failed action=CONTROL_ACTUATION_INVALID_RECOMMENDATION error_type=%s", type(exc).__name__)
+            logger.error("event=audit_failed action=%s error_type=%s", action, type(exc).__name__)
+
+    def _validate_target_binding(self, request: ActuationRequest) -> None:
+        binding = self.binding_repository.get_active(request.policy_id)
+        if not binding:
+            raise InvalidTargetError("active actuation binding no longer exists")
+        if (
+            binding.id != request.actuation_binding_id
+            or binding.version != request.actuation_binding_version
+            or binding.project_id != request.project_id
+            or binding.source_asset_id != request.source_asset_id
+            or binding.target_asset_id != request.target_asset_id
+            or binding.control_point != request.control_point
+            or binding.operation != request.operation
+            or not self.binding_repository.supports(binding)
+        ):
+            raise InvalidTargetError("actuation binding is stale or unsupported")
 
     def audit_dead_lettered(self, outcome: ConsumerOutcome) -> None:
         if not outcome.command_id:
@@ -378,12 +419,17 @@ class SimulatedActuationConsumer:
         self.metrics.recommendations_received += 1
         try:
             request = build_simulated_request(envelope)
+        except RecommendationOnlyDelivery:
+            self._audit_invalid(envelope, "recommendation_only", action="CONTROL_ACTUATION_RECOMMENDATION_ONLY")
+            logger.info("event=recommendation_only")
+            return ConsumerOutcome(status="recommendation_only")
         except DeliveryError as exc:
             self.metrics.invalid += 1
             self._audit_invalid(envelope, exc.code)
             logger.warning("event=recommendation_invalid error_code=%s", exc.code)
             return ConsumerOutcome(status="rejected", error_code=exc.code, should_dead_letter=True)
         try:
+            self._validate_target_binding(request)
             intent, created = self.repository.create_or_get(request)
             if not created:
                 self.metrics.duplicate += 1
@@ -417,6 +463,11 @@ class SimulatedActuationConsumer:
             intent = self._transition(command_id=intent.command_id, from_statuses={"validated"}, to_status="ready_to_dispatch")
             self._audit("CONTROL_ACTUATION_READY_TO_DISPATCH", intent)
             return self._dispatch(intent, request, from_statuses={"ready_to_dispatch"})
+        except InvalidTargetError as exc:
+            self.metrics.invalid += 1
+            self._audit_invalid(envelope, exc.code, action="CONTROL_ACTUATION_INVALID_TARGET")
+            logger.warning("event=target_invalid error_code=%s", exc.code)
+            return ConsumerOutcome(status="rejected", error_code=exc.code, should_dead_letter=True)
         except PersistenceDeliveryError as exc:
             logger.error("event=persistence_failed error_code=%s", exc.code)
             return ConsumerOutcome(status="persistence_failed", error_code=exc.code, persistence_failed=True)

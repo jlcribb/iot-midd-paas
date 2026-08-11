@@ -1161,24 +1161,32 @@ def list_project_control_policies(
         query = text(
             """
             SELECT
-                id::text AS id,
-                project_id::text AS project_id,
-                bound_asset_id::text AS bound_asset_id,
-                variable,
-                context_selector,
-                policy_type,
-                params,
-                priority,
-                enabled,
-                version,
-                created_at,
-                updated_at
-            FROM public.project_control_policies
-            WHERE project_id = CAST(:project_id AS uuid)
-              AND variable = :variable
-              AND enabled = TRUE
-              AND (bound_asset_id IS NULL OR bound_asset_id = CAST(:asset_id AS uuid))
-            ORDER BY priority DESC, version DESC, updated_at DESC, created_at DESC
+                p.id::text AS id,
+                p.project_id::text AS project_id,
+                p.bound_asset_id::text AS bound_asset_id,
+                p.variable,
+                p.context_selector,
+                p.policy_type,
+                p.params,
+                p.priority,
+                p.enabled,
+                p.version,
+                p.created_at,
+                p.updated_at,
+                actuation_binding.id::text AS actuation_binding_id,
+                actuation_binding.target_asset_id::text AS actuation_target_asset_id,
+                actuation_binding.control_point AS actuation_control_point,
+                actuation_binding.operation AS actuation_operation,
+                actuation_binding.version AS actuation_binding_version
+            FROM public.project_control_policies AS p
+            LEFT JOIN public.project_control_policy_actuation_bindings AS actuation_binding
+              ON actuation_binding.policy_id = p.id
+             AND actuation_binding.enabled = TRUE
+            WHERE p.project_id = CAST(:project_id AS uuid)
+              AND p.variable = :variable
+              AND p.enabled = TRUE
+              AND (p.bound_asset_id IS NULL OR p.bound_asset_id = CAST(:asset_id AS uuid))
+            ORDER BY p.priority DESC, p.version DESC, p.updated_at DESC, p.created_at DESC
             """
         )
 

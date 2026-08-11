@@ -29,8 +29,10 @@ class SimulatedActuationAdapter:
     def validate_target(self, request: ActuationRequest) -> None:
         if not request.simulated or request.target_kind != "simulated":
             raise ValueError("Simulated adapter only accepts explicit simulated targets")
-        if not request.target_reference.strip():
-            raise ValueError("Simulated target reference is required")
+        if not request.target_asset_id or not request.control_point or not request.actuation_binding_id:
+            raise ValueError("Simulated adapter requires a governed target asset binding")
+        if not request.target_reference.startswith(f"asset:{request.target_asset_id}:"):
+            raise ValueError("Simulated target reference does not match target asset")
 
     def dispatch(self, request: ActuationRequest, *, attempt: int = 1) -> ActuationResult:
         self.validate_target(request)
@@ -55,7 +57,11 @@ class SimulatedActuationAdapter:
             simulated=True,
             result={
                 "target_kind": "simulated",
+                "target_asset_id": request.target_asset_id,
                 "target_reference": request.target_reference,
+                "control_point": request.control_point,
+                "actuation_binding_id": request.actuation_binding_id,
+                "actuation_binding_version": request.actuation_binding_version,
                 "operation": request.operation,
                 "requested_value": request.requested_value,
                 "physical_effects": False,

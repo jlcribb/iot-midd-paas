@@ -5,11 +5,26 @@ export interface ControlPolicyBinding {
   variable_key: string;
 }
 
+export type ControlOperation = "set" | "increase" | "decrease" | "toggle";
+
+export interface ControlPolicyActuationBinding {
+  id: string;
+  source_asset_id: string;
+  target_asset_id: string;
+  control_point: string;
+  operation: ControlOperation;
+  enabled: boolean;
+  version: number;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface ControlPolicy {
   id: string;
   project_id: string;
   variable: string;
   binding?: ControlPolicyBinding | null;
+  actuation_binding?: ControlPolicyActuationBinding | null;
   context_selector: Record<string, unknown>;
   policy_type: ControlPolicyType;
   params: Record<string, unknown>;
@@ -32,6 +47,7 @@ export interface ControlPolicyPreviewCandidate {
   project_id: string;
   variable: string;
   binding?: ControlPolicyBinding | null;
+  actuation_binding?: Omit<ControlPolicyActuationBinding, "id" | "source_asset_id" | "enabled" | "version" | "created_at" | "updated_at"> | null;
   policy_type: ControlPolicyType;
   context_selector: Record<string, unknown>;
   params: Record<string, unknown>;

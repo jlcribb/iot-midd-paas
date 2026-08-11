@@ -64,6 +64,9 @@ class DeliveryIntent:
     target_asset_id: Optional[str]
     target_kind: str
     target_reference: str
+    control_point: Optional[str]
+    actuation_binding_id: Optional[str]
+    actuation_binding_version: Optional[int]
     variable_id: str
     operation: str
     requested_value: float
@@ -93,6 +96,9 @@ def _map_row(row: Any) -> DeliveryIntent:
         target_asset_id=str(row["target_asset_id"]) if row["target_asset_id"] else None,
         target_kind=str(row["target_kind"]),
         target_reference=str(row["target_reference"]),
+        control_point=str(row["control_point"]) if row["control_point"] else None,
+        actuation_binding_id=str(row["actuation_binding_id"]) if row["actuation_binding_id"] else None,
+        actuation_binding_version=int(row["actuation_binding_version"]) if row["actuation_binding_version"] else None,
         variable_id=str(row["variable_id"]),
         operation=str(row["operation"]),
         requested_value=float(row["requested_value"]),
@@ -129,6 +135,9 @@ class ActuationDeliveryIntentRepository:
             "target_asset_id": request.target_asset_id,
             "target_kind": request.target_kind,
             "target_reference": request.target_reference,
+            "control_point": request.control_point,
+            "actuation_binding_id": request.actuation_binding_id,
+            "actuation_binding_version": request.actuation_binding_version,
             "variable_id": request.variable_id,
             "operation": request.operation,
             "requested_value": request.requested_value,
@@ -142,13 +151,15 @@ class ActuationDeliveryIntentRepository:
             INSERT INTO public.control_actuation_delivery_intents (
                 id, command_id, recommendation_id, correlation_id, project_id,
                 policy_id, policy_version, source_asset_id, target_asset_id,
-                target_kind, target_reference, variable_id, operation,
+                target_kind, target_reference, control_point, actuation_binding_id,
+                actuation_binding_version, variable_id, operation,
                 requested_value, idempotency_key, governance_mode, expires_at, simulated
             ) VALUES (
                 CAST(:id AS uuid), CAST(:command_id AS uuid), :recommendation_id,
                 :correlation_id, CAST(:project_id AS uuid), :policy_id, :policy_version,
                 CAST(:source_asset_id AS uuid), CAST(:target_asset_id AS uuid),
-                :target_kind, :target_reference, :variable_id, :operation,
+                :target_kind, :target_reference, :control_point, CAST(:actuation_binding_id AS uuid),
+                :actuation_binding_version, :variable_id, :operation,
                 :requested_value, :idempotency_key, :governance_mode,
                 CAST(:expires_at AS timestamptz), :simulated
             )

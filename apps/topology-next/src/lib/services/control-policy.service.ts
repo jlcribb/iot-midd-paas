@@ -11,17 +11,24 @@ import type {
 } from "@/lib/repositories/contracts";
 import { ControlPolicyAuditRepository } from "@/lib/repositories/control-policy-audit.repository";
 import { ControlPolicyRepository } from "@/lib/repositories/control-policy.repository";
+import { ControlPolicyActuationBindingRepository, type ActuationBindingInput } from "@/lib/repositories/control-policy-actuation-binding.repository";
 import { AssetRepository } from "@/lib/repositories/asset.repository";
 import { ProjectRepository } from "@/lib/repositories/project.repository";
 import type { CreateControlPolicyInput, UpdateControlPolicyInput } from "@/lib/validators/control-policy.schemas";
 import { validatePolicyParams } from "@/lib/validators/control-policy.schemas";
 import { buildPreviewResponse, detectPolicyConflicts } from "@/lib/utils/control-policy-governance";
 
+interface IControlPolicyActuationBindingRepository {
+  upsert(args: { policyId: string; projectId: string; sourceAssetId: string; input: ActuationBindingInput }): Promise<unknown>;
+  remove(policyId: string): Promise<unknown>;
+}
+
 interface ControlPolicyServiceDeps {
   assetRepo?: IAssetRepository;
   controlPolicyRepo?: IControlPolicyRepository;
   projectRepo?: IProjectRepository;
   controlPolicyAuditRepo?: IControlPolicyAuditRepository;
+  actuationBindingRepo?: IControlPolicyActuationBindingRepository;
 }
 
 export class ControlPolicyService {
@@ -29,12 +36,14 @@ export class ControlPolicyService {
   private readonly assetRepo: IAssetRepository;
   private readonly projectRepo: IProjectRepository;
   private readonly controlPolicyAuditRepo: IControlPolicyAuditRepository;
+  private readonly actuationBindingRepo: IControlPolicyActuationBindingRepository;
 
   constructor(deps: ControlPolicyServiceDeps = {}) {
     this.controlPolicyRepo = deps.controlPolicyRepo ?? new ControlPolicyRepository();
     this.assetRepo = deps.assetRepo ?? new AssetRepository();
     this.projectRepo = deps.projectRepo ?? new ProjectRepository();
     this.controlPolicyAuditRepo = deps.controlPolicyAuditRepo ?? new ControlPolicyAuditRepository();
+    this.actuationBindingRepo = deps.actuationBindingRepo ?? new ControlPolicyActuationBindingRepository();
   }
 
   async list(actor: ControlActor, filters?: { projectId?: string; variable?: string; enabled?: boolean }) {
@@ -52,6 +61,11 @@ export class ControlPolicyService {
       throw new NotFoundError("Project not found");
     }
     await this.assertBindingBelongsToProject(input.project_id, input.binding.asset_id);
+    if (input.actuation_binding) {
+      // Validate before creating the policy so an invalid target cannot leave a
+      // partially persisted recommendation policy behind.
+      await this.assertActuationBinding(input.project_id, input.binding.asset_id, input.actuation_binding);
+    }
 
     validatePolicyParams(input.policy_type, input.params);
     await this.assertNoBlockingConflicts({
@@ -67,18 +81,34 @@ export class ControlPolicyService {
     });
 
     const created = await this.controlPolicyRepo.create(input);
+    if (input.actuation_binding) {
+      await this.actuationBindingRepo.upsert({
+        policyId: created.id, projectId: created.project_id, sourceAssetId: input.binding.asset_id,
+        input: input.actuation_binding
+      });
+    }
+    const persisted = input.actuation_binding
+      ? await this.controlPolicyRepo.findById(created.id) ?? created
+      : created;
     await this.controlPolicyAuditRepo.recordChange({
       entityId: created.id,
       action: "CONTROL_POLICY_CREATED",
       before: null,
-      after: created,
+      after: persisted,
       context: {
         actor,
-        project_id: created.project_id,
-        variable: created.variable
+        project_id: persisted.project_id,
+        variable: persisted.variable
       }
     });
-    return created;
+    if (input.actuation_binding) {
+      await this.controlPolicyAuditRepo.recordChange({
+        entityId: persisted.id, action: "CONTROL_POLICY_ACTUATION_BINDING_CREATED",
+        before: null, after: persisted.actuation_binding,
+        context: { actor, project_id: persisted.project_id, source_asset_id: input.binding.asset_id }
+      });
+    }
+    return persisted;
   }
 
   async getById(actor: ControlActor, id: string) {
@@ -113,6 +143,12 @@ export class ControlPolicyService {
     if (input.binding !== undefined) {
       await this.assertBindingBelongsToProject(existing.project_id, input.binding.asset_id);
     }
+    if (existing.actuation_binding && input.binding && input.binding.asset_id !== existing.binding?.asset_id && input.actuation_binding === undefined) {
+      throw new ConflictError("Changing the source binding requires updating or removing the actuation binding");
+    }
+    if (input.actuation_binding) {
+      await this.assertActuationBinding(existing.project_id, nextState.binding?.asset_id ?? "", input.actuation_binding);
+    }
 
     if (this.isNoopUpdate(existing, input)) {
       return existing;
@@ -140,11 +176,23 @@ export class ControlPolicyService {
       throw new NotFoundError("Control policy not found");
     }
 
+    let actuationBefore = existing.actuation_binding;
+    if (input.actuation_binding === null) {
+      await this.actuationBindingRepo.remove(updated.id);
+    } else if (input.actuation_binding) {
+      await this.actuationBindingRepo.upsert({
+        policyId: updated.id, projectId: updated.project_id, sourceAssetId: nextState.binding?.asset_id ?? "",
+        input: input.actuation_binding
+      });
+    }
+    const persisted = input.actuation_binding !== undefined
+      ? await this.controlPolicyRepo.findById(updated.id) ?? updated
+      : updated;
     await this.controlPolicyAuditRepo.recordChange({
       entityId: updated.id,
       action: "CONTROL_POLICY_UPDATED",
       before: existing,
-      after: updated,
+      after: persisted,
       context: {
         actor,
         project_id: updated.project_id,
@@ -152,7 +200,16 @@ export class ControlPolicyService {
       }
     });
 
-    return updated;
+    if (input.actuation_binding !== undefined) {
+      await this.controlPolicyAuditRepo.recordChange({
+        entityId: persisted.id,
+        action: input.actuation_binding === null ? "CONTROL_POLICY_ACTUATION_BINDING_REMOVED" : "CONTROL_POLICY_ACTUATION_BINDING_UPDATED",
+        before: actuationBefore,
+        after: persisted.actuation_binding,
+        context: { actor, project_id: persisted.project_id, source_asset_id: nextState.binding?.asset_id }
+      });
+    }
+    return persisted;
   }
 
   async disable(actor: ControlActor, id: string) {
@@ -243,6 +300,9 @@ export class ControlPolicyService {
     if (input.binding !== undefined && !isDeepStrictEqual(input.binding, existing.binding)) {
       return false;
     }
+    if (input.actuation_binding !== undefined && !isDeepStrictEqual(input.actuation_binding, existing.actuation_binding ?? null)) {
+      return false;
+    }
     return true;
   }
 
@@ -278,6 +338,32 @@ export class ControlPolicyService {
     }
     if (asset.project_id !== projectId) {
       throw new ConflictError("Binding asset belongs to a different project");
+    }
+  }
+
+  private async assertActuationBinding(projectId: string, sourceAssetId: string, input: ActuationBindingInput) {
+    if (!sourceAssetId) throw new ConflictError("Actuation binding requires a source asset policy binding");
+    const [source, target] = await Promise.all([
+      this.assetRepo.findById(sourceAssetId), this.assetRepo.findById(input.target_asset_id)
+    ]);
+    if (!source || source.project_id !== projectId) throw new ConflictError("Source asset belongs to a different project or does not exist");
+    if (!target) throw new NotFoundError("Actuation target asset not found");
+    if (target.project_id !== projectId) throw new ConflictError("Actuation target asset belongs to a different project");
+    if (!["actuator", "relay_module", "programmable_node"].includes(target.asset_type)) {
+      throw new ConflictError("Asset type is not eligible as an actuation target");
+    }
+    if (source.id === target.id && target.asset_type !== "programmable_node") {
+      throw new ConflictError("Self target binding is only allowed for programmable_node assets");
+    }
+    const capabilities = target.metadata.control_capabilities;
+    const capability = Array.isArray(capabilities)
+      ? capabilities.find((item) => item && typeof item === "object" && (item as Record<string, unknown>).key === input.control_point)
+      : null;
+    const operations = capability && Array.isArray((capability as Record<string, unknown>).operations)
+      ? (capability as Record<string, unknown>).operations as unknown[]
+      : [];
+    if (!capability || !operations.some((operation) => operation === input.operation)) {
+      throw new ConflictError("Target control point does not support the requested operation");
     }
   }
 }

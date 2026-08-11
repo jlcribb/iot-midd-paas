@@ -123,6 +123,32 @@ describe("ControlPolicyService", () => {
     }));
   });
 
+  it("rejects a cross-project actuation target before the policy is persisted", async () => {
+    const create = vi.fn();
+    const source = { id: BOUND_ASSET_ID, project_id: "project-1", asset_type: "sensor", metadata: {} };
+    const foreignTarget = {
+      id: "7a954f52-c7b1-4fd6-84ea-a6b897f4d7f3", project_id: "project-2", asset_type: "actuator",
+      metadata: { control_capabilities: [{ key: "relay_1", operations: ["set"] }] }
+    };
+    const service = new ControlPolicyService({
+      controlPolicyRepo: { create, findById: vi.fn(), findAll: vi.fn().mockResolvedValue([]), update: vi.fn() },
+      projectRepo: { create: vi.fn(), findAll: vi.fn(), update: vi.fn(), findById: vi.fn().mockResolvedValue({ id: "project-1" }) } as IProjectRepository,
+      assetRepo: { findById: vi.fn().mockImplementation((id) => Promise.resolve(id === BOUND_ASSET_ID ? source : foreignTarget)) } as unknown as IAssetRepository,
+      controlPolicyAuditRepo: createAuditRepoMock(),
+      actuationBindingRepo: { upsert: vi.fn(), remove: vi.fn() }
+    });
+
+    await expect(service.create(makeActor(), {
+      project_id: "project-1", variable: "tank_level",
+      binding: { asset_id: BOUND_ASSET_ID, variable_key: "tank_level" },
+      actuation_binding: { target_asset_id: foreignTarget.id, control_point: "relay_1", operation: "set" },
+      policy_type: "proportional", context_selector: {},
+      params: { variable_name: "Tank", actuator_name: "pump", setpoint_value: 70, gain: 1, deadband: 0, min_action: 0 },
+      priority: 0, enabled: true
+    })).rejects.toBeInstanceOf(ConflictError);
+    expect(create).not.toHaveBeenCalled();
+  });
+
   it("increments version when updating mutable policy fields", async () => {
     const update = vi.fn().mockResolvedValue({
       id: "policy-1",

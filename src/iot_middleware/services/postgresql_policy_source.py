@@ -161,6 +161,13 @@ class PostgreSQLPolicySource:
                     "bound_asset_id": str(row["bound_asset_id"])
                     if row.get("bound_asset_id")
                     else None,
+                    "actuation_binding": {
+                        "binding_id": str(row["actuation_binding_id"]),
+                        "target_asset_id": str(row["actuation_target_asset_id"]),
+                        "control_point": str(row["actuation_control_point"]),
+                        "operation": str(row["actuation_operation"]),
+                        "version": int(row["actuation_binding_version"]),
+                    } if row.get("actuation_binding_id") else None,
                 },
             ),
             required_context=context_selector,

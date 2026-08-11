@@ -72,6 +72,27 @@ function buildAccessDeniedMessage() {
   return "Tu rol actual no permite modificar policies en este scope operacional.";
 }
 
+const ACTUATION_TARGET_TYPES = new Set(["actuator", "relay_module", "programmable_node"]);
+const CONTROL_OPERATIONS = ["set", "increase", "decrease", "toggle"] as const;
+
+function eligibleActuationTargets(assets: Asset[], sourceAssetId: string) {
+  return assets.filter((asset) => ACTUATION_TARGET_TYPES.has(asset.asset_type) && (asset.id !== sourceAssetId || asset.asset_type === "programmable_node"));
+}
+
+function controlCapabilities(asset: Asset | undefined) {
+  const raw = asset?.metadata.control_capabilities;
+  if (!Array.isArray(raw)) return [];
+  return raw.flatMap((item) => {
+    if (!item || typeof item !== "object") return [];
+    const value = item as Record<string, unknown>;
+    const key = typeof value.key === "string" ? value.key : "";
+    const operations = Array.isArray(value.operations)
+      ? value.operations.filter((operation): operation is typeof CONTROL_OPERATIONS[number] => typeof operation === "string" && CONTROL_OPERATIONS.includes(operation as typeof CONTROL_OPERATIONS[number]))
+      : [];
+    return key && operations.length ? [{ key, operations }] : [];
+  });
+}
+
 export function ControlPolicyManagement() {
   const [policies, setPolicies] = useState<ControlPolicy[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -190,7 +211,7 @@ export function ControlPolicyManagement() {
       if (!policy) {
         return;
       }
-      const payload = buildUpdatePolicyPayload(draft, policy.variable);
+      const payload = buildUpdatePolicyPayload(draft, policy.variable, Boolean(policy.actuation_binding));
       await fetchApi<ControlPolicy>(`/api/control/policies/${policyId}`, {
         method: "PATCH",
         body: JSON.stringify(payload)
@@ -419,6 +440,8 @@ export function ControlPolicyManagement() {
                 ...current,
                 project_id: event.target.value,
                 binding_asset_id: "",
+                actuation_target_asset_id: "",
+                actuation_control_point: "",
                 preview_asset_id: ""
               }))}
               disabled={!access?.permissions.edit_policies}
@@ -431,6 +454,31 @@ export function ControlPolicyManagement() {
               ))}
             </select>
           </label>
+
+          <label className="control-field control-field-wide">
+            <span>Target simulado (opcional; sin target queda recommendation-only)</span>
+            <select className="input-select" value={createForm.actuation_target_asset_id} onChange={(event) => setCreateForm((current) => ({ ...current, actuation_target_asset_id: event.target.value, actuation_control_point: "" }))} disabled={!access?.permissions.edit_policies}>
+              <option value="">Sin target de delivery</option>
+              {eligibleActuationTargets(assetsByProject[createForm.project_id] ?? [], createForm.binding_asset_id).map((asset) => <option key={asset.id} value={asset.id}>{asset.name} · {asset.asset_type} · {asset.id}</option>)}
+            </select>
+          </label>
+          {createForm.actuation_target_asset_id ? (
+            <>
+              <label className="control-field">
+                <span>Control point</span>
+                <select className="input-select" value={createForm.actuation_control_point} onChange={(event) => setCreateForm((current) => ({ ...current, actuation_control_point: event.target.value }))} disabled={!access?.permissions.edit_policies}>
+                  <option value="">Selecciona una capability declarada</option>
+                  {controlCapabilities((assetsByProject[createForm.project_id] ?? []).find((asset) => asset.id === createForm.actuation_target_asset_id)).map((capability) => <option key={capability.key} value={capability.key}>{capability.key} · {capability.operations.join(", ")}</option>)}
+                </select>
+              </label>
+              <label className="control-field">
+                <span>Operación</span>
+                <select className="input-select" value={createForm.actuation_operation} onChange={(event) => setCreateForm((current) => ({ ...current, actuation_operation: event.target.value as ControlPolicyDraft["actuation_operation"] }))} disabled={!access?.permissions.edit_policies}>
+                  {CONTROL_OPERATIONS.map((operation) => <option key={operation} value={operation}>{operation}</option>)}
+                </select>
+              </label>
+            </>
+          ) : null}
 
           <label className="control-field">
             <span>Variable</span>
@@ -604,6 +652,11 @@ export function ControlPolicyManagement() {
                           ? <>Binding: <code>{policy.binding.asset_id}</code> · variable canónica <code>{policy.binding.variable_key}</code></>
                           : <>Estado: <strong>Legacy / Unbound</strong></>}
                       </p>
+                      <p className="control-policy-meta">
+                        {policy.actuation_binding
+                          ? <>Delivery simulado: <code>{policy.actuation_binding.target_asset_id}</code> · <code>{policy.actuation_binding.control_point}</code> · {policy.actuation_binding.operation} · binding v{policy.actuation_binding.version}</>
+                          : <>Delivery: <strong>recommendation-only</strong></>}
+                      </p>
                     </div>
                     <div className="control-policy-badges">
                       <span className={policy.enabled ? "status-badge status-active" : "status-badge status-inactive"}>
@@ -652,6 +705,30 @@ export function ControlPolicyManagement() {
                           ))}
                         </select>
                       </label>
+                      <label className="control-field control-field-wide">
+                        <span>Target simulado (vacío elimina el binding)</span>
+                        <select className="input-select" value={draft.actuation_target_asset_id} onChange={(event) => updateDraft(policy.id, { actuation_target_asset_id: event.target.value, actuation_control_point: "" })} disabled={!access?.permissions.edit_policies}>
+                          <option value="">Sin target de delivery</option>
+                          {eligibleActuationTargets(assetsByProject[policy.project_id] ?? [], draft.binding_asset_id).map((asset) => <option key={asset.id} value={asset.id}>{asset.name} · {asset.asset_type} · {asset.id}</option>)}
+                        </select>
+                      </label>
+                      {draft.actuation_target_asset_id ? (
+                        <>
+                          <label className="control-field">
+                            <span>Control point</span>
+                            <select className="input-select" value={draft.actuation_control_point} onChange={(event) => updateDraft(policy.id, { actuation_control_point: event.target.value })} disabled={!access?.permissions.edit_policies}>
+                              <option value="">Selecciona una capability declarada</option>
+                              {controlCapabilities((assetsByProject[policy.project_id] ?? []).find((asset) => asset.id === draft.actuation_target_asset_id)).map((capability) => <option key={capability.key} value={capability.key}>{capability.key} · {capability.operations.join(", ")}</option>)}
+                            </select>
+                          </label>
+                          <label className="control-field">
+                            <span>Operación</span>
+                            <select className="input-select" value={draft.actuation_operation} onChange={(event) => updateDraft(policy.id, { actuation_operation: event.target.value as ControlPolicyDraft["actuation_operation"] })} disabled={!access?.permissions.edit_policies}>
+                              {CONTROL_OPERATIONS.map((operation) => <option key={operation} value={operation}>{operation}</option>)}
+                            </select>
+                          </label>
+                        </>
+                      ) : null}
                       <label className="control-field control-field-wide">
                         <span>Params JSON</span>
                         <textarea

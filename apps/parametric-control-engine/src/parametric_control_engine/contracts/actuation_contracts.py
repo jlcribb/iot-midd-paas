@@ -56,6 +56,9 @@ def stable_idempotency_key(
     target_reference: str,
     operation: str,
     policy_version: int | str,
+    target_asset_id: Optional[str] = None,
+    control_point: Optional[str] = None,
+    binding_version: Optional[int | str] = None,
 ) -> str:
     material = "|".join(
         [
@@ -65,6 +68,9 @@ def stable_idempotency_key(
             str(target_reference),
             str(operation),
             str(policy_version),
+            str(target_asset_id or target_reference),
+            str(control_point or "legacy_simulated"),
+            str(binding_version or "legacy"),
         ]
     )
     return f"actuation::{sha256(material.encode('utf-8')).hexdigest()[:48]}"
@@ -90,6 +96,9 @@ class ActuationRequest:
     expires_at: str
     governance_mode: str
     idempotency_key: str
+    control_point: Optional[str] = None
+    actuation_binding_id: Optional[str] = None
+    actuation_binding_version: Optional[int] = None
     simulated: bool = True
 
     def to_dict(self) -> Dict[str, Any]:

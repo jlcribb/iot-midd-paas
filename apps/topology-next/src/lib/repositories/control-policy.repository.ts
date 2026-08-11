@@ -2,7 +2,7 @@ import type { QueryResultRow } from "pg";
 import type { SqlExecutor } from "@/lib/db/tx";
 import { pool } from "@/lib/db/pool";
 import { buildUpdateSet } from "@/lib/db/sql";
-import type { ControlPolicy } from "@/lib/dto/control-policy.dto";
+import type { ControlOperation, ControlPolicy } from "@/lib/dto/control-policy.dto";
 import type { IControlPolicyRepository } from "@/lib/repositories/contracts";
 import type { CreateControlPolicyInput, UpdateControlPolicyInput } from "@/lib/validators/control-policy.schemas";
 
@@ -21,6 +21,17 @@ export function mapControlPolicy(row: QueryResultRow): ControlPolicy {
     binding: row.bound_asset_id ? {
       asset_id: String(row.bound_asset_id),
       variable_key: String(row.variable)
+    } : null,
+    actuation_binding: row.actuation_binding_id ? {
+      id: String(row.actuation_binding_id),
+      source_asset_id: String(row.actuation_source_asset_id),
+      target_asset_id: String(row.actuation_target_asset_id),
+      control_point: String(row.actuation_control_point),
+      operation: String(row.actuation_operation) as ControlOperation,
+      enabled: Boolean(row.actuation_binding_enabled),
+      version: Number(row.actuation_binding_version),
+      created_at: String(row.actuation_binding_created_at),
+      updated_at: String(row.actuation_binding_updated_at)
     } : null,
     context_selector: asObject(row.context_selector),
     policy_type: String(row.policy_type) as ControlPolicy["policy_type"],
@@ -82,7 +93,7 @@ export class ControlPolicyRepository implements IControlPolicyRepository {
 
   async findById(id: string): Promise<ControlPolicy | null> {
     const result = await this.db.query(
-      "SELECT * FROM public.project_control_policies WHERE id = $1::uuid",
+      `${this.selectWithActuationBinding()} WHERE p.id = $1::uuid`,
       [id]
     );
     return result.rows[0] ? mapControlPolicy(result.rows[0]) : null;
@@ -121,16 +132,28 @@ export class ControlPolicyRepository implements IControlPolicyRepository {
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
 
     const result = await this.db.query(
-      `
-      SELECT *
-      FROM public.project_control_policies
-      ${whereClause}
-      ORDER BY project_id ASC, variable ASC, priority DESC, version DESC, updated_at DESC
-      `,
+      `${this.selectWithActuationBinding()} ${whereClause.replaceAll("project_id", "p.project_id").replaceAll("variable", "p.variable").replaceAll("enabled", "p.enabled")}
+      ORDER BY p.project_id ASC, p.variable ASC, p.priority DESC, p.version DESC, p.updated_at DESC`,
       values
     );
 
     return result.rows.map(mapControlPolicy);
+  }
+
+  private selectWithActuationBinding() {
+    return `
+      SELECT p.*,
+        ab.id AS actuation_binding_id,
+        ab.source_asset_id AS actuation_source_asset_id,
+        ab.target_asset_id AS actuation_target_asset_id,
+        ab.control_point AS actuation_control_point,
+        ab.operation AS actuation_operation,
+        ab.enabled AS actuation_binding_enabled,
+        ab.version AS actuation_binding_version,
+        ab.created_at AS actuation_binding_created_at,
+        ab.updated_at AS actuation_binding_updated_at
+      FROM public.project_control_policies p
+      LEFT JOIN public.project_control_policy_actuation_bindings ab ON ab.policy_id = p.id`;
   }
 
   async update(id: string, input: UpdateControlPolicyInput & { version?: number }): Promise<ControlPolicy | null> {
