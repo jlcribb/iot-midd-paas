@@ -22,7 +22,7 @@ import os
 import sys
 import time
 import uuid
-from dataclasses import asdict, is_dataclass
+from dataclasses import asdict, dataclass, field, is_dataclass
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
@@ -120,9 +120,69 @@ DEFAULT_MIN_ACTION = float(os.getenv("CONTROL_WORKER_MIN_ACTION", "0.0"))
 DEFAULT_MAX_ACTION = os.getenv("CONTROL_WORKER_MAX_ACTION")
 PUBLISH_MODE = os.getenv("CONTROL_WORKER_PUBLISH_MODE", "rabbitmq").strip().lower()
 POLL_INTERVAL_SECONDS = float(os.getenv("CONTROL_WORKER_POLL_INTERVAL_SECONDS", "1.0"))
+PUBLISH_MAX_ATTEMPTS = max(1, int(os.getenv("CONTROL_WORKER_PUBLISH_MAX_ATTEMPTS", "2")))
+PUBLISH_RETRY_DELAY_SECONDS = max(0.0, float(os.getenv("CONTROL_WORKER_PUBLISH_RETRY_DELAY_SECONDS", "0.2")))
 
 sink_adapter = RecommendationSinkAdapter()
 _rabbitmq_client = None
+
+
+@dataclass
+class ControlWorkerMetrics:
+    events_received: int = 0
+    processed: int = 0
+    skipped: int = 0
+    errors: int = 0
+    recommendation_publish_success: int = 0
+    recommendation_publish_failure: int = 0
+    audit_publish_success: int = 0
+    audit_publish_failure: int = 0
+    audit_persistence_success: int = 0
+    audit_persistence_failure: int = 0
+    processing_latency_ms_total: float = 0.0
+    processing_latency_ms_latest: float | None = None
+    started_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
+    def snapshot(self) -> Dict[str, Any]:
+        completed = self.processed + self.skipped + self.errors
+        return {
+            **asdict(self),
+            "completed": completed,
+            "processing_latency_ms_average": (
+                self.processing_latency_ms_total / completed if completed else 0.0
+            ),
+        }
+
+
+worker_metrics = ControlWorkerMetrics()
+
+
+def get_worker_metrics() -> Dict[str, Any]:
+    """Minimal in-process health/observability snapshot for logs and tests."""
+    return worker_metrics.snapshot()
+
+
+def _record_control_event(stage: str, event: Dict[str, Any], **details: Any) -> None:
+    fields = {
+        "stage": stage,
+        "event_id": event.get("event_id"),
+        "correlation_id": _build_correlation_id(event),
+        "project_id": event.get("project_id"),
+        "asset_id": (event.get("context") or {}).get("asset_id") or (event.get("context") or {}).get("device_id"),
+        "variable": event.get("variable"),
+        **details,
+    }
+    logger.info("[CONTROL_EVENT] %s", json.dumps(fields, ensure_ascii=False, default=str))
+
+
+def _track_delivery(kind: str, result: Dict[str, Any]) -> None:
+    success = result.get("status") == "published"
+    if kind == "recommendation":
+        worker_metrics.recommendation_publish_success += int(success)
+        worker_metrics.recommendation_publish_failure += int(not success)
+    else:
+        worker_metrics.audit_publish_success += int(success)
+        worker_metrics.audit_publish_failure += int(not success)
 
 
 def utc_now_iso() -> str:
@@ -590,32 +650,20 @@ def publish_event(queue_name: str, payload: Dict[str, Any]) -> Dict[str, Any]:
     long-running consumer/publisher path as the default runtime mode.
     """
     if PUBLISH_MODE == "rabbitmq":
-        try:
-            client, _ = _load_rabbitmq_client()
-            if not client.publish_json(
-                routing_key=queue_name,
-                payload=payload,
-                queue_name=queue_name,
-                durable_queue=True,
-            ):
-                raise ConnectionError(f"Failed to publish payload for routing key {queue_name}")
-            logger.info("[PUBLISH_RABBITMQ] queue=%s", queue_name)
-            return {
-                "status": "published",
-                "transport": "rabbitmq",
-                "routing_key": queue_name,
-            }
-        except Exception as exc:
-            logger.warning(
-                "RabbitMQ publish unavailable for queue=%s: %s. Falling back to stdout.",
-                queue_name,
-                exc,
-            )
-            fallback_error = str(exc)
-        else:  # pragma: no cover
-            fallback_error = None
-    else:
-        fallback_error = None
+        last_error: str | None = None
+        for attempt in range(1, PUBLISH_MAX_ATTEMPTS + 1):
+            try:
+                client, _ = _load_rabbitmq_client()
+                if client.publish_json(routing_key=queue_name, payload=payload, queue_name=queue_name, durable_queue=True):
+                    logger.info("[CONTROL_PUBLISH] queue=%s attempt=%s status=published", queue_name, attempt)
+                    return {"status": "published", "transport": "rabbitmq", "routing_key": queue_name, "attempts": attempt}
+                last_error = "publish_json returned false"
+            except Exception as exc:
+                last_error = str(exc)
+            if attempt < PUBLISH_MAX_ATTEMPTS:
+                time.sleep(PUBLISH_RETRY_DELAY_SECONDS)
+        logger.error("[CONTROL_PUBLISH] queue=%s attempts=%s status=failed error=%s", queue_name, PUBLISH_MAX_ATTEMPTS, last_error)
+        return {"status": "failed", "transport": "rabbitmq", "routing_key": queue_name, "attempts": PUBLISH_MAX_ATTEMPTS, "error": last_error}
 
     logger.info(
         "[PUBLISH_STDOUT] queue=%s payload=%s",
@@ -623,10 +671,10 @@ def publish_event(queue_name: str, payload: Dict[str, Any]) -> Dict[str, Any]:
         json.dumps(payload, ensure_ascii=False, default=str),
     )
     return {
-        "status": "published_stdout" if PUBLISH_MODE == "stdout" else "fallback_stdout",
+        "status": "published_stdout",
         "transport": "stdout",
         "routing_key": queue_name,
-        "error": fallback_error,
+        "error": None,
     }
 
 
@@ -705,6 +753,9 @@ def _enrich_processed_audit_envelope(
 
 
 def handle_event(event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    started_at = time.monotonic()
+    worker_metrics.events_received += 1
+    _record_control_event("received", event)
     validate_telemetry_event(event)
 
     project_id = str(event["project_id"])
@@ -715,17 +766,18 @@ def handle_event(event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         )
         _mark_audit_persistence_pending(audit_payload)
         audit_publish_result = publish_event(AUDIT_QUEUE, audit_payload)
+        _track_delivery("audit", audit_publish_result)
         audit_payload["payload"]["delivery"]["audit_publish"] = audit_publish_result
         persistence_result = _persist_audit_envelope(
             audit_payload,
             action=CONTROL_AUDIT_ACTION_SKIPPED_BY_FEATURE_FLAG,
         )
         audit_payload["payload"]["delivery"]["audit_persistence"] = persistence_result
-        logger.info(
-            "Parametric control disabled; skipping event project_id=%s variable=%s",
-            project_id,
-            event.get("variable"),
-        )
+        worker_metrics.skipped += 1
+        worker_metrics.audit_persistence_success += int(persistence_result.get("status") == CONTROL_AUDIT_PERSISTENCE_STATUS_PERSISTED)
+        worker_metrics.audit_persistence_failure += int(persistence_result.get("status") != CONTROL_AUDIT_PERSISTENCE_STATUS_PERSISTED)
+        _record_control_event("skipped_feature_disabled", event)
+        _record_processing_latency(started_at)
         return {
             "publish_envelope": None,
             "audit_envelope": audit_payload,
@@ -757,23 +809,24 @@ def handle_event(event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
             publish_payload=publish_payload,
         )
         recommendation_publish_result = publish_event(RECOMMENDATION_QUEUE, publish_payload)
+        _track_delivery("recommendation", recommendation_publish_result)
         audit_payload["payload"]["delivery"]["recommendation_publish"] = recommendation_publish_result
         _mark_audit_persistence_pending(audit_payload)
         audit_publish_result = publish_event(AUDIT_QUEUE, audit_payload)
+        _track_delivery("audit", audit_publish_result)
         audit_payload["payload"]["delivery"]["audit_publish"] = audit_publish_result
         persistence_result = _persist_audit_envelope(
             audit_payload,
             action=CONTROL_AUDIT_ACTION_RECOMMENDATION_EMITTED,
         )
         audit_payload["payload"]["delivery"]["audit_persistence"] = persistence_result
-
-        logger.info(
-            "[CONTROL] project=%s variable=%s value=%s recommendation=%s",
-            project_id,
-            runtime_event.variable_id,
-            runtime_event.value,
-            json.dumps(publish_payload.get("payload", {}), ensure_ascii=False, default=str),
-        )
+        worker_metrics.processed += 1
+        worker_metrics.audit_persistence_success += int(persistence_result.get("status") == CONTROL_AUDIT_PERSISTENCE_STATUS_PERSISTED)
+        worker_metrics.audit_persistence_failure += int(persistence_result.get("status") != CONTROL_AUDIT_PERSISTENCE_STATUS_PERSISTED)
+        _record_control_event("evaluated", event, policy_id=selection.policy_id)
+        _record_control_event("recommendation_published" if recommendation_publish_result.get("status") == "published" else "recommendation_publish_failed", event, policy_id=selection.policy_id)
+        _record_control_event("audit_persisted" if persistence_result.get("status") == CONTROL_AUDIT_PERSISTENCE_STATUS_PERSISTED else "audit_persistence_failed", event, policy_id=selection.policy_id)
+        _record_processing_latency(started_at)
 
         return {
             "publish_envelope": publish_payload,
@@ -787,12 +840,18 @@ def handle_event(event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         )
         _mark_audit_persistence_pending(audit_payload)
         audit_publish_result = publish_event(AUDIT_QUEUE, audit_payload)
+        _track_delivery("audit", audit_publish_result)
         audit_payload["payload"]["delivery"]["audit_publish"] = audit_publish_result
         persistence_result = _persist_audit_envelope(
             audit_payload,
             action=CONTROL_AUDIT_ACTION_EVALUATION_FAILED,
         )
         audit_payload["payload"]["delivery"]["audit_persistence"] = persistence_result
+        worker_metrics.errors += 1
+        worker_metrics.audit_persistence_success += int(persistence_result.get("status") == CONTROL_AUDIT_PERSISTENCE_STATUS_PERSISTED)
+        worker_metrics.audit_persistence_failure += int(persistence_result.get("status") != CONTROL_AUDIT_PERSISTENCE_STATUS_PERSISTED)
+        _record_control_event("error", event, error_type=type(exc).__name__)
+        _record_processing_latency(started_at)
 
         logger.exception(
             "Control evaluation failed project_id=%s variable=%s",
@@ -800,6 +859,12 @@ def handle_event(event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
             event.get("variable"),
         )
         return None
+
+
+def _record_processing_latency(started_at: float) -> None:
+    elapsed_ms = (time.monotonic() - started_at) * 1000
+    worker_metrics.processing_latency_ms_total += elapsed_ms
+    worker_metrics.processing_latency_ms_latest = elapsed_ms
 
 
 def run_once_from_json(raw_json: str) -> Optional[Dict[str, Any]]:

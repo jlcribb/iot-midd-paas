@@ -30,6 +30,36 @@ def test_publish_event_uses_rabbitmq_when_enabled(monkeypatch):
     )
 
 
+def test_publish_event_retries_once_then_reports_success(monkeypatch):
+    dummy_client = DummyClient()
+    dummy_client.publish_json.side_effect = [False, True]
+    monkeypatch.setattr(worker, "PUBLISH_MODE", "rabbitmq")
+    monkeypatch.setattr(worker, "PUBLISH_MAX_ATTEMPTS", 2)
+    monkeypatch.setattr(worker, "PUBLISH_RETRY_DELAY_SECONDS", 0)
+    monkeypatch.setattr(worker, "_load_rabbitmq_client", lambda: (dummy_client, object()))
+
+    result = worker.publish_event("control.recommendations", {"payload": {}})
+
+    assert result["status"] == "published"
+    assert result["attempts"] == 2
+    assert dummy_client.publish_json.call_count == 2
+
+
+def test_publish_event_returns_failed_after_bounded_attempts(monkeypatch):
+    dummy_client = DummyClient()
+    dummy_client.publish_json.return_value = False
+    monkeypatch.setattr(worker, "PUBLISH_MODE", "rabbitmq")
+    monkeypatch.setattr(worker, "PUBLISH_MAX_ATTEMPTS", 2)
+    monkeypatch.setattr(worker, "PUBLISH_RETRY_DELAY_SECONDS", 0)
+    monkeypatch.setattr(worker, "_load_rabbitmq_client", lambda: (dummy_client, object()))
+
+    result = worker.publish_event("control.recommendations", {"payload": {}})
+
+    assert result["status"] == "failed"
+    assert result["attempts"] == 2
+    assert dummy_client.publish_json.call_count == 2
+
+
 def test_allow_inmemory_policy_fallback_requires_explicit_flag(monkeypatch):
     monkeypatch.setattr(worker, "PUBLISH_MODE", "stdout")
     monkeypatch.delenv("CONTROL_WORKER_ALLOW_INMEMORY_POLICY_FALLBACK", raising=False)
@@ -147,6 +177,10 @@ def test_handle_event_disabled_emits_only_audit(monkeypatch):
     assert result["audit_envelope"]["skip_reason"] == "feature_flag_disabled"
     assert published == [(worker.AUDIT_QUEUE, result["audit_envelope"])]
     assert persisted == [("CONTROL_SKIPPED_BY_FEATURE_FLAG", result["audit_envelope"])]
+    metrics = worker.get_worker_metrics()
+    assert metrics["events_received"] >= 1
+    assert metrics["skipped"] >= 1
+    assert metrics["processing_latency_ms_latest"] is not None
 
 
 def test_handle_event_enabled_emits_recommendation_and_audit(monkeypatch):
