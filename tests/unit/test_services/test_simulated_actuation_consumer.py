@@ -83,6 +83,12 @@ class InMemoryIntentRepository:
             if intent.status == "retry_pending" and intent.next_retry_at <= now
         ][:limit]
 
+    def prepare_dispatch_with_outbox(self, request):
+        intent = next(item for item in self.by_key.values() if item.command_id == request.command_id)
+        intent = self.transition(command_id=intent.command_id, from_statuses={"received"}, to_status="validated")
+        intent = self.transition(command_id=intent.command_id, from_statuses={"validated"}, to_status="ready_to_dispatch")
+        return intent, type("Event", (), {"event_id": "00000000-0000-0000-0000-000000000014"})()
+
 
 def recommendation(*, expires_at: str, schema_version: str = "1.0", actuation_binding=True):
     return {

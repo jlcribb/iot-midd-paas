@@ -262,6 +262,7 @@ class SimulatedActuationConsumer:
         retry_max_delay_seconds: float = RETRY_MAX_DELAY_SECONDS,
         retry_jitter_seconds: float = RETRY_JITTER_SECONDS,
         jitter: Callable[[float, float], float] = random.uniform,
+        dispatch_immediately: bool = True,
     ) -> None:
         self.repository = repository or ActuationDeliveryIntentRepository()
         self.adapter = adapter or SimulatedActuationAdapter()
@@ -274,6 +275,7 @@ class SimulatedActuationConsumer:
         self.retry_max_delay_seconds = max(self.retry_base_delay_seconds, retry_max_delay_seconds)
         self.retry_jitter_seconds = max(0.0, retry_jitter_seconds)
         self.jitter = jitter
+        self.dispatch_immediately = dispatch_immediately
 
     def _now(self) -> datetime:
         return self.now().astimezone(timezone.utc)
@@ -457,11 +459,13 @@ class SimulatedActuationConsumer:
                 )
                 self._audit("CONTROL_ACTUATION_REJECTED", intent)
                 return ConsumerOutcome(status="rejected", command_id=intent.command_id, error_code=failure.code, should_dead_letter=True, metadata=self._identity_metadata(intent))
-            intent = self._transition(command_id=intent.command_id, from_statuses={"received"}, to_status="validated")
+            intent, event = self.repository.prepare_dispatch_with_outbox(request)
             self.metrics.valid += 1
-            self._audit("CONTROL_ACTUATION_VALIDATED", intent)
-            intent = self._transition(command_id=intent.command_id, from_statuses={"validated"}, to_status="ready_to_dispatch")
-            self._audit("CONTROL_ACTUATION_READY_TO_DISPATCH", intent)
+            self._audit("CONTROL_ACTUATION_OUTBOX_CREATED", intent, result={"event_id": event.event_id})
+            if not self.dispatch_immediately:
+                return ConsumerOutcome(status="queued", command_id=intent.command_id, metadata={**self._identity_metadata(intent), "event_id": event.event_id})
+            # Compatibility mode is used only by focused unit tests; production
+            # consumers set dispatch_immediately=False and use the outbox path.
             return self._dispatch(intent, request, from_statuses={"ready_to_dispatch"})
         except InvalidTargetError as exc:
             self.metrics.invalid += 1
@@ -523,7 +527,7 @@ def consume_simulated_recommendations(*, max_messages: Optional[int] = None, idl
     client = _rabbitmq_client()
     if not declare_simulated_delivery_topology(client):
         raise ConnectionError("Could not declare simulated actuation delivery topology")
-    consumer = SimulatedActuationConsumer()
+    consumer = SimulatedActuationConsumer(dispatch_immediately=False)
     processed = 0
     idle_started = time.monotonic()
     while True:

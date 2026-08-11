@@ -174,6 +174,53 @@ services:
       - rabbitmq
       - postgresql
 
+  actuation-outbox-publisher:
+    image: docker.io/python:3.12-slim
+    working_dir: /app
+    container_name: actuation-outbox-publisher
+    command: bash -lc "pip install --no-cache-dir -r /app/requirements.txt && PYTHONPATH=/app/src:/app/apps/parametric-control-engine/src python -m iot_middleware.services.actuation_outbox_publisher"
+    restart: unless-stopped
+    environment:
+      - DB_HOST=postgresql
+      - DB_PORT=5432
+      - DB_NAME=iot_middleware
+      - DB_USER=iot_user
+      - DB_PASSWORD=iot_password_2024
+      - CONTROL_WORKER_RABBITMQ_HOST=rabbitmq
+      - CONTROL_WORKER_RABBITMQ_PORT=5672
+      - CONTROL_WORKER_RABBITMQ_USERNAME=guest
+      - CONTROL_WORKER_RABBITMQ_PASSWORD=guest
+      - ACTUATION_OUTBOX_POLL_INTERVAL_SECONDS=1
+    volumes:
+      - ../..:/app
+      - ../../config.yaml:/app/config.yaml
+    depends_on:
+      - rabbitmq
+      - postgresql
+
+  simulated-dispatch-consumer:
+    image: docker.io/python:3.12-slim
+    working_dir: /app
+    container_name: simulated-dispatch-consumer
+    command: bash -lc "pip install --no-cache-dir -r /app/requirements.txt && PYTHONPATH=/app/src:/app/apps/parametric-control-engine/src python -m iot_middleware.services.simulated_dispatch_consumer"
+    restart: unless-stopped
+    environment:
+      - DB_HOST=postgresql
+      - DB_PORT=5432
+      - DB_NAME=iot_middleware
+      - DB_USER=iot_user
+      - DB_PASSWORD=iot_password_2024
+      - CONTROL_WORKER_RABBITMQ_HOST=rabbitmq
+      - CONTROL_WORKER_RABBITMQ_PORT=5672
+      - CONTROL_WORKER_RABBITMQ_USERNAME=guest
+      - CONTROL_WORKER_RABBITMQ_PASSWORD=guest
+    volumes:
+      - ../..:/app
+      - ../../config.yaml:/app/config.yaml
+    depends_on:
+      - rabbitmq
+      - postgresql
+
   rabbitmq:
     image: docker.io/rabbitmq:3-management
     container_name: rabbitmq

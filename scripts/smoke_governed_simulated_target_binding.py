@@ -9,6 +9,7 @@ only its own data. No broker, MQTT, hardware, or outbox is used.
 from __future__ import annotations
 
 import json
+import time
 import uuid
 from datetime import datetime, timedelta, timezone
 
@@ -49,8 +50,14 @@ def main() -> None:
                 (id, policy_id, project_id, source_asset_id, target_asset_id, control_point, operation, version)
                 VALUES (CAST(:id AS uuid), CAST(:policy AS uuid), CAST(:project AS uuid), CAST(:source AS uuid), CAST(:target AS uuid), 'relay_1', 'set', 1)"""), {"id": binding_id, "policy": policy_id, "project": project_id, "source": source_id, "target": target_id})
 
-        consumer = SimulatedActuationConsumer()
-        assert consumer.process(envelope).status == "acknowledged"
+        consumer = SimulatedActuationConsumer(dispatch_immediately=False)
+        queued = consumer.process(envelope)
+        assert queued.status == "queued"
+        for _ in range(20):
+            if consumer.repository.get_by_command_id(queued.command_id).status == "acknowledged":
+                break
+            time.sleep(0.25)
+        assert consumer.repository.get_by_command_id(queued.command_id).status == "acknowledged"
         unbound = {**envelope, "payload": {**envelope["payload"], "recommendation_id": f"recommendation::{uuid.uuid4()}"}}
         unbound["payload"].pop("actuation_binding")
         assert consumer.process(unbound).status == "recommendation_only"

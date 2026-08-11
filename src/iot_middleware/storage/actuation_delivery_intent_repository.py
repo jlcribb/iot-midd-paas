@@ -225,6 +225,19 @@ class ActuationDeliveryIntentRepository:
             raise InvalidDeliveryTransition(f"No intent can transition to {to_status}")
         return _map_row(row)
 
+    def prepare_dispatch_with_outbox(self, request: Any):
+        """Atomically move a fresh intent to ready_to_dispatch and persist its event."""
+        from iot_middleware.storage.actuation_outbox_repository import ActuationOutboxRepository
+        with self._engine.begin() as connection:
+            validated = connection.execute(text("""UPDATE public.control_actuation_delivery_intents
+                SET status='validated', updated_at=NOW() WHERE command_id=CAST(:command_id AS uuid) AND status='received' RETURNING *"""), {"command_id": request.command_id}).mappings().first()
+            if not validated:
+                raise InvalidDeliveryTransition("Intent cannot be prepared for dispatch")
+            ready = connection.execute(text("""UPDATE public.control_actuation_delivery_intents
+                SET status='ready_to_dispatch', updated_at=NOW() WHERE command_id=CAST(:command_id AS uuid) AND status='validated' RETURNING *"""), {"command_id": request.command_id}).mappings().one()
+            event = ActuationOutboxRepository(self._engine).insert_for_request(connection, request)
+        return _map_row(ready), event
+
     def get_due_retries(self, *, now: Optional[datetime] = None, limit: int = 20) -> list[DeliveryIntent]:
         """Return retryable intents due for one bounded, idempotent retry claim."""
         query = text(
