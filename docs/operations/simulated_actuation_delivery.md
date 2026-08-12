@@ -67,11 +67,10 @@ transaction.
 
 ## Outbox boundary
 
-No outbox is implemented in this phase. Before any physical adapter is
-introduced, the transaction that persists an intent transition to
-`ready_to_dispatch`/`dispatched` must atomically insert an outbox event with
-`command_id`, `idempotency_key`, project and target references, correlation ID,
-attempt, event type, and creation timestamp. A separate publisher may then
-deliver that event idempotently to the physical adapter. Recommendation
-publication outbox support remains recommended but differable for this safe
-simulated flow.
+The transition to `ready_to_dispatch` atomically inserts one simulated dispatch
+event into `control_actuation_outbox`. A separate at-least-once publisher sends
+it to `control.actuation.simulated.dispatch.v1`; a dispatch consumer then uses
+the existing simulated adapter and intent idempotency boundary. Broker failure
+remains in the outbox; a terminal downstream failure goes to the existing
+simulated DLQ. This does not introduce a physical adapter or physical command
+publication.

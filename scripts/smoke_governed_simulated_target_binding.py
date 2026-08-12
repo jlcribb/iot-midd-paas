@@ -17,6 +17,7 @@ from sqlalchemy import text
 
 from iot_middleware.services.simulated_actuation_consumer import SimulatedActuationConsumer
 from iot_middleware.storage.db_handler import _get_control_settings_connection_url, _get_control_settings_engine
+from iot_middleware.storage.actuation_outbox_repository import ActuationOutboxRepository
 
 
 def main() -> None:
@@ -58,10 +59,21 @@ def main() -> None:
                 break
             time.sleep(0.25)
         assert consumer.repository.get_by_command_id(queued.command_id).status == "acknowledged"
+        outbox = ActuationOutboxRepository(engine)
+        with engine.connect() as connection:
+            event_row = connection.execute(text("SELECT event_id FROM control_actuation_outbox WHERE command_id=CAST(:id AS uuid)"), {"id": queued.command_id}).mappings().one()
+        event = outbox.get(str(event_row["event_id"]))
+        assert event.status == "published" and event.payload["physical_effects"] is False
+        from iot_middleware.services.control_engine_worker import _load_rabbitmq_client
+        client, _ = _load_rabbitmq_client()
+        assert client.publish_json(routing_key=event.routing_key, payload=event.payload)
+        time.sleep(1)
+        duplicate_intent = consumer.repository.get_by_command_id(queued.command_id)
+        assert duplicate_intent.status == "acknowledged" and duplicate_intent.retry_count == 1
         unbound = {**envelope, "payload": {**envelope["payload"], "recommendation_id": f"recommendation::{uuid.uuid4()}"}}
         unbound["payload"].pop("actuation_binding")
         assert consumer.process(unbound).status == "recommendation_only"
-        print("PASS governed target acknowledged; unbound recommendation stayed recommendation-only")
+        print("PASS outbox published and duplicate dispatch preserved one acknowledged command; unbound recommendation stayed recommendation-only")
     finally:
         with engine.begin() as connection:
             connection.execute(text("DELETE FROM control_actuation_delivery_intents WHERE project_id = CAST(:id AS uuid)"), {"id": project_id})
