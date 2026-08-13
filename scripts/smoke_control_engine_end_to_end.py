@@ -85,11 +85,20 @@ LEVELS = [
 ]
 
 RUN_ID = uuid.uuid4().hex
-TEST_PROJECT_ID = os.getenv("CONTROL_TEST_PROJECT_ID", "00000000-0000-0000-0000-000000000001")
+# Every execution owns a complete fixture. No persisted project, policy or
+# topology identifier is reused, which makes cleanup unambiguous.
+TEST_PROJECT_ID = os.getenv("CONTROL_TEST_PROJECT_ID", str(uuid.uuid4()))
 TEST_VARIABLE_ID = os.getenv("CONTROL_TEST_VARIABLE", "tank_level")
 TEST_SECTOR = os.getenv("CONTROL_TEST_SECTOR", "tank_A")
+TEST_SECTOR_ID = str(uuid.uuid4())
+TEST_SOURCE_ASSET_ID = str(uuid.uuid4())
+TEST_TARGET_ASSET_ID = str(uuid.uuid4())
+TEST_POLICY_ID = str(uuid.uuid4())
+TEST_BINDING_ID = str(uuid.uuid4())
 TEST_EVENT_ID = f"evt-e2e-{RUN_ID}"
-CONTROL_API_BASE_URL = os.getenv("CONTROL_API_BASE_URL", "http://127.0.0.1:3000")
+SMOKE_RECOMMENDATION_QUEUE = os.getenv("CONTROL_SMOKE_RECOMMENDATION_QUEUE", "")
+SMOKE_AUDIT_QUEUE = os.getenv("CONTROL_SMOKE_AUDIT_QUEUE", "")
+SMOKE_SIMULATED_QUEUE = os.getenv("CONTROL_SMOKE_SIMULATED_QUEUE", "")
 DEFAULT_RABBITMQ_HOST = os.getenv("RABBITMQ_HOST", "localhost")
 DEFAULT_RABBITMQ_PORT = int(os.getenv("RABBITMQ_PORT", "5672"))
 DEFAULT_MQTT_HOST = os.getenv("MQTT_HOST", "localhost")
@@ -229,7 +238,7 @@ def build_valid_event(*, event_id: str | None = None, value: float = 72.5) -> Di
             "sector": TEST_SECTOR,
             "unit_id": "unit-smoke",
             "device_id": "device-smoke",
-            "asset_id": "asset-smoke",
+            "asset_id": TEST_SOURCE_ASSET_ID,
             "location_id": "location-smoke",
         },
     }
@@ -306,6 +315,36 @@ def ensure_project(engine, *, enabled: bool) -> None:
                 "enabled": enabled,
             },
         )
+        connection.execute(
+            text(
+                """
+                INSERT INTO public.sectors (id, project_id, name)
+                VALUES (CAST(:sector_id AS uuid), CAST(:project_id AS uuid), :name)
+                ON CONFLICT (id) DO NOTHING
+                """
+            ),
+            {"sector_id": TEST_SECTOR_ID, "project_id": TEST_PROJECT_ID, "name": f"smoke-{RUN_ID}"},
+        )
+        connection.execute(
+            text(
+                """
+                INSERT INTO public.assets (id, project_id, sector_id, asset_type, subtype, name, status, metadata)
+                VALUES
+                  (CAST(:source_id AS uuid), CAST(:project_id AS uuid), CAST(:sector_id AS uuid),
+                   CAST('sensor' AS asset_type_enum), 'smoke', 'source', 'active', '{}'::jsonb),
+                  (CAST(:target_id AS uuid), CAST(:project_id AS uuid), CAST(:sector_id AS uuid),
+                   CAST('actuator' AS asset_type_enum), 'smoke', 'target', 'active',
+                   '{"control_capabilities":[{"key":"relay_1","operations":["set"]}]}'::jsonb)
+                ON CONFLICT (id) DO NOTHING
+                """
+            ),
+            {
+                "source_id": TEST_SOURCE_ASSET_ID,
+                "target_id": TEST_TARGET_ASSET_ID,
+                "project_id": TEST_PROJECT_ID,
+                "sector_id": TEST_SECTOR_ID,
+            },
+        )
 
 
 def replace_policy(engine, *, enabled: bool) -> None:
@@ -330,7 +369,9 @@ def replace_policy(engine, *, enabled: bool) -> None:
             text(
                 """
                 INSERT INTO public.project_control_policies (
+                    id,
                     project_id,
+                    bound_asset_id,
                     variable,
                     context_selector,
                     policy_type,
@@ -340,7 +381,9 @@ def replace_policy(engine, *, enabled: bool) -> None:
                     version
                 )
                 VALUES (
+                    CAST(:policy_id AS uuid),
                     CAST(:project_id AS uuid),
+                    CAST(:source_asset_id AS uuid),
                     :variable,
                     CAST(:context_selector AS jsonb),
                     'proportional',
@@ -352,7 +395,9 @@ def replace_policy(engine, *, enabled: bool) -> None:
                 """
             ),
             {
+                "policy_id": TEST_POLICY_ID,
                 "project_id": TEST_PROJECT_ID,
+                "source_asset_id": TEST_SOURCE_ASSET_ID,
                 "variable": TEST_VARIABLE_ID,
                 "context_selector": json.dumps({"sector": TEST_SECTOR}),
                 "params": json.dumps(
@@ -366,6 +411,24 @@ def replace_policy(engine, *, enabled: bool) -> None:
                         "min_action": 0.0,
                     }
                 ),
+            },
+        )
+        connection.execute(
+            text(
+                """
+                INSERT INTO public.project_control_policy_actuation_bindings
+                    (id, policy_id, project_id, source_asset_id, target_asset_id, control_point, operation, version)
+                VALUES
+                    (CAST(:binding_id AS uuid), CAST(:policy_id AS uuid), CAST(:project_id AS uuid),
+                     CAST(:source_asset_id AS uuid), CAST(:target_asset_id AS uuid), 'relay_1', 'set', 1)
+                """
+            ),
+            {
+                "binding_id": TEST_BINDING_ID,
+                "policy_id": TEST_POLICY_ID,
+                "project_id": TEST_PROJECT_ID,
+                "source_asset_id": TEST_SOURCE_ASSET_ID,
+                "target_asset_id": TEST_TARGET_ASSET_ID,
             },
         )
 
@@ -463,37 +526,63 @@ def evaluate_audit_consistency(audit_row: Dict[str, Any]) -> List[Dict[str, Any]
     return scenarios
 
 
-def verify_observability_endpoints(event_id: str) -> Dict[str, Any]:
-    recommendations = fetch_json(
-        f"{CONTROL_API_BASE_URL}/api/control/recommendations?projectId={TEST_PROJECT_ID}&limit=10"
+def wait_for_simulated_delivery(engine, *, correlation_id: str, timeout_seconds: float = 30.0) -> Dict[str, Any]:
+    """Verify the persisted result of the outbox → dispatch path without using legacy queues."""
+    deadline = time.monotonic() + timeout_seconds
+    query = text(
+        """
+        SELECT i.command_id, i.recommendation_id, i.correlation_id, i.policy_id,
+               i.policy_version, i.source_asset_id, i.target_asset_id,
+               i.actuation_binding_id, i.actuation_binding_version, i.status,
+               i.simulated, o.event_id, o.status AS outbox_status, o.payload
+        FROM public.control_actuation_delivery_intents i
+        JOIN public.control_actuation_outbox o ON o.command_id = i.command_id
+        WHERE i.project_id = CAST(:project_id AS uuid)
+          AND i.correlation_id = :correlation_id
+        ORDER BY i.created_at DESC
+        LIMIT 1
+        """
     )
-    audit_entries = fetch_json(
-        f"{CONTROL_API_BASE_URL}/api/control/audit?projectId={TEST_PROJECT_ID}&limit=10"
-    )
-    status = fetch_json(f"{CONTROL_API_BASE_URL}/api/control/status")
+    while time.monotonic() < deadline:
+        with engine.connect() as connection:
+            row = connection.execute(
+                query,
+                {"project_id": TEST_PROJECT_ID, "correlation_id": correlation_id},
+            ).mappings().first()
+        if row and row["status"] == "acknowledged" and row["outbox_status"] == "published":
+            payload = dict(row["payload"] or {})
+            if payload.get("simulated") is not True or payload.get("physical_effects") is not False:
+                raise AssertionError("dispatch payload must remain simulated with physical_effects=false")
+            return {key: (str(value) if key.endswith("_id") and value is not None else value) for key, value in row.items()}
+        time.sleep(0.5)
+    raise TimeoutError("No se alcanzó un intent acknowledged con outbox published")
 
-    recommendation_rows = recommendations.get("data") or []
-    audit_rows = audit_entries.get("data") or []
 
-    recommendation_match = next(
-        (row for row in recommendation_rows if row.get("event_id") == event_id),
-        None,
-    )
-    audit_match = next(
-        (row for row in audit_rows if row.get("event_id") == event_id),
-        None,
-    )
-
-    if recommendation_match is None:
-        raise LookupError("El endpoint /api/control/recommendations no refleja el evento del smoke")
-    if audit_match is None:
-        raise LookupError("El endpoint /api/control/audit no refleja el evento del smoke")
-
-    return {
-        "status": status.get("data") or status,
-        "recommendation": recommendation_match,
-        "audit": audit_match,
-    }
+def cleanup_fixture(engine) -> None:
+    """Remove only rows identifiable by this execution's random project id."""
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                """
+                DELETE FROM iot_schema.auditoria
+                WHERE cambios->'payload'->>'project_id' = :project_id
+                   OR cambios->>'project_id' = :project_id
+                """
+            ),
+            {"project_id": TEST_PROJECT_ID},
+        )
+        connection.execute(
+            text("DELETE FROM public.control_actuation_outbox WHERE project_id = CAST(:project_id AS uuid)"),
+            {"project_id": TEST_PROJECT_ID},
+        )
+        connection.execute(
+            text("DELETE FROM public.control_actuation_delivery_intents WHERE project_id = CAST(:project_id AS uuid)"),
+            {"project_id": TEST_PROJECT_ID},
+        )
+        connection.execute(
+            text("DELETE FROM public.projects WHERE id = CAST(:project_id AS uuid)"),
+            {"project_id": TEST_PROJECT_ID},
+        )
 
 
 def publish_mqtt_message(event_id: str) -> Dict[str, Any]:
@@ -506,7 +595,7 @@ def publish_mqtt_message(event_id: str) -> Dict[str, Any]:
         "timestamp": now_iso(),
         "sector": TEST_SECTOR,
         "location_id": "location-smoke",
-        "asset_id": "asset-smoke",
+        "asset_id": TEST_SOURCE_ASSET_ID,
     }
     topic = f"iot/{TEST_PROJECT_ID}/unit-smoke/device-smoke/{TEST_VARIABLE_ID}"
 
@@ -1057,25 +1146,18 @@ def run_full_e2e() -> Dict[str, Any]:
     rabbit_ok, rabbit_detail = tcp_check(DEFAULT_RABBITMQ_HOST, DEFAULT_RABBITMQ_PORT)
     mqtt_ok, mqtt_detail = tcp_check(DEFAULT_MQTT_HOST, DEFAULT_MQTT_PORT)
     postgres_ok, postgres_detail = can_connect_postgres()
-
-    api_ok = True
-    api_detail = "Control API reachable"
-    try:
-        fetch_json(f"{CONTROL_API_BASE_URL}/api/control/status")
-    except (HTTPError, URLError, OSError, json.JSONDecodeError) as exc:
-        api_ok = False
-        api_detail = f"Control API unavailable: {exc}"
-
     preflight_failures = [
         detail
         for ok, detail in [
             (rabbit_ok, rabbit_detail),
             (mqtt_ok, mqtt_detail),
             (postgres_ok, postgres_detail),
-            (api_ok, api_detail),
         ]
         if not ok
     ]
+    isolated_queues = [SMOKE_RECOMMENDATION_QUEUE, SMOKE_AUDIT_QUEUE, SMOKE_SIMULATED_QUEUE]
+    if not all(queue.startswith("control.") and ".smoke." in queue for queue in isolated_queues):
+        preflight_failures.append("Las rutas de salida smoke deben declararse explícitamente y ser aisladas")
     if preflight_failures:
         return {
             "level": "full E2E",
@@ -1097,7 +1179,8 @@ def run_full_e2e() -> Dict[str, Any]:
         replace_policy(engine, enabled=True)
         mqtt_result = publish_mqtt_message(event_id)
         audit_row = wait_for_audit_row(engine, event_id=event_id, timeout_seconds=30.0)
-        observability = verify_observability_endpoints(event_id)
+        correlation_id = f"control::{event_id}::{TEST_VARIABLE_ID}"
+        delivery = wait_for_simulated_delivery(engine, correlation_id=correlation_id, timeout_seconds=30.0)
         consistency_scenarios = evaluate_audit_consistency(audit_row)
         level_status = PASS if all(item["status"] == PASS for item in consistency_scenarios) else FAIL
         return {
@@ -1106,12 +1189,12 @@ def run_full_e2e() -> Dict[str, Any]:
             "scenarios": [
                 scenario(
                     PASS,
-                    "mqtt_ingestor_worker_api",
-                    "Se verificó el canal MQTT -> ingestor -> auditoría persistida -> /api/control/*",
+                    "mqtt_ingestor_worker_outbox_dispatch",
+                    "Se verificó MQTT -> ingestor -> worker -> recommendation -> intent -> outbox -> dispatch simulated",
                     mqtt=mqtt_result,
                     audit_row=audit_row,
-                    observability=observability,
-                    note="La publicación broker de salida se valida por separado en broker-level para evitar consumir colas compartidas.",
+                    delivery=delivery,
+                    isolated_queues=isolated_queues,
                 )
             ] + consistency_scenarios,
         }
@@ -1122,7 +1205,7 @@ def run_full_e2e() -> Dict[str, Any]:
             "scenarios": [
                 scenario(
                     FAIL,
-                    "mqtt_ingestor_worker_api",
+                    "mqtt_ingestor_worker_outbox_dispatch",
                     f"El flujo E2E real falló: {exc}",
                 )
             ],
@@ -1149,13 +1232,22 @@ def print_human_summary(report: Dict[str, Any]) -> None:
 
 
 def main() -> int:
-    level_results = [
-        run_contract_level(),
-        run_component_level(),
-        run_broker_level(),
-        run_database_level(),
-        run_full_e2e(),
-    ]
+    try:
+        level_results = [
+            run_contract_level(),
+            run_component_level(),
+            run_broker_level(),
+            run_database_level(),
+            run_full_e2e(),
+        ]
+    finally:
+        # The fixture is random and isolated, so cleanup cannot touch existing
+        # projects, policies, outbox rows or audit history.
+        try:
+            cleanup_fixture(build_postgres_engine())
+        except Exception as exc:
+            print(f"[SMOKE] cleanup failed for fixture {TEST_PROJECT_ID}: {exc}", file=sys.stderr)
+            raise
     overall_status, exit_code = summarize_levels(level_results)
 
     report = {

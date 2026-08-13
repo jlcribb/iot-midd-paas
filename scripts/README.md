@@ -117,7 +117,7 @@ docker compose -f infra/containers/docker-compose.yaml up -d
 # Smoke RabbitMQ del worker (enabled + disabled, sin MQTT)
 ./scripts/smoke_control_engine_rabbitmq.sh
 
-# Smoke oficial de consolidación del canal MQTT -> runtime -> observabilidad
+# Smoke oficial MQTT -> runtime -> outbox -> dispatch simulated
 ./scripts/smoke_control_engine_end_to_end.sh
 ```
 
@@ -130,13 +130,18 @@ resuelve por defecto:
 - MQTT: `localhost:1883`
 - observabilidad Next.js: `http://127.0.0.1:3000`
 
+El smoke E2E usa routing keys aisladas y temporales para recommendation/audit;
+por ello no consume, purga ni incrementa `control.recommendations` o
+`control.audit`. Al finalizar restaura los dos servicios recreados a sus rutas
+canónicas y elimina las colas temporales.
+
 El smoke E2E distingue estos niveles:
 
 - `contract-level`
 - `component-level`
 - `broker-level`
 - `database-level`
-- `full E2E`
+- `full E2E` MQTT → ingestor → worker → outbox → dispatch simulated
 
 Y separa además la evidencia de auditoría en:
 

@@ -130,11 +130,11 @@ class TestEntidadAuditable(unittest.TestCase):
     
     def test_valor_config_middleware(self):
         """Prueba el valor CONFIG_MIDDLEWARE"""
-        self.assertEqual(EntidadAuditoria.CONFIG_MIDDLEWARE.value, "config_middleware")
+        self.assertEqual(EntidadAuditable.CONFIG_MIDDLEWARE.value, "config_middleware")
     
     def test_valor_canal(self):
         """Prueba el valor CANAL"""
-        self.assertEqual(EntidadAuditoria.CANAL.value, "canal")
+        self.assertEqual(EntidadAuditable.CANAL.value, "canal")
 
 
 class TestAuditoriaService(unittest.TestCase):
@@ -143,7 +143,7 @@ class TestAuditoriaService(unittest.TestCase):
     def setUp(self):
         """Configuración inicial para cada prueba"""
         # Mock del manejador de base de datos
-        self.mock_db_handler = Mock()
+        self.mock_db_handler = MagicMock()
         self.mock_session = Mock()
         self.mock_db_handler.get_session.return_value.__enter__.return_value = self.mock_session
         self.mock_db_handler.get_session.return_value.__exit__.return_value = None
@@ -364,7 +364,7 @@ class TestDecoradoresAuditoria(unittest.TestCase):
     
     def setUp(self):
         """Configuración inicial para cada prueba"""
-        self.mock_db_handler = Mock()
+        self.mock_db_handler = MagicMock()
         self.mock_session = Mock()
         self.mock_db_handler.get_session.return_value.__enter__.return_value = self.mock_session
         self.mock_db_handler.get_session.return_value.__exit__.return_value = None
@@ -378,7 +378,7 @@ class TestDecoradoresAuditoria(unittest.TestCase):
             def __init__(self, auditoria_service):
                 self.auditoria_service = auditoria_service
             
-            @auditar_cambios(EntidadAuditoria.CONFIG_MIDDLEWARE, AccionAuditoria.CREAR)
+            @auditar_cambios(EntidadAuditable.CONFIG_MIDDLEWARE, AccionAuditoria.CREAR)
             def crear_config(self, id: str, data: dict):
                 return True
         
@@ -403,7 +403,7 @@ class TestContextManagerAuditoria(unittest.TestCase):
     
     def setUp(self):
         """Configuración inicial para cada prueba"""
-        self.mock_db_handler = Mock()
+        self.mock_db_handler = MagicMock()
         self.mock_session = Mock()
         self.mock_db_handler.get_session.return_value.__enter__.return_value = self.mock_session
         self.mock_db_handler.get_session.return_value.__exit__.return_value = None
@@ -457,7 +457,7 @@ class TestGeneracionReportes(unittest.TestCase):
     
     def setUp(self):
         """Configuración inicial para cada prueba"""
-        self.mock_db_handler = Mock()
+        self.mock_db_handler = MagicMock()
         self.mock_session = Mock()
         self.mock_db_handler.get_session.return_value.__enter__.return_value = self.mock_session
         self.mock_db_handler.get_session.return_value.__exit__.return_value = None
@@ -472,7 +472,10 @@ class TestGeneracionReportes(unittest.TestCase):
                 'id': 1,
                 'usuario_id': 'user_001',
                 'entidad': 'config_middleware',
+                'entidad_id': 'config_001',
                 'accion': 'CREAR',
+                'cambios': {},
+                'ip_origen': None,
                 'timestamp': datetime.now(timezone.utc).isoformat()
             }
         ]
@@ -496,7 +499,10 @@ class TestGeneracionReportes(unittest.TestCase):
                 'id': 1,
                 'usuario_id': 'user_001',
                 'entidad': 'config_middleware',
+                'entidad_id': 'config_001',
                 'accion': 'CREAR',
+                'cambios': {},
+                'ip_origen': None,
                 'timestamp': datetime.now(timezone.utc).isoformat()
             }
         ]
@@ -519,7 +525,10 @@ class TestGeneracionReportes(unittest.TestCase):
                 'id': 1,
                 'usuario_id': 'user_001',
                 'entidad': 'config_middleware',
+                'entidad_id': 'config_001',
                 'accion': 'CREAR',
+                'cambios': {},
+                'ip_origen': None,
                 'timestamp': datetime.now(timezone.utc).isoformat()
             }
         ]
@@ -550,7 +559,7 @@ class TestConsultasAuditoria(unittest.TestCase):
     
     def setUp(self):
         """Configuración inicial para cada prueba"""
-        self.mock_db_handler = Mock()
+        self.mock_db_handler = MagicMock()
         self.mock_session = Mock()
         self.mock_db_handler.get_session.return_value.__enter__.return_value = self.mock_session
         self.mock_db_handler.get_session.return_value.__exit__.return_value = None

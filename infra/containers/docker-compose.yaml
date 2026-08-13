@@ -119,13 +119,13 @@ services:
       - POSTGRES_PASSWORD=iot_password_2024
       - CONTROL_WORKER_PUBLISH_MODE=rabbitmq
       - CONTROL_WORKER_ALLOW_INMEMORY_POLICY_FALLBACK=false
-      - CONTROL_WORKER_INPUT_QUEUE=telemetry.events
-      - CONTROL_WORKER_INPUT_ROUTING_KEY=telemetry.events
-      - CONTROL_WORKER_CONSUMER_QUEUE=telemetry.events
-      - CONTROL_WORKER_RECOMMENDATION_QUEUE=control.recommendations
-      - CONTROL_WORKER_AUDIT_QUEUE=control.audit
-      - CONTROL_SIMULATED_ACTUATION_ENABLED=true
-      - SIMULATED_ACTUATION_RECOMMENDATION_QUEUE=control.recommendations.simulated.v1
+      - CONTROL_WORKER_INPUT_QUEUE=${CONTROL_WORKER_INPUT_QUEUE:-telemetry.events}
+      - CONTROL_WORKER_INPUT_ROUTING_KEY=${CONTROL_WORKER_INPUT_ROUTING_KEY:-telemetry.events}
+      - CONTROL_WORKER_CONSUMER_QUEUE=${CONTROL_WORKER_CONSUMER_QUEUE:-telemetry.events}
+      - CONTROL_WORKER_RECOMMENDATION_QUEUE=${CONTROL_WORKER_RECOMMENDATION_QUEUE:-control.recommendations}
+      - CONTROL_WORKER_AUDIT_QUEUE=${CONTROL_WORKER_AUDIT_QUEUE:-control.audit}
+      - CONTROL_SIMULATED_ACTUATION_ENABLED=${CONTROL_SIMULATED_ACTUATION_ENABLED:-true}
+      - SIMULATED_ACTUATION_RECOMMENDATION_QUEUE=${SIMULATED_ACTUATION_RECOMMENDATION_QUEUE:-control.recommendations.simulated.v1}
       - CONTROL_WORKER_RABBITMQ_HOST=rabbitmq
       - CONTROL_WORKER_RABBITMQ_PORT=5672
       - CONTROL_WORKER_RABBITMQ_USERNAME=guest
@@ -164,8 +164,8 @@ services:
       - CONTROL_WORKER_RABBITMQ_PASSWORD=guest
       - CONTROL_WORKER_RABBITMQ_VHOST=/
       - CONTROL_WORKER_RABBITMQ_EXCHANGE=iot_middleware
-      - SIMULATED_ACTUATION_RECOMMENDATION_QUEUE=control.recommendations.simulated.v1
-      - SIMULATED_ACTUATION_RECOMMENDATION_ROUTING_KEY=control.recommendations.simulated.v1
+      - SIMULATED_ACTUATION_RECOMMENDATION_QUEUE=${SIMULATED_ACTUATION_RECOMMENDATION_QUEUE:-control.recommendations.simulated.v1}
+      - SIMULATED_ACTUATION_RECOMMENDATION_ROUTING_KEY=${SIMULATED_ACTUATION_RECOMMENDATION_ROUTING_KEY:-control.recommendations.simulated.v1}
       - REPO_ROOT=/app
     volumes:
       - ../..:/app
@@ -294,7 +294,9 @@ services:
       - NEXT_DIST_DIR=.next-docker
       - AUTH_SECRET=dev-local-auth-secret
       - AUTH_URL=http://localhost:3000
-      - CONTROL_RBAC_ALLOW_DEV_FALLBACK=${CONTROL_RBAC_ALLOW_DEV_FALLBACK:-true}
+      # The fallback is unsafe and deliberately opt-in. Development is not a
+      # trusted authorization boundary for governed/RC validation.
+      - CONTROL_RBAC_ALLOW_DEV_FALLBACK=${CONTROL_RBAC_ALLOW_DEV_FALLBACK:-false}
       - CONTROL_RBAC_DEFAULT_USER_ID=local-control-admin
       - CONTROL_RBAC_DEFAULT_USER_NAME=Local Control Admin
       - CONTROL_RBAC_DEFAULT_ROLE=admin

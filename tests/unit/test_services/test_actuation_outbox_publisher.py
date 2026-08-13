@@ -41,3 +41,18 @@ def test_publisher_audits_failure_retry_and_exhaustion(monkeypatch):
     failed_repo = Repo(event(3), "failed")
     assert ActuationOutboxPublisher(failed_repo, Client(False)).publish_once() == [("failed", failed_repo.item.event_id)]
     assert {"CONTROL_ACTUATION_OUTBOX_PUBLISH_FAILED", "CONTROL_ACTUATION_OUTBOX_RETRY_EXHAUSTED"}.issubset(actions)
+
+
+def test_managed_client_is_reloaded_after_broker_failure(monkeypatch):
+    from iot_middleware.services import control_engine_worker
+
+    clients = iter([Client(ConnectionError("closed channel")), Client(True)])
+    monkeypatch.setattr(module, "_audit", lambda *args, **kwargs: None)
+    monkeypatch.setattr(control_engine_worker, "_load_rabbitmq_client", lambda: (next(clients), None))
+
+    repo = Repo(event())
+    publisher = ActuationOutboxPublisher(repo)
+
+    assert publisher.publish_once() == [("pending", repo.item.event_id)]
+    assert publisher.client is None
+    assert publisher.publish_once() == [("published", repo.item.event_id)]

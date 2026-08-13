@@ -36,6 +36,7 @@ class ActuationOutboxPublisher:
     def __init__(self, repository=None, client=None, *, max_attempts: int = 3, retry_base_delay_seconds: float = 1.0) -> None:
         self.repository = repository or ActuationOutboxRepository()
         self.client = client
+        self._uses_managed_client = client is None
         self.max_attempts = max(1, max_attempts)
         self.retry_base_delay_seconds = max(0.0, retry_base_delay_seconds)
         self.metrics = {"publish_attempts": 0, "publish_success": 0, "publish_failures": 0, "retries": 0, "failed": 0}
@@ -56,6 +57,11 @@ class ActuationOutboxPublisher:
                 _audit("CONTROL_ACTUATION_OUTBOX_PUBLISH_SUCCEEDED", event)
                 result.append(("published", event.event_id))
             except Exception as exc:
+                # A long-running publisher can outlive its RabbitMQ channel.
+                # Do not retain a closed managed client across the next polling
+                # cycle; injected clients remain stable for deterministic tests.
+                if self._uses_managed_client:
+                    self.client = None
                 self.metrics["publish_failures"] += 1
                 status = self.repository.retry_or_fail(event, exc, max_attempts=self.max_attempts, base_delay_seconds=self.retry_base_delay_seconds)
                 if status == "failed":

@@ -54,7 +54,14 @@ Si un usuario no autenticado intenta entrar a `/control` o
 Prioridad:
 
 1. sesión OAuth válida;
-2. fallback local/dev si `CONTROL_RBAC_ALLOW_DEV_FALLBACK=true` y no estamos en producción.
+2. fallback local/dev **solamente** si `CONTROL_RBAC_ALLOW_DEV_FALLBACK=true`
+   fue configurado de forma explícita y no estamos en producción.
+
+El fallback queda deshabilitado por defecto, incluso bajo `NODE_ENV=development`.
+El modo development no constituye una frontera de confianza. Cuando se habilita,
+el fallback puede conceder capacidades amplias mediante `x-control-*` y debe
+tratarse como una conveniencia insegura: no es válido para validación gobernada,
+candidatos RC ni producción.
 
 El helper principal es `resolveAuthenticatedControlActor()` y mapea:
 
@@ -93,13 +100,19 @@ Si un usuario está autenticado pero no aparece en ninguna lista, queda como
 
 ## Scope
 
-En esta fase el actor autenticado se considera `all_projects=true`, porque
-todavía no existe una tabla local de memberships por proyecto dentro de
-`topology-next`.
+Las sesiones OAuth se resuelven mediante memberships persistidos por proyecto.
+Siempre tienen `all_projects=false`: sin membership el scope queda vacío, y
+una membership concede exclusivamente el proyecto y rol asociados. El fallback
+local/dev, cuando fue habilitado de forma explícita, conserva el scope indicado
+por `x-control-project-ids` / `control_project_ids`.
 
-El scope granular por proyecto queda pendiente para una fase posterior.
-El fallback local/dev conserva el scope por `x-control-project-ids` /
-`control_project_ids`.
+## Matriz de configuración
+
+| Entorno | `CONTROL_RBAC_ALLOW_DEV_FALLBACK` | Uso permitido |
+| --- | --- | --- |
+| Development convenience inseguro | `true` explícito | Debug local controlado; nunca RC/release. |
+| Development gobernado / validación RC | `false` | OAuth + memberships persistidos. |
+| Producción | `false` obligatorio | OAuth + memberships persistidos. |
 
 ## Protección de endpoints
 

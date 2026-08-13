@@ -183,17 +183,25 @@ stack canónico levantado con Docker Compose y published ports locales:
 No requiere overrides manuales para `DB_HOST`/`POSTGRES_HOST` en el camino
 host-side habitual.
 
-Ese smoke cubre el canal oficial cuando el entorno completo está disponible:
+Ese smoke recrea únicamente el worker y el consumer de recomendaciones con
+routing keys aisladas por ejecución. Conserva `telemetry.events` como entrada
+canónica MQTT, pero nunca publica el smoke en las colas legacy
+`control.recommendations` ni `control.audit`. Al terminar, elimina sus colas
+temporales y restaura las rutas canónicas de ambos servicios.
+
+Cubre el canal oficial cuando el entorno completo está disponible:
 
 ```text
 MQTT
 → ingestor
 → telemetry.events
 → control_engine_worker
-→ control.recommendations
+→ recommendation aislada de smoke
+→ DeliveryIntent
+→ transactional outbox
+→ dispatch simulated
 → iot_schema.auditoria
-→ /api/control/recommendations
-→ /api/control/audit
+→ ActuationResult simulated
 ```
 
 Si el entorno no está completo, el smoke degrada de forma honesta y distingue:
@@ -210,6 +218,10 @@ Controles adicionales de auditoría en el smoke:
 - `audit_persistence_attempt`
 - `audit_database_row`
 - `audit_metadata_consistency`
+
+La auditoría persistida PostgreSQL es la evidencia primaria del smoke. La cola
+`control.audit` es un fan-out legacy/de integración y no debe ser consumida ni
+purgeada por validaciones.
 
 Exit codes del smoke:
 

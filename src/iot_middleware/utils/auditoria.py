@@ -462,6 +462,9 @@ class AuditoriaService:
         Returns:
             Reporte en el formato especificado
         """
+        if formato not in {'json', 'csv', 'html'}:
+            raise ValueError(f"Formato no soportado: {formato}")
+
         try:
             # Obtener datos de auditoría
             registros = self.obtener_auditoria(
@@ -487,8 +490,7 @@ class AuditoriaService:
                 return self._generar_csv(registros, estadisticas)
             elif formato == 'html':
                 return self._generar_html(registros, estadisticas)
-            else:
-                raise ValueError(f"Formato no soportado: {formato}")
+            raise AssertionError("validated report format was not handled")
                 
         except Exception as e:
             self.logger.error(f"❌ Error generando reporte: {e}")
