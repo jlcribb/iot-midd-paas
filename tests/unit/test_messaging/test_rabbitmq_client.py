@@ -88,6 +88,63 @@ class TestRabbitMQClient:
             
             assert result is False
             assert client.connected is False
+
+    def test_closed_channel_is_recreated_on_existing_connection(self, rabbitmq_config):
+        """A stale channel must not survive the next publish cycle."""
+        connection = MagicMock()
+        connection.is_closed = False
+        stale_channel = MagicMock()
+        stale_channel.is_closed = True
+        recovered_channel = MagicMock()
+        recovered_channel.is_closed = False
+        connection.channel.return_value = recovered_channel
+
+        client = RabbitMQClient(rabbitmq_config)
+        client.connection = connection
+        client.channel = stale_channel
+        client.connected = True
+
+        assert client._ensure_connected() is True
+        assert client.channel is recovered_channel
+        recovered_channel.exchange_declare.assert_called_once()
+        recovered_channel.confirm_delivery.assert_called_once()
+
+    def test_closed_connection_is_recreated_for_next_publish_cycle(self, rabbitmq_config):
+        """A broker reset requires a new connection and its new channel."""
+        first_connection = MagicMock()
+        first_connection.is_closed = True
+        first_channel = MagicMock()
+        first_channel.is_closed = True
+        second_connection = MagicMock()
+        second_connection.is_closed = False
+        second_channel = MagicMock()
+        second_channel.is_closed = False
+        second_connection.channel.return_value = second_channel
+
+        with patch('iot_middleware.messaging.rabbitmq_client.pika.BlockingConnection', return_value=second_connection) as factory:
+            client = RabbitMQClient(rabbitmq_config)
+            client.connection = first_connection
+            client.channel = first_channel
+            client.connected = True
+
+            assert client._ensure_connected() is True
+
+        factory.assert_called_once()
+        assert client.connection is second_connection
+        assert client.channel is second_channel
+        second_channel.confirm_delivery.assert_called_once()
+
+    def test_publish_failure_invalidates_transport_for_fresh_retry(self, rabbitmq_config, mock_pika_connection):
+        """A socket reset cannot leave a cached dead channel behind."""
+        _, channel = mock_pika_connection
+        channel.basic_publish.side_effect = ConnectionResetError("reset")
+        client = RabbitMQClient(rabbitmq_config)
+        assert client.connect() is True
+
+        assert client.publish_json("control.test", {"event_id": "event-1"}) is False
+        assert client.connected is False
+        assert client.connection is None
+        assert client.channel is None
     
     def test_disconnect(self, rabbitmq_config, mock_pika_connection):
         """Test de desconexión"""

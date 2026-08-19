@@ -97,9 +97,34 @@ class RabbitMQClient:
         
         logger.info(f"🔌 Cliente RabbitMQ inicializado: {config.host}:{config.port}")
 
+    def _transport_is_usable(self) -> bool:
+        """Return whether both sides of the blocking transport are usable."""
+        return bool(
+            self.connected
+            and self.connection is not None
+            and not self.connection.is_closed
+            and self.channel is not None
+            and not self.channel.is_closed
+        )
+
+    def _invalidate_transport(self) -> None:
+        """Forget a failed transport so a cached client cannot reuse it."""
+        self.connected = False
+        self.channel = None
+        self.connection = None
+
+    def _prepare_channel(self) -> None:
+        """Restore the exchange topology and require broker publish confirms."""
+        self.channel.exchange_declare(
+            exchange=self.exchange,
+            exchange_type='topic',
+            durable=True,
+        )
+        self.channel.confirm_delivery()
+
     def _ensure_connected(self) -> bool:
         """Garantiza que exista una conexión usable antes de operar."""
-        if self.connected and self.channel and not self.channel.is_closed:
+        if self._transport_is_usable():
             return True
         return self.connect()
     
@@ -116,9 +141,21 @@ class RabbitMQClient:
         """
         try:
             with self._lock:
-                if self.connected:
+                if self._transport_is_usable():
                     return True
-                
+
+                # A channel can close while its connection remains open.  In
+                # that case only recreate the channel; after a connection reset
+                # recreate both and never retain a stale singleton transport.
+                if self.connection is not None and not self.connection.is_closed:
+                    self.channel = self.connection.channel()
+                    self._prepare_channel()
+                    self.connected = True
+                    self.reconnecting = False
+                    logger.info("✅ Channel RabbitMQ recreado exitosamente")
+                    return True
+
+                self._invalidate_transport()
                 logger.info(f"🔌 Conectando a RabbitMQ: {self.config.host}:{self.config.port}")
                 
                 # Parámetros de conexión
@@ -140,13 +177,7 @@ class RabbitMQClient:
                 # Crear conexión
                 self.connection = pika.BlockingConnection(parameters)
                 self.channel = self.connection.channel()
-                
-                # Declarar exchange
-                self.channel.exchange_declare(
-                    exchange=self.exchange,
-                    exchange_type='topic',
-                    durable=True
-                )
+                self._prepare_channel()
                 
                 logger.info(f"✅ Conectado a RabbitMQ exitosamente")
                 self.connected = True
@@ -156,11 +187,11 @@ class RabbitMQClient:
                 
         except AMQPConnectionError as e:
             logger.error(f"❌ Error de conexión a RabbitMQ: {e}")
-            self.connected = False
+            self._invalidate_transport()
             return False
         except Exception as e:
             logger.error(f"❌ Error inesperado conectando a RabbitMQ: {e}")
-            self.connected = False
+            self._invalidate_transport()
             return False
     
     def disconnect(self):
@@ -174,8 +205,8 @@ class RabbitMQClient:
                 
                 if self.connection and not self.connection.is_closed:
                     self.connection.close()
-                
-                self.connected = False
+
+                self._invalidate_transport()
                 logger.info("🔌 Desconectado de RabbitMQ")
                 
         except Exception as e:
@@ -319,7 +350,7 @@ class RabbitMQClient:
                     return False
 
             message = json.dumps(payload, ensure_ascii=False, default=str)
-            self.channel.basic_publish(
+            confirmed = self.channel.basic_publish(
                 exchange=exchange_name or self.exchange,
                 routing_key=routing_key,
                 body=message,
@@ -330,10 +361,13 @@ class RabbitMQClient:
                     headers=headers,
                 ),
             )
+            if confirmed is False:
+                raise ConnectionError("RabbitMQ publisher confirm was negative")
             logger.debug(f"📤 Payload JSON publicado: {routing_key}")
             return True
         except Exception as e:
             logger.error(f"❌ Error publicando payload JSON: {e}")
+            self._invalidate_transport()
             return False
 
     def get_raw_message(self, queue_name: str, auto_ack: bool = False) -> Optional[Dict[str, Any]]:

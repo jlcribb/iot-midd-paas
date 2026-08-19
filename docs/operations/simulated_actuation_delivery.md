@@ -74,3 +74,10 @@ the existing simulated adapter and intent idempotency boundary. Broker failure
 remains in the outbox; a terminal downstream failure goes to the existing
 simulated DLQ. This does not introduce a physical adapter or physical command
 publication.
+
+The publisher requires RabbitMQ publisher confirms before marking an outbox
+event as `published`. A closed channel is recreated when its connection remains
+healthy; a connection reset invalidates both objects so the next polling cycle
+creates a fresh connection and channel. The same `event_id` remains eligible
+for persisted retry, so this preserves at-least-once delivery and downstream
+idempotency rather than claiming exactly-once delivery.
