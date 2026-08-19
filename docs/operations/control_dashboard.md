@@ -66,7 +66,26 @@ Secuencia sugerida:
 6. Mostrar primero el bloque de estado.
 7. Mostrar luego recommendation y audit para evidenciar trazabilidad.
 
-En el compose local de desarrollo, `/api/control/*` queda accesible vía dev fallback de RBAC para facilitar validación operacional sin OAuth manual.
+## Autenticación y acceso de control
+
+El comportamiento por defecto del compose local, y el requerido para
+validación RC y producción, es:
+
+```text
+CONTROL_RBAC_ALLOW_DEV_FALLBACK=false
+```
+
+Con esa configuración, `/api/control/*` requiere autenticación. La
+autorización se resuelve mediante memberships persistidos y con alcance por
+proyecto: una membership concede acceso únicamente al proyecto y rol
+correspondientes, y el acceso entre proyectos se deniega. Las solicitudes
+anónimas son rechazadas con `401`.
+
+El fallback de RBAC puede habilitarse sólo de forma explícita con
+`CONTROL_RBAC_ALLOW_DEV_FALLBACK=true` para desarrollo local controlado. Es
+una conveniencia insegura que reduce las garantías de seguridad: no sustituye
+OAuth, no es el mecanismo normal de autorización y nunca debe habilitarse
+durante validación RC ni en producción.
 
 ## Restricciones de alcance
 
