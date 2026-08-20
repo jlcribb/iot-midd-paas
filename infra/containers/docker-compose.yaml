@@ -51,10 +51,13 @@ services:
       retries: 5
 
   api:
-    image: docker.io/python:3.12-slim
+    image: iot-midd-python-runtime:local
+    build:
+      context: ../..
+      dockerfile: infra/containers/Dockerfile.python-runtime
     working_dir: /app
     container_name: iotmw-api
-    command: bash -lc "pip install --no-cache-dir -r /app/requirements.txt && PYTHONPATH=/app/src python -m alembic upgrade head && PYTHONPATH=/app/src uvicorn iot_middleware.api.api:app --host 0.0.0.0 --port 8000 --reload"
+    command: bash -lc "PYTHONPATH=/app/src python -m alembic upgrade head && PYTHONPATH=/app/src uvicorn iot_middleware.api.api:app --host 0.0.0.0 --port 8000 --reload"
     environment:
       - INFLUX_TOKEN=dev-token
       - MQTT_PASSWORD=secret
@@ -79,10 +82,13 @@ services:
       - postgresql
 
   ingestor:
-    image: docker.io/python:3.12-slim
+    image: iot-midd-python-runtime:local
+    build:
+      context: ../..
+      dockerfile: infra/containers/Dockerfile.python-runtime
     working_dir: /app
     container_name: iotmw-ingestor
-    command: bash -lc "pip install --no-cache-dir -r /app/requirements.txt && PYTHONPATH=/app/src python -m iot_middleware.services.ingestor"
+    command: bash -lc "PYTHONPATH=/app/src python -m iot_middleware.services.ingestor"
     environment:
       - INFLUX_TOKEN=dev-token
       - MQTT_PASSWORD=secret
@@ -101,10 +107,13 @@ services:
       - rabbitmq
 
   control-engine-worker:
-    image: docker.io/python:3.12-slim
+    image: iot-midd-python-runtime:local
+    build:
+      context: ../..
+      dockerfile: infra/containers/Dockerfile.python-runtime
     working_dir: /app
     container_name: control-engine-worker
-    command: bash -lc "pip install --no-cache-dir -r /app/requirements.txt && PYTHONPATH=/app/src:/app/apps/parametric-control-engine/src python -m iot_middleware.services.control_engine_worker"
+    command: bash -lc "PYTHONPATH=/app/src:/app/apps/parametric-control-engine/src python -m iot_middleware.services.control_engine_worker"
     restart: unless-stopped
     environment:
       - DB_HOST=postgresql
@@ -142,10 +151,13 @@ services:
       - postgresql
 
   simulated-actuation-consumer:
-    image: docker.io/python:3.12-slim
+    image: iot-midd-python-runtime:local
+    build:
+      context: ../..
+      dockerfile: infra/containers/Dockerfile.python-runtime
     working_dir: /app
     container_name: simulated-actuation-consumer
-    command: bash -lc "pip install --no-cache-dir -r /app/requirements.txt && PYTHONPATH=/app/src:/app/apps/parametric-control-engine/src python -m iot_middleware.services.simulated_actuation_consumer"
+    command: bash -lc "PYTHONPATH=/app/src:/app/apps/parametric-control-engine/src python -m iot_middleware.services.simulated_actuation_consumer"
     restart: unless-stopped
     environment:
       - DB_HOST=postgresql
@@ -175,10 +187,13 @@ services:
       - postgresql
 
   actuation-outbox-publisher:
-    image: docker.io/python:3.12-slim
+    image: iot-midd-python-runtime:local
+    build:
+      context: ../..
+      dockerfile: infra/containers/Dockerfile.python-runtime
     working_dir: /app
     container_name: actuation-outbox-publisher
-    command: bash -lc "pip install --no-cache-dir -r /app/requirements.txt && PYTHONPATH=/app/src:/app/apps/parametric-control-engine/src python -m iot_middleware.services.actuation_outbox_publisher"
+    command: bash -lc "PYTHONPATH=/app/src:/app/apps/parametric-control-engine/src python -m iot_middleware.services.actuation_outbox_publisher"
     restart: unless-stopped
     environment:
       - DB_HOST=postgresql
@@ -199,10 +214,13 @@ services:
       - postgresql
 
   simulated-dispatch-consumer:
-    image: docker.io/python:3.12-slim
+    image: iot-midd-python-runtime:local
+    build:
+      context: ../..
+      dockerfile: infra/containers/Dockerfile.python-runtime
     working_dir: /app
     container_name: simulated-dispatch-consumer
-    command: bash -lc "pip install --no-cache-dir -r /app/requirements.txt && PYTHONPATH=/app/src:/app/apps/parametric-control-engine/src python -m iot_middleware.services.simulated_dispatch_consumer"
+    command: bash -lc "PYTHONPATH=/app/src:/app/apps/parametric-control-engine/src python -m iot_middleware.services.simulated_dispatch_consumer"
     restart: unless-stopped
     environment:
       - DB_HOST=postgresql
@@ -234,10 +252,13 @@ services:
       - "15672:15672"
 
   dashboard:
-    image: docker.io/python:3.12-slim
+    image: iot-midd-monitoring-dashboard:local
+    build:
+      context: ../..
+      dockerfile: apps/monitoring-dashboard/Dockerfile
     working_dir: /app
     container_name: iotmw-dashboard
-    command: bash -lc "pip install --no-cache-dir -r /app/apps/monitoring-dashboard/requirements.txt && PYTHONPATH=/app/src python -m containers.dashboard.main"
+    command: bash -lc "PYTHONPATH=/app/src python -m containers.dashboard.main"
     environment:
       - DASHBOARD_PORT=8080
       - DASHBOARD_HOST=0.0.0.0
@@ -256,10 +277,13 @@ services:
       - rabbitmq
 
   admin:
-    image: docker.io/python:3.12-slim
+    image: iot-midd-admin:local
+    build:
+      context: ../..
+      dockerfile: apps/admin-fastapi/Dockerfile
     working_dir: /app
     container_name: iotmw-admin
-    command: bash -lc "pip install --no-cache-dir -r /app/apps/admin-fastapi/requirements.txt && PYTHONPATH=/app/src python -m containers.admin.main"
+    command: bash -lc "PYTHONPATH=/app/src python -m containers.admin.main"
     environment:
       - ADMIN_PORT=9000
       - ADMIN_HOST=0.0.0.0

@@ -1,5 +1,5 @@
 # Dockerfile para Dashboard de Monitoreo - IoT Middleware
-FROM python:3.12-slim
+FROM docker.io/python:3.12-slim
 
 # Metadatos
 LABEL maintainer="IoT Middleware Team"
@@ -9,6 +9,8 @@ LABEL version="1.0.0"
 # Variables de entorno
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_NO_CACHE_DIR=1 \
     DASHBOARD_PORT=8080 \
     DASHBOARD_HOST=0.0.0.0
 
@@ -24,12 +26,12 @@ RUN apt-get update && apt-get install -y \
 COPY apps/monitoring-dashboard/requirements.txt /app/requirements-dashboard.txt
 
 # Instalar dependencias de Python
-RUN pip install --no-cache-dir -r /app/requirements-dashboard.txt
+RUN python -m pip install --no-cache-dir -r /app/requirements-dashboard.txt \
+    && python -m pip check
 
 # Copiar código fuente
 COPY src/ /app/src/
 COPY apps/monitoring-dashboard/ /app/apps/monitoring-dashboard/
-COPY config.yaml /app/config.yaml
 RUN mkdir -p /app/containers && ln -s /app/apps/monitoring-dashboard /app/containers/dashboard
 
 # Variables de entorno para configuración

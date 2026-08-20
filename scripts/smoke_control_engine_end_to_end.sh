@@ -8,9 +8,9 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 COMPOSE_FILE="$REPO_ROOT/infra/containers/docker-compose.yaml"
 RUN_SUFFIX="$(date +%s)-$$"
-# The Compose services provision Python dependencies at runtime. Readiness must
-# therefore mean that the service process has started with its Python runtime,
-# not merely that Docker reports a running container.
+# Python dependencies are preprovisioned in the Compose images. Readiness must
+# still mean that the service process has started with its Python runtime, not
+# merely that Docker reports a running container.
 STARTUP_TIMEOUT_SECONDS="${CONTROL_SMOKE_STARTUP_TIMEOUT_SECONDS:-300}"
 
 SMOKE_RECOMMENDATION_QUEUE="control.recommendations.smoke.${RUN_SUFFIX}"
