@@ -26,6 +26,38 @@ import type {
 } from "@/lib/dto/control-operations.dto";
 
 const PAGE_SIZE = 8;
+export const NO_PROJECTS_IN_SCOPE_MESSAGE = "No projects are available in your control scope.";
+
+export function initialControlProjectScope(allowedProjects: ControlAccessSnapshot["allowed_projects"]) {
+  const projectId = allowedProjects[0]?.id ?? "";
+  return {
+    projectId,
+    error: projectId ? null : NO_PROJECTS_IN_SCOPE_MESSAGE
+  };
+}
+
+export function ControlSessionIdentity({ email }: { email: string | null | undefined }) {
+  return email ? <span className="control-session-identity">Signed in as {email}</span> : null;
+}
+
+export function ControlNoProjectsRecovery({ email }: { email: string | null | undefined }) {
+  return (
+    <section className="control-panel control-session-recovery" aria-labelledby="control-session-recovery-title">
+      <div className="control-panel-heading">
+        <div>
+          <span className="panel-kicker">Account recovery</span>
+          <h2 id="control-session-recovery-title">Choose a different account</h2>
+        </div>
+      </div>
+      <p className="control-empty">No projects are available in your control scope.</p>
+      <ControlSessionIdentity email={email} />
+      <div className="control-actions">
+        <LogoutButton label="Change account" />
+        <LogoutButton label="Sign out" />
+      </div>
+    </section>
+  );
+}
 
 interface OperationsSnapshot {
   summary: ProjectControlOperationsSummary;
@@ -71,6 +103,8 @@ export function ControlDashboard() {
   const [loadedAt, setLoadedAt] = useState<string | null>(null);
   const [recommendationQuery, setRecommendationQuery] = useState<RecommendationQuery>({ limit: PAGE_SIZE, offset: 0 });
   const [deliveryQuery, setDeliveryQuery] = useState<DeliveryQuery>({ limit: PAGE_SIZE, offset: 0 });
+  const hasProjectScope = (access?.allowed_projects.length ?? 0) > 0;
+  const noProjectRecovery = Boolean(access && !loading && !hasProjectScope && error === NO_PROJECTS_IN_SCOPE_MESSAGE);
 
   async function loadProject(nextProjectId: string, nextRecommendationQuery = recommendationQuery, nextDeliveryQuery = deliveryQuery) {
     if (!nextProjectId) return;
@@ -101,13 +135,14 @@ export function ControlDashboard() {
     async function initialize() {
       try {
         const nextAccess = await controlOperationsClient.getAccess();
-        const initialProjectId = nextAccess.allowed_projects[0]?.id ?? "";
+        const initialScope = initialControlProjectScope(nextAccess.allowed_projects);
+        const initialProjectId = initialScope.projectId;
         if (cancelled) return;
         setAccess(nextAccess);
         setProjectId(initialProjectId);
         if (!initialProjectId) {
           setLoading(false);
-          setError("No projects are available in your control scope.");
+          setError(initialScope.error);
           return;
         }
         await loadProject(initialProjectId, { limit: PAGE_SIZE, offset: 0 }, { limit: PAGE_SIZE, offset: 0 });
@@ -163,13 +198,15 @@ export function ControlDashboard() {
           </select></label>
           <button className="btn btn-primary" type="button" onClick={refresh} disabled={!projectId || loading}>Refresh data</button>
           <Link className="control-nav-link" href="/control/policies">Manage policies</Link>
-          <LogoutButton />
+          {hasProjectScope ? <LogoutButton /> : null}
+          {hasProjectScope ? <ControlSessionIdentity email={access?.actor.email} /> : null}
           <Link className="control-nav-link" href="/">Back to topology</Link>
           <span className="control-loaded-at">Last refreshed: {formatControlTimestamp(loadedAt)}</span>
         </div>
       </section>
 
-      {error ? <section className="control-alert control-alert-error" role="alert"><strong>Control Operations is unavailable.</strong><span>{error}</span><button className="btn btn-secondary" type="button" onClick={refresh} disabled={!projectId || loading}>Try again</button></section> : null}
+      {error && !noProjectRecovery ? <section className="control-alert control-alert-error" role="alert"><strong>Control Operations is unavailable.</strong><span>{error}</span><button className="btn btn-secondary" type="button" onClick={refresh} disabled={!projectId || loading}>Try again</button></section> : null}
+      {noProjectRecovery ? <ControlNoProjectsRecovery email={access?.actor.email} /> : null}
       {loading ? <section className="control-alert" aria-live="polite"><strong>Loading operational control data…</strong><span>Project-scoped contracts are being queried.</span></section> : null}
 
       {snapshot && !loading ? <>

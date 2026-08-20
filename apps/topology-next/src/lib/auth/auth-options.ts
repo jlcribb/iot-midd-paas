@@ -25,7 +25,15 @@ function buildProviders() {
     providers.push(
       GoogleProvider({
         clientId: googleClientId,
-        clientSecret: googleClientSecret
+        clientSecret: googleClientSecret,
+        // Do not silently reuse whichever Google account happens to be active
+        // in the browser.  Control access remains membership-scoped, so the
+        // operator must be able to choose the intended OAuth identity.
+        authorization: {
+          params: {
+            prompt: "select_account"
+          }
+        }
       })
     );
   }

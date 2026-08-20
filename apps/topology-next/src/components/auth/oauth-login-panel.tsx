@@ -1,6 +1,6 @@
 "use client";
 
-import { signIn } from "next-auth/react";
+import { OAuthProviderButtons } from "@/components/auth/oauth-provider-buttons";
 
 interface OAuthLoginPanelProps {
   callbackUrl: string;
@@ -8,14 +8,9 @@ interface OAuthLoginPanelProps {
   error?: string;
 }
 
-type OAuthProvider = "google" | "github";
-
 export function OAuthLoginPanel({ callbackUrl, availableProviders, error }: OAuthLoginPanelProps) {
   const hasGoogle = availableProviders.includes("google");
   const hasGitHub = availableProviders.includes("github");
-  const startSignIn = (provider: OAuthProvider) => {
-    void signIn(provider, { callbackUrl });
-  };
 
   return (
     <main className="control-dashboard">
@@ -44,24 +39,7 @@ export function OAuthLoginPanel({ callbackUrl, availableProviders, error }: OAut
             <h2>Elegí un provider</h2>
           </div>
         </div>
-        <div className="control-actions">
-          <button
-            className="btn btn-primary"
-            disabled={!hasGoogle}
-            onClick={hasGoogle ? () => startSignIn("google") : undefined}
-            type="button"
-          >
-            Entrar con Google
-          </button>
-          <button
-            className="btn btn-secondary"
-            disabled={!hasGitHub}
-            onClick={hasGitHub ? () => startSignIn("github") : undefined}
-            type="button"
-          >
-            Entrar con GitHub
-          </button>
-        </div>
+        <OAuthProviderButtons availableProviders={availableProviders} callbackUrl={callbackUrl} />
         {!hasGoogle ? <p className="control-empty">Google no está configurado en este entorno.</p> : null}
         {!hasGitHub ? <p className="control-empty">GitHub no está configurado en este entorno.</p> : null}
       </section>

@@ -19,6 +19,22 @@ describe("project-control-membership.service", () => {
     });
   });
 
+  it("keeps disabled and different-project memberships out of an actor's scope", () => {
+    const access = buildPersistedProjectControlAccess([
+      { actor_email: "authorized@example.test", project_id: "allowed-project", role: "viewer", enabled: true },
+      { actor_email: "authorized@example.test", project_id: "disabled-project", role: "admin", enabled: false }
+    ]);
+
+    expect(access).toEqual({
+      role: "viewer",
+      projectIds: ["allowed-project"],
+      projectRoles: { "allowed-project": "viewer" },
+      allProjects: false
+    });
+    expect(access.projectIds).not.toContain("disabled-project");
+    expect(access.projectIds).not.toContain("different-project");
+  });
+
   it("fails closed when the actor has no persisted membership", async () => {
     const findActiveByActorEmail = vi.fn().mockResolvedValue([]);
     const access = await resolvePersistedProjectControlAccess("viewer@example.com", { findActiveByActorEmail });

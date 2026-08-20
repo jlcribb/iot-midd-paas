@@ -2,14 +2,19 @@
 
 import { signOut } from "next-auth/react";
 
-export function LogoutButton() {
+interface LogoutButtonProps {
+  label?: string;
+  callbackUrl?: string;
+}
+
+export function LogoutButton({ label = "Sign out", callbackUrl = "/control" }: LogoutButtonProps) {
   return (
     <button
       className="btn btn-secondary"
-      onClick={() => void signOut({ callbackUrl: "/login" })}
+      onClick={() => void signOut({ callbackUrl })}
       type="button"
     >
-      Cerrar sesión
+      {label}
     </button>
   );
 }

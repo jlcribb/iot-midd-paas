@@ -2,19 +2,22 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
-const getServerSessionMock = vi.fn();
-const redirectMock = vi.fn((url: string) => {
-  throw new Error(`REDIRECT:${url}`);
-});
-const resolveAuthenticatedControlActorFromSourcesMock = vi.fn();
-const buildServerContextRequestMock = vi.fn(async () => new Request("http://localhost/control"));
+const {
+  getServerSessionMock,
+  resolveAuthenticatedControlActorFromSourcesMock,
+  buildServerContextRequestMock,
+  getOAuthConfigurationStatusMock,
+  controlAuthenticationRequiredMock
+} = vi.hoisted(() => ({
+  getServerSessionMock: vi.fn(),
+  resolveAuthenticatedControlActorFromSourcesMock: vi.fn(),
+  buildServerContextRequestMock: vi.fn(async () => new Request("http://localhost/control")),
+  getOAuthConfigurationStatusMock: vi.fn(),
+  controlAuthenticationRequiredMock: vi.fn(() => null)
+}));
 
 vi.mock("next-auth/next", () => ({
   getServerSession: getServerSessionMock
-}));
-
-vi.mock("next/navigation", () => ({
-  redirect: redirectMock
 }));
 
 vi.mock("@/lib/auth/control-auth-session", () => ({
@@ -26,6 +29,16 @@ vi.mock("@/components/control/control-dashboard", () => ({
   ControlDashboard: () => null
 }));
 
+vi.mock("@/components/control/control-authentication-required", () => ({
+  ControlAuthenticationRequired: controlAuthenticationRequiredMock
+}));
+
+vi.mock("@/lib/auth/oauth-provider-config", () => ({
+  getOAuthConfigurationStatus: getOAuthConfigurationStatusMock,
+  getResolvedNextAuthSecret: () => "test-secret",
+  getResolvedNextAuthUrl: () => "http://localhost:3000"
+}));
+
 async function loadControlPageModule() {
   vi.resetModules();
   return import("@/app/control/page");
@@ -34,17 +47,25 @@ async function loadControlPageModule() {
 describe("control page auth gate", () => {
   afterEach(() => {
     getServerSessionMock.mockReset();
-    redirectMock.mockClear();
     resolveAuthenticatedControlActorFromSourcesMock.mockReset();
     buildServerContextRequestMock.mockClear();
+    getOAuthConfigurationStatusMock.mockReset();
+    controlAuthenticationRequiredMock.mockClear();
   });
 
-  it("redirects unauthenticated access to /login with callbackUrl", async () => {
+  it("renders configured direct OAuth controls for unauthenticated access", async () => {
     getServerSessionMock.mockResolvedValue(null);
     resolveAuthenticatedControlActorFromSourcesMock.mockRejectedValue(new Error("Authentication required"));
+    getOAuthConfigurationStatusMock.mockReturnValue({
+      google: { configured: true, partial: false },
+      github: { configured: true, partial: false },
+      nextAuthSecretConfigured: true
+    });
 
     const module = await loadControlPageModule();
+    const page = await module.default();
 
-    await expect(module.default()).rejects.toThrow("REDIRECT:/login?callbackUrl=%2Fcontrol");
+    expect(page.type).toBe(controlAuthenticationRequiredMock);
+    expect(page.props.availableProviders).toEqual(["google", "github"]);
   });
 });

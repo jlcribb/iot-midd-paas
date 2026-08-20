@@ -61,6 +61,16 @@ describe("auth-options", () => {
     expect(module.getConfiguredAuthProviderIds()).toEqual(["google", "github"]);
   });
 
+  it("asks Google to select an account instead of silently reusing a different browser identity", async () => {
+    process.env.AUTH_GOOGLE_ID = "test-google-client-id";
+    process.env.AUTH_GOOGLE_SECRET = "test-google-client-secret";
+
+    const module = await loadAuthOptionsModule();
+    const google = module.authOptions.providers.find((provider) => provider.id === "google");
+
+    expect(google?.options.authorization).toMatchObject({ params: { prompt: "select_account" } });
+  });
+
   it("uses NEXTAUTH_SECRET before AUTH_SECRET", async () => {
     process.env.NEXTAUTH_SECRET = "test-nextauth-secret";
     process.env.AUTH_SECRET = "legacy-secret";
@@ -87,6 +97,30 @@ describe("auth-options", () => {
       controlRole: "admin",
       projectIds: ["project-1"],
       projectRoles: { "project-1": "admin" },
+      allProjects: false
+    });
+  });
+
+  it("refreshes JWT project scope from memberships on each NextAuth JWT callback", async () => {
+    resolvePersistedProjectControlAccess
+      .mockResolvedValueOnce({ role: "viewer", projectIds: [], projectRoles: {}, allProjects: false })
+      .mockResolvedValueOnce({
+        role: "viewer",
+        projectIds: ["allowed-project"],
+        projectRoles: { "allowed-project": "viewer" },
+        allProjects: false
+      });
+    const module = await loadAuthOptionsModule();
+    const callback = module.authOptions.callbacks?.jwt;
+
+    const initialToken = await callback?.({ token: { email: "authorized@example.test" } } as never);
+    const refreshedToken = await callback?.({ token: initialToken } as never);
+
+    expect(resolvePersistedProjectControlAccess).toHaveBeenNthCalledWith(1, "authorized@example.test");
+    expect(resolvePersistedProjectControlAccess).toHaveBeenNthCalledWith(2, "authorized@example.test");
+    expect(refreshedToken).toMatchObject({
+      projectIds: ["allowed-project"],
+      projectRoles: { "allowed-project": "viewer" },
       allProjects: false
     });
   });
