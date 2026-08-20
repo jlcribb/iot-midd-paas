@@ -86,21 +86,21 @@ export class ControlOperationsRepository {
   async findRecommendations(projectId: string, args: { limit: number; offset: number; policyId?: string; correlationId?: string }): Promise<ControlOperationsRecommendationRecord[]> {
     const values: Array<string | number> = [projectId];
     const conditions = ["COALESCE(entidad_id::text, cambios->'payload'->>'project_id', cambios->>'project_id') = $1"];
-    if (args.policyId) { values.push(args.policyId); conditions.push(`COALESCE(cambios->'payload'->'policy_selection'->>'policy_id', cambios->'payload'->>'policy_id') = $${values.length}`); }
+    if (args.policyId) { values.push(args.policyId); conditions.push(`COALESCE(cambios->'payload'->'policy_selection'->>'policy_id', cambios->'policy_selection'->>'policy_id', cambios->'payload'->>'policy_id', cambios->>'policy_id') = $${values.length}`); }
     if (args.correlationId) { values.push(args.correlationId); conditions.push(`COALESCE(cambios->'payload'->>'correlation_id', cambios->>'correlation_id') = $${values.length}`); }
     values.push(args.limit, args.offset);
     const limit = `$${values.length - 1}`;
     const offset = `$${values.length}`;
     const result = await this.db.query(`
       SELECT id::text AS audit_id,
-        COALESCE(cambios->'payload'->'publishable'->'payload'->>'recommendation_id', cambios->'payload'->>'recommendation_id') AS recommendation_id,
+        COALESCE(cambios->'payload'->'publishable'->'payload'->>'recommendation_id', cambios->'publishable'->'payload'->>'recommendation_id', cambios->'payload'->>'recommendation_id', cambios->>'recommendation_id') AS recommendation_id,
         COALESCE(cambios->'payload'->>'correlation_id', cambios->>'correlation_id') AS correlation_id,
         COALESCE(entidad_id::text, cambios->'payload'->>'project_id', cambios->>'project_id') AS project_id,
-        COALESCE(cambios->'payload'->'policy_selection'->>'policy_id', cambios->'payload'->>'policy_id') AS policy_id,
-        COALESCE(cambios->'payload'->'publishable'->'payload'->>'source_asset_id', cambios->'payload'->>'source_asset_id') AS source_asset_id,
-        COALESCE(cambios->'payload'->'publishable'->'payload'->'actuation_binding'->>'target_asset_id', cambios->'payload'->'actuation_binding'->>'target_asset_id') AS target_asset_id,
+        COALESCE(cambios->'payload'->'policy_selection'->>'policy_id', cambios->'policy_selection'->>'policy_id', cambios->'payload'->>'policy_id', cambios->>'policy_id') AS policy_id,
+        COALESCE(cambios->'payload'->'publishable'->'payload'->>'source_asset_id', cambios->'publishable'->'payload'->>'source_asset_id', cambios->'payload'->>'source_asset_id', cambios->>'source_asset_id') AS source_asset_id,
+        COALESCE(cambios->'payload'->'publishable'->'payload'->'actuation_binding'->>'target_asset_id', cambios->'publishable'->'payload'->'actuation_binding'->>'target_asset_id', cambios->'payload'->'actuation_binding'->>'target_asset_id', cambios->>'target_asset_id') AS target_asset_id,
         ts::text AS created_at,
-        COALESCE(cambios->'payload'->'runtime_payload'->>'summary', cambios->'payload'->'evaluation'->'recommendation'->>'summary') AS summary
+        COALESCE(cambios->'payload'->'runtime_payload'->>'summary', cambios->'runtime_payload'->>'summary', cambios->'payload'->'evaluation'->'recommendation'->>'summary', cambios->'evaluation'->'recommendation'->>'summary') AS summary
       FROM iot_schema.auditoria
       WHERE entidad = 'control_engine_worker' AND accion = 'CONTROL_RECOMMENDATION_EMITTED'
         AND ${conditions.join(" AND ")}

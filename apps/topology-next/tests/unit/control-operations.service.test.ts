@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { ControlActor } from "@/lib/dto/control-access.dto";
 import { ForbiddenError, ValidationError } from "@/lib/errors/domain-errors";
 import type { ControlOperationsRepository } from "@/lib/repositories/control-operations.repository";
+import { ControlOperationsRepository as ControlOperationsReadRepository } from "@/lib/repositories/control-operations.repository";
 import { ControlOperationsService } from "@/lib/services/control-operations.service";
 
 const PROJECT_ID = "11111111-1111-4111-8111-111111111111";
@@ -42,6 +43,16 @@ function service(rows = [policy()], deliveries = [delivery()]) {
 }
 
 describe("ControlOperationsService", () => {
+  it("reads canonical root-level audit envelopes as well as legacy nested envelopes", async () => {
+    const query = vi.fn().mockResolvedValue({ rows: [] });
+    const repository = new ControlOperationsReadRepository({ query } as never);
+    await repository.findRecommendations(PROJECT_ID, { limit: 10, offset: 0, policyId: "policy-1" });
+    const sql = String(query.mock.calls[0][0]);
+    expect(sql).toContain("cambios->'publishable'->'payload'->>'recommendation_id'");
+    expect(sql).toContain("cambios->'policy_selection'->>'policy_id'");
+    expect(sql).toContain("cambios->'runtime_payload'->>'summary'");
+  });
+
   it("derives actionable, recommendation-only, and misconfigured policy states from persisted bindings", async () => {
     const { instance } = service([
       policy(), policy({ policy_id: "policy-2", binding_id: null, control_point: null, operation: null }),
