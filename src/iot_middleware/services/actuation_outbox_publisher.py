@@ -7,6 +7,8 @@ import time
 from datetime import datetime, timezone
 from typing import Any
 
+from parametric_control_engine.execution_context import ExecutionContext, LIVE_EXECUTION_CONTEXT
+
 from iot_middleware.storage.actuation_outbox_repository import ActuationOutboxRepository, OutboxEvent
 from iot_middleware.storage.db_handler import persist_control_audit_record
 
@@ -33,7 +35,9 @@ def _audit(action: str, event: OutboxEvent, *, error: str | None = None) -> None
 
 
 class ActuationOutboxPublisher:
-    def __init__(self, repository=None, client=None, *, max_attempts: int = 3, retry_base_delay_seconds: float = 1.0) -> None:
+    def __init__(self, repository=None, client=None, *, execution_context: ExecutionContext = LIVE_EXECUTION_CONTEXT, max_attempts: int = 3, retry_base_delay_seconds: float = 1.0) -> None:
+        execution_context.require_operational_transport()
+        self.execution_context = execution_context
         self.repository = repository or ActuationOutboxRepository()
         self.client = client
         self._uses_managed_client = client is None

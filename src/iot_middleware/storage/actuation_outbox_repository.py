@@ -10,6 +10,8 @@ from typing import Any
 
 from sqlalchemy import text
 
+from parametric_control_engine.execution_context import ExecutionContext
+
 from iot_middleware.storage.db_handler import _get_control_settings_connection_url, _get_control_settings_engine
 
 DISPATCH_EVENT_TYPE = "control.actuation.simulated.dispatch"
@@ -57,7 +59,9 @@ class ActuationOutboxRepository:
     def __init__(self, engine=None) -> None:
         self._engine = engine or _get_control_settings_engine(_get_control_settings_connection_url())
 
-    def insert_for_request(self, connection, request: Any) -> OutboxEvent:
+    def insert_for_request(self, connection, request: Any, *, execution_context: ExecutionContext) -> OutboxEvent:
+        """Persist only from an explicit LIVE context."""
+        execution_context.require_operational_outbox()
         event_id = str(uuid.uuid5(uuid.NAMESPACE_URL, f"midd-iot:{request.command_id}:{DISPATCH_EVENT_TYPE}"))
         payload = {
             "message_type": DISPATCH_EVENT_TYPE, "schema_version": DISPATCH_SCHEMA_VERSION,

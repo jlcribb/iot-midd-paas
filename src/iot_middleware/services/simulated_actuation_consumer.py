@@ -25,6 +25,7 @@ from parametric_control_engine.contracts.actuation_contracts import (
     parse_timestamp,
     stable_idempotency_key,
 )
+from parametric_control_engine.execution_context import LIVE_EXECUTION_CONTEXT
 
 from iot_middleware.services.simulated_actuation_adapter import SimulatedActuationAdapter
 from iot_middleware.storage.actuation_delivery_intent_repository import (
@@ -459,7 +460,9 @@ class SimulatedActuationConsumer:
                 )
                 self._audit("CONTROL_ACTUATION_REJECTED", intent)
                 return ConsumerOutcome(status="rejected", command_id=intent.command_id, error_code=failure.code, should_dead_letter=True, metadata=self._identity_metadata(intent))
-            intent, event = self.repository.prepare_dispatch_with_outbox(request)
+            intent, event = self.repository.prepare_dispatch_with_outbox(
+                request, execution_context=LIVE_EXECUTION_CONTEXT
+            )
             self.metrics.valid += 1
             self._audit("CONTROL_ACTUATION_OUTBOX_CREATED", intent, result={"event_id": event.event_id})
             if not self.dispatch_immediately:

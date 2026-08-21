@@ -14,6 +14,11 @@ import pytest
 from sqlalchemy import text
 
 from parametric_control_engine.contracts.actuation_contracts import ActuationRequest
+from parametric_control_engine.execution_context import (
+    LIVE_EXECUTION_CONTEXT,
+    OperationalSideEffectForbidden,
+    simulation_execution_context,
+)
 from iot_middleware.services import actuation_outbox_publisher as publisher_module
 from iot_middleware.services.actuation_outbox_publisher import ActuationOutboxPublisher
 from iot_middleware.storage.actuation_delivery_intent_repository import ActuationDeliveryIntentRepository
@@ -71,9 +76,9 @@ def test_atomic_rollback_when_outbox_insert_fails(subject):
     engine, project_id, intents, _ = subject
     req = request(project_id); create_received(intents, req)
     class FailingOutbox:
-        def insert_for_request(self, connection, request): raise RuntimeError("injected_outbox_insert_failure")
+        def insert_for_request(self, connection, request, *, execution_context): raise RuntimeError("injected_outbox_insert_failure")
     with pytest.raises(RuntimeError, match="injected_outbox"):
-        intents.prepare_dispatch_with_outbox(req, outbox_repository=FailingOutbox())
+        intents.prepare_dispatch_with_outbox(req, execution_context=LIVE_EXECUTION_CONTEXT, outbox_repository=FailingOutbox())
     assert intents.get_by_command_id(req.command_id).status == "received"
     with engine.connect() as c:
         assert c.execute(text("SELECT count(*) FROM public.control_actuation_outbox WHERE command_id=CAST(:id AS uuid)"), {"id": req.command_id}).scalar_one() == 0
@@ -82,11 +87,11 @@ def test_atomic_rollback_when_outbox_insert_fails(subject):
 def test_atomic_commit_and_duplicate_creation_are_coherent(subject):
     engine, project_id, intents, outbox = subject
     req = request(project_id); create_received(intents, req)
-    intent, event = intents.prepare_dispatch_with_outbox(req)
+    intent, event = intents.prepare_dispatch_with_outbox(req, execution_context=LIVE_EXECUTION_CONTEXT)
     assert intent.status == "ready_to_dispatch"
     assert event.command_id == req.command_id and event.payload["event_id"] == event.event_id
     with engine.begin() as c:
-        duplicate = outbox.insert_for_request(c, req)
+        duplicate = outbox.insert_for_request(c, req, execution_context=LIVE_EXECUTION_CONTEXT)
     assert duplicate.event_id == event.event_id
     with engine.connect() as c:
         assert c.execute(text("SELECT count(*) FROM public.control_actuation_outbox WHERE command_id=CAST(:id AS uuid)"), {"id": req.command_id}).scalar_one() == 1
@@ -94,7 +99,7 @@ def test_atomic_commit_and_duplicate_creation_are_coherent(subject):
 
 def test_publish_failure_retry_recovery_crash_and_exhaustion(subject):
     engine, project_id, intents, outbox = subject
-    req = request(project_id); create_received(intents, req); _, event = intents.prepare_dispatch_with_outbox(req)
+    req = request(project_id); create_received(intents, req); _, event = intents.prepare_dispatch_with_outbox(req, execution_context=LIVE_EXECUTION_CONTEXT)
     failing = ActuationOutboxPublisher(outbox, Broker([False]), max_attempts=3, retry_base_delay_seconds=0)
     assert failing.publish_once() == [("pending", event.event_id)]
     retained = outbox.get(event.event_id)
@@ -103,7 +108,7 @@ def test_publish_failure_retry_recovery_crash_and_exhaustion(subject):
     assert recovered.publish_once() == [("published", event.event_id)]
     assert outbox.get(event.event_id).status == "published"
 
-    req2 = request(project_id); create_received(intents, req2); _, crash_event = intents.prepare_dispatch_with_outbox(req2)
+    req2 = request(project_id); create_received(intents, req2); _, crash_event = intents.prepare_dispatch_with_outbox(req2, execution_context=LIVE_EXECUTION_CONTEXT)
     class CrashRepository(ActuationOutboxRepository):
         def __init__(self, engine): super().__init__(engine); self.crashed = False
         def mark_published(self, event_id):
@@ -117,7 +122,7 @@ def test_publish_failure_retry_recovery_crash_and_exhaustion(subject):
     second = ActuationOutboxPublisher(crash_repo, Broker([True]), max_attempts=3, retry_base_delay_seconds=0)
     assert second.publish_once() == [("published", crash_event.event_id)]
 
-    req3 = request(project_id); create_received(intents, req3); _, failed_event = intents.prepare_dispatch_with_outbox(req3)
+    req3 = request(project_id); create_received(intents, req3); _, failed_event = intents.prepare_dispatch_with_outbox(req3, execution_context=LIVE_EXECUTION_CONTEXT)
     exhausted = ActuationOutboxPublisher(outbox, Broker([False, False, False]), max_attempts=3, retry_base_delay_seconds=0)
     for _ in range(3): exhausted.publish_once()
     failed = outbox.get(failed_event.event_id)
@@ -128,7 +133,7 @@ def test_leases_claims_and_metrics_are_recoverable(subject):
     engine, project_id, intents, outbox = subject
     req1, req2 = request(project_id), request(project_id)
     create_received(intents, req1); create_received(intents, req2)
-    _, event1 = intents.prepare_dispatch_with_outbox(req1); _, event2 = intents.prepare_dispatch_with_outbox(req2)
+    _, event1 = intents.prepare_dispatch_with_outbox(req1, execution_context=LIVE_EXECUTION_CONTEXT); _, event2 = intents.prepare_dispatch_with_outbox(req2, execution_context=LIVE_EXECUTION_CONTEXT)
     first = outbox.claim(limit=1, lease_seconds=30)
     second = outbox.claim(limit=1, lease_seconds=30)
     assert len(first) == len(second) == 1 and first[0].event_id != second[0].event_id
@@ -140,3 +145,23 @@ def test_leases_claims_and_metrics_are_recoverable(subject):
     metrics = outbox.metrics()
     assert metrics["pending_count"] >= 0 and metrics["published_count"] >= 0 and metrics["failed_count"] >= 0
     assert metrics["oldest_pending_age_seconds"] is not None
+
+
+def test_simulation_context_cannot_create_operational_outbox_event(subject):
+    engine, project_id, intents, _ = subject
+    req = request(project_id)
+    create_received(intents, req)
+
+    with pytest.raises(OperationalSideEffectForbidden, match="operational outbox"):
+        intents.prepare_dispatch_with_outbox(
+            req,
+            execution_context=simulation_execution_context(session_id=str(uuid.uuid4())),
+        )
+
+    assert intents.get_by_command_id(req.command_id).status == "received"
+    with engine.connect() as connection:
+        count = connection.execute(
+            text("SELECT count(*) FROM public.control_actuation_outbox WHERE command_id=CAST(:id AS uuid)"),
+            {"id": req.command_id},
+        ).scalar_one()
+    assert count == 0

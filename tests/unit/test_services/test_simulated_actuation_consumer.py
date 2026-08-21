@@ -83,7 +83,7 @@ class InMemoryIntentRepository:
             if intent.status == "retry_pending" and intent.next_retry_at <= now
         ][:limit]
 
-    def prepare_dispatch_with_outbox(self, request):
+    def prepare_dispatch_with_outbox(self, request, *, execution_context):
         intent = next(item for item in self.by_key.values() if item.command_id == request.command_id)
         intent = self.transition(command_id=intent.command_id, from_statuses={"received"}, to_status="validated")
         intent = self.transition(command_id=intent.command_id, from_statuses={"validated"}, to_status="ready_to_dispatch")

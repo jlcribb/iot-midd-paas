@@ -1,5 +1,8 @@
 from datetime import datetime, timezone
 
+import pytest
+
+from parametric_control_engine.execution_context import OperationalSideEffectForbidden, simulation_execution_context
 from iot_middleware.services import actuation_outbox_publisher as module
 from iot_middleware.services.actuation_outbox_publisher import ActuationOutboxPublisher
 from iot_middleware.storage.actuation_outbox_repository import OutboxEvent
@@ -56,3 +59,12 @@ def test_managed_client_is_reloaded_after_broker_failure(monkeypatch):
     assert publisher.publish_once() == [("pending", repo.item.event_id)]
     assert publisher.client is None
     assert publisher.publish_once() == [("published", repo.item.event_id)]
+
+
+def test_simulation_context_cannot_construct_operational_publisher():
+    with pytest.raises(OperationalSideEffectForbidden, match="operational transport"):
+        ActuationOutboxPublisher(
+            Repo(event()),
+            Client(True),
+            execution_context=simulation_execution_context(session_id="simulation-session-1"),
+        )
