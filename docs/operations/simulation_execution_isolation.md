@@ -43,10 +43,10 @@ actuation.
 
 `public.control_simulation_sessions` is separate from operational delivery,
 outbox, and audit tables.  Each row is project-scoped, has a mandatory
-`SIMULATION` execution context, basic lifecycle (`DRAFT`, `READY`, `RUNNING`,
-`COMPLETED`, `FAILED`, `CANCELLED`), creator and timestamps.  `snapshot_refs`
-and `metadata` are intentionally empty slots for M5.2: M5.1 does not claim a
-topology, policy, dataset, or configuration snapshot has been captured.
+`SIMULATION` execution context, basic lifecycle, creator and timestamps.
+`snapshot_refs` and `metadata` remain DRAFT annotations. M5.2 adds the
+immutable `DRAFT -> READY` preparation boundary, materialized snapshots and a
+reproducible fingerprint; see `simulation_experiment_snapshots.md`.
 
 The minimal API is project-scoped and RBAC-protected:
 
@@ -60,9 +60,10 @@ Creation requires the existing `edit_policies` permission; reads require
 `view_dashboard`. OAuth memberships remain fail-closed and
 `CONTROL_RBAC_ALLOW_DEV_FALLBACK=false` remains required for governed runtime.
 
-M5.1 does not write these records into the live worker/outbox audit stream or
-its operational metrics namespace.  The persisted session row is the isolated
-creation record.  A future simulation event stream may add
+M5.1 did not write these records into the live worker/outbox audit stream or
+its operational metrics namespace. M5.2 adds only the transactional
+`SIMULATION_SESSION_PREPARED` record, still without an operational delivery
+event. A future simulation event stream may add
 `SIMULATION_SESSION_CREATED`, `STARTED`, `COMPLETED`, `FAILED`, and `CANCELLED`
 inside the simulation namespace; M5.1 intentionally does not fabricate those
 lifecycle events before it implements their transitions.
