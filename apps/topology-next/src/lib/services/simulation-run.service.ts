@@ -14,6 +14,14 @@ export class SimulationRunService {
     assertControlPermission(actor, "view_dashboard", projectId);
     return this.request(`/internal/simulation-runs/${projectId}/${sessionId}/${runId}`);
   }
+  async result(actor: ControlActor, projectId: string, sessionId: string, runId: string): Promise<SimulationRunSummary> {
+    assertControlPermission(actor, "view_dashboard", projectId);
+    return this.request(`/internal/simulation-runs/${projectId}/${sessionId}/${runId}/result`);
+  }
+  async trace(actor: ControlActor, projectId: string, sessionId: string, runId: string, limit: number, offset: number): Promise<SimulationRunSummary> {
+    assertControlPermission(actor, "view_dashboard", projectId);
+    return this.request(`/internal/simulation-runs/${projectId}/${sessionId}/${runId}/trace?limit=${limit}&offset=${offset}`);
+  }
   private async request(path: string, init?: RequestInit): Promise<SimulationRunSummary> {
     let response: Response;
     try { response = await fetch(`${this.endpoint}${path}`, init); } catch { throw new InternalError("Simulation replay runner is unavailable"); }

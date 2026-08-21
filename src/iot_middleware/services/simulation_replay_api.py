@@ -4,7 +4,7 @@ It is intentionally not exposed on a host port.  The governed Next route is
 the public boundary and authorizes the actor before forwarding a request here.
 """
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from pydantic import BaseModel
 from uuid import UUID
 
@@ -45,3 +45,27 @@ def get_run(project_id: UUID, session_id: UUID, run_id: UUID):
     if run is None:
         raise HTTPException(status_code=404, detail="Simulation run not found")
     return serialize(run)
+
+
+@app.get("/internal/simulation-runs/{project_id}/{session_id}/{run_id}/result")
+def get_result(project_id: UUID, session_id: UUID, run_id: UUID):
+    result = SimulationRunRepository().get_result(str(project_id), str(session_id), str(run_id))
+    if result is None:
+        raise HTTPException(status_code=404, detail="Simulation result not found")
+    return {"id": result.id, "project_id": result.project_id, "session_id": result.session_id, "run_id": result.run_id,
+            "experiment_fingerprint": result.experiment_fingerprint, "result_fingerprint": result.result_fingerprint,
+            "processed_events": result.processed_events, "evaluation_count": result.evaluation_count,
+            "recommendation_count": result.recommendation_count, "actionable_recommendation_count": result.actionable_recommendation_count,
+            "recommendation_only_count": result.recommendation_only_count, "failed_domain_event_count": result.failed_domain_event_count,
+            "first_virtual_timestamp": result.first_virtual_timestamp.isoformat() if result.first_virtual_timestamp else None,
+            "last_virtual_timestamp": result.last_virtual_timestamp.isoformat() if result.last_virtual_timestamp else None,
+            "canonical_result_schema_version": result.canonical_result_schema_version}
+
+
+@app.get("/internal/simulation-runs/{project_id}/{session_id}/{run_id}/trace")
+def get_trace(project_id: UUID, session_id: UUID, run_id: UUID, limit: int = Query(100, ge=1, le=500), offset: int = Query(0, ge=0)):
+    try:
+        items, total = SimulationRunRepository().trace(str(project_id), str(session_id), str(run_id), limit=limit, offset=offset)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail="Simulation run not found") from exc
+    return {"items": items, "total": total, "limit": limit, "offset": offset}
