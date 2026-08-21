@@ -150,6 +150,27 @@ services:
       - rabbitmq
       - postgresql
 
+  simulation-replay-runner:
+    image: iot-midd-python-runtime:local
+    build:
+      context: ../..
+      dockerfile: infra/containers/Dockerfile.python-runtime
+    working_dir: /app
+    container_name: simulation-replay-runner
+    command: bash -lc "PYTHONPATH=/app/src:/app/apps/parametric-control-engine/src uvicorn iot_middleware.services.simulation_replay_api:app --host 0.0.0.0 --port 8010"
+    restart: unless-stopped
+    environment:
+      - DB_HOST=postgresql
+      - DB_PORT=5432
+      - DB_NAME=iot_middleware
+      - DB_USER=iot_user
+      - DB_PASSWORD=iot_password_2024
+    volumes:
+      - ../..:/app
+      - ../../config.yaml:/app/config.yaml
+    depends_on:
+      - postgresql
+
   simulated-actuation-consumer:
     image: iot-midd-python-runtime:local
     build:
@@ -318,6 +339,7 @@ services:
       - NEXT_DIST_DIR=.next-docker
       - AUTH_SECRET=dev-local-auth-secret
       - AUTH_URL=http://localhost:3000
+      - SIMULATION_REPLAY_RUNNER_URL=http://simulation-replay-runner:8010
       # The fallback is unsafe and deliberately opt-in. Development is not a
       # trusted authorization boundary for governed/RC validation.
       - CONTROL_RBAC_ALLOW_DEV_FALLBACK=${CONTROL_RBAC_ALLOW_DEV_FALLBACK:-false}

@@ -29,12 +29,22 @@ class SystemClock:
 
 @dataclass(frozen=True)
 class SimulationClock:
-    """Deterministic clock seed; controlled advancement belongs to M5.2."""
+    """Immutable virtual clock used by deterministic simulation replay.
+
+    ``advance_to`` deliberately returns a new instance.  Separate runs therefore
+    cannot share mutable clock state, while callers can still model the virtual
+    timestamp of each canonical input event.
+    """
 
     current: datetime
 
     def now(self) -> datetime:
         return self.current
+
+    def advance_to(self, current: datetime) -> "SimulationClock":
+        if current.tzinfo is None:
+            raise ValueError("SimulationClock requires timezone-aware virtual time")
+        return SimulationClock(current.astimezone(timezone.utc))
 
 
 @dataclass(frozen=True)
