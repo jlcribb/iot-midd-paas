@@ -64,7 +64,7 @@ function base(projectId: string, sessionId?: string) {
 export const simulationWorkbenchClient = {
   getAccess: () => request<ControlAccessSnapshot>("/api/control/access"),
   sessions: (projectId: string) => request<SimulationSession[]>(base(projectId)),
-  policies: (projectId: string) => request<{ items: PolicyOperationalView[] }>(`/api/control/operations/projects/${encodeURIComponent(projectId)}/policies?limit=200&offset=0`),
+  policies: (projectId: string) => request<{ items: PolicyOperationalView[] }>(`/api/control/operations/projects/${encodeURIComponent(projectId)}/policies?limit=100&offset=0`),
   createSession: (projectId: string) => request<SimulationSession>(base(projectId), { method: "POST", body: JSON.stringify({ metadata: { created_from: "simulation_workbench" } }) }),
   prepare: (projectId: string, sessionId: string, body: unknown) => request<SimulationSession>(`${base(projectId, sessionId)}/prepare`, { method: "POST", body: JSON.stringify(body) }),
   runs: (projectId: string, sessionId: string) => request<SimulationRunPage>(`${base(projectId, sessionId)}/runs?limit=100&offset=0`),
