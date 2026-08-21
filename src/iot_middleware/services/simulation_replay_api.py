@@ -39,6 +39,17 @@ def execute(request: ExecuteRequest):
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
+@app.get("/internal/simulation-runs/{project_id}/{session_id}")
+def list_runs(project_id: UUID, session_id: UUID, limit: int = Query(100, ge=1, le=200), offset: int = Query(0, ge=0)):
+    runs, total = SimulationRunRepository().list(str(project_id), str(session_id), limit=limit, offset=offset)
+    return {
+        "items": [{**serialize(run), "result_fingerprint": result_fingerprint} for run, result_fingerprint in runs],
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+    }
+
+
 @app.get("/internal/simulation-runs/{project_id}/{session_id}/{run_id}")
 def get_run(project_id: UUID, session_id: UUID, run_id: UUID):
     run = SimulationRunRepository().get(str(project_id), str(session_id), str(run_id))

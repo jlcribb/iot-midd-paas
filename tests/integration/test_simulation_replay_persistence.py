@@ -74,8 +74,11 @@ def test_ready_session_runs_twice_with_isolated_outputs_and_no_operational_outbo
     second = SimulationReplayRunner(repository).execute(project_id=project_id, session_id=session_id, created_by="integration")
     first_events, second_events = repository.events(first.id), repository.events(second.id)
     first_result, second_result = repository.get_result(project_id, session_id, first.id), repository.get_result(project_id, session_id, second.id)
+    run_page, run_total = repository.list(project_id, session_id, limit=10, offset=0)
     assert first.status == second.status == "COMPLETED"
     assert first.id != second.id and first.output_count == second.output_count == 2
+    assert run_total == 2 and {run.id for run, _ in run_page} == {first.id, second.id}
+    assert {fingerprint for _, fingerprint in run_page} == {first_result.result_fingerprint}
     assert [event.output for event in first_events] == [event.output for event in second_events]
     assert first_result and second_result and first_result.result_fingerprint == second_result.result_fingerprint
     assert repository.materialize_result(project_id, session_id, first.id).id == first_result.id

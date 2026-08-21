@@ -204,6 +204,31 @@ class SimulationRunRepository:
             """), {"run_id": run_id, "project_id": project_id, "session_id": session_id}).mappings().first()
         return _map_run(row) if row else None
 
+    def list(self, project_id: str, session_id: str, *, limit: int = 100, offset: int = 0) -> tuple[list[tuple[SimulationRun, str | None]], int]:
+        """Return a project-scoped run read model without changing run state.
+
+        ``result_fingerprint`` is deliberately exposed only as evidence already
+        materialized by the result model.  Callers may compare the opaque value,
+        but do not reconstruct result semantics from run events.
+        """
+        if limit < 1 or limit > 200 or offset < 0:
+            raise ValueError("run pagination must use 1..200 limit and non-negative offset")
+        parameters = {"project_id": project_id, "session_id": session_id, "limit": limit, "offset": offset}
+        with self._engine.connect() as connection:
+            total = connection.execute(text("""
+                SELECT count(*) FROM public.control_simulation_runs
+                WHERE project_id=CAST(:project_id AS uuid) AND session_id=CAST(:session_id AS uuid)
+            """), parameters).scalar_one()
+            rows = connection.execute(text("""
+                SELECT r.*, result.result_fingerprint
+                FROM public.control_simulation_runs r
+                LEFT JOIN public.control_simulation_results result ON result.run_id=r.id
+                WHERE r.project_id=CAST(:project_id AS uuid) AND r.session_id=CAST(:session_id AS uuid)
+                ORDER BY r.created_at DESC, r.id DESC
+                LIMIT :limit OFFSET :offset
+            """), parameters).mappings().all()
+        return [(_map_run(row), row["result_fingerprint"]) for row in rows], int(total)
+
     def events(self, run_id: str) -> list[SimulationRunEvent]:
         with self._engine.connect() as connection:
             rows = connection.execute(text("""

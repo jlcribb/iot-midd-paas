@@ -654,6 +654,113 @@ select {
   line-height: 1.6;
 }
 
+.simulation-safety-banner {
+  display: grid;
+  gap: 5px;
+  padding: 15px 18px;
+  border: 2px solid #2563eb;
+  border-radius: 14px;
+  background: #eff6ff;
+  color: #1e3a8a;
+}
+
+.simulation-safety-banner strong {
+  font-size: 15px;
+}
+
+.simulation-safety-banner span {
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.simulation-workbench-grid {
+  display: grid;
+  grid-template-columns: minmax(230px, .7fr) minmax(420px, 1.3fr);
+  gap: 16px;
+}
+
+.simulation-session-list,
+.simulation-runs {
+  align-content: start;
+}
+
+.simulation-item-list {
+  display: grid;
+  gap: 8px;
+}
+
+.simulation-item {
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  background: #f8fafc;
+  color: #0f172a;
+  text-align: left;
+  cursor: pointer;
+}
+
+.simulation-item:hover,
+.simulation-item:focus-visible {
+  border-color: #3b82f6;
+  outline: none;
+}
+
+.simulation-item-selected {
+  border-color: #2563eb;
+  background: #dbeafe;
+}
+
+.simulation-item span,
+.simulation-item code,
+.simulation-fingerprint-grid span,
+.simulation-result-grid span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.simulation-fingerprint-grid,
+.simulation-result-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.simulation-fingerprint-grid > div,
+.simulation-result-grid > div {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  padding: 11px;
+  border: 1px solid #dbeafe;
+  border-radius: 10px;
+  background: #f8fbff;
+}
+
+.simulation-fingerprint-grid code,
+.simulation-result-grid code,
+.simulation-json {
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+@media (max-width: 900px) {
+  .simulation-workbench-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  .simulation-fingerprint-grid,
+  .simulation-result-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .control-project-picker {
   display: grid;
   gap: 5px;

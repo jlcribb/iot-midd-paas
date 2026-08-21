@@ -9,7 +9,7 @@ const actor = {
 };
 
 const service = {
-  create: vi.fn(), prepare: vi.fn(), get: vi.fn(), list: vi.fn()
+  create: vi.fn(), prepare: vi.fn(), get: vi.fn(), list: vi.fn(), listRuns: vi.fn(), execute: vi.fn()
 };
 
 vi.mock("@/lib/auth/control-auth-session", () => ({
@@ -17,6 +17,9 @@ vi.mock("@/lib/auth/control-auth-session", () => ({
 }));
 vi.mock("@/lib/services/simulation-session.service", () => ({
   SimulationSessionService: class { create = service.create; prepare = service.prepare; get = service.get; list = service.list; }
+}));
+vi.mock("@/lib/services/simulation-run.service", () => ({
+  SimulationRunService: class { list = service.listRuns; execute = service.execute; }
 }));
 
 const params = { params: Promise.resolve({ projectId, sessionId }) };
@@ -56,5 +59,14 @@ describe("M5.2 simulation session routes", () => {
     expect(body.data.status).toBe("READY");
     expect(body.data.experiment_fingerprint).toMatch(/^[0-9a-f]{64}$/);
     expect(body.data.policy_snapshot_hash).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it("lists a project-scoped replay read model through the governed route", async () => {
+    service.listRuns.mockResolvedValue({ items: [{ id: "55555555-5555-4555-8555-555555555555", status: "COMPLETED", result_fingerprint: "f".repeat(64) }], total: 1, limit: 100, offset: 0 });
+    const runsRoute = await import("@/app/api/control/simulations/projects/[projectId]/sessions/[sessionId]/runs/route");
+    const response = await runsRoute.GET(new Request("http://localhost?limit=100&offset=0"), params);
+    expect(response.status).toBe(200);
+    expect(service.listRuns).toHaveBeenCalledWith(actor, projectId, sessionId, 100, 0);
+    expect((await response.json()).data.items[0].result_fingerprint).toBe("f".repeat(64));
   });
 });
