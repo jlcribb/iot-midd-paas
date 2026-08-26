@@ -55,6 +55,19 @@ export class EvaluationProfileService {
     }
 
     if (Math.abs(totalWeight - 1) > 1e-9) throw new ValidationError("Evaluation profile metric weights must sum to one");
+    const constrainedMetricIds = new Set<string>();
+    for (const constraint of input.constraints ?? []) {
+      const lowerBound = constraint.lower_bound;
+      const upperBound = constraint.upper_bound;
+      if (!metricIds.has(constraint.metric_id)) throw new ValidationError("Evaluation profile constraints must reference a profile metric");
+      if (constrainedMetricIds.has(constraint.metric_id)) throw new ValidationError("Only one evaluation profile constraint is permitted per metric");
+      constrainedMetricIds.add(constraint.metric_id);
+      if (constraint.kind === "MINIMUM" && !Number.isFinite(lowerBound)) throw new ValidationError("MINIMUM constraints require a finite lower bound");
+      if (constraint.kind === "MAXIMUM" && !Number.isFinite(upperBound)) throw new ValidationError("MAXIMUM constraints require a finite upper bound");
+      if (constraint.kind === "RANGE" && (!Number.isFinite(lowerBound) || !Number.isFinite(upperBound) || (lowerBound as number) > (upperBound as number))) {
+        throw new ValidationError("RANGE constraints require finite ordered bounds");
+      }
+    }
   }
 
   private async authorizeProject(actor: ControlActor, projectId: string, permission: "view_dashboard" | "edit_policies") {

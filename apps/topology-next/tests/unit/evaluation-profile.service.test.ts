@@ -14,7 +14,7 @@ function actor(projectIds = [PROJECT_A], role: "viewer" | "operator" = "operator
 function profile(projectId = PROJECT_A) {
   return { id: "33333333-3333-4333-8333-333333333333", project_id: projectId, code: "water_level_control_v1",
     version: 1, name: "Water level", description: "", status: "ACTIVE" as const, schema_version: 1 as const,
-    metadata: {}, created_by: "oauth@example.test", created_at: "2026-08-26T00:00:00Z", metrics: [] };
+    metadata: {}, created_by: "oauth@example.test", created_at: "2026-08-26T00:00:00Z", metrics: [], constraints: [] };
 }
 
 function subject() {
@@ -57,6 +57,16 @@ describe("EvaluationProfileService", () => {
     };
 
     await expect(service.createProfile(actor(), PROJECT_A, input)).rejects.toBeInstanceOf(ValidationError);
+    expect(repository.create).not.toHaveBeenCalled();
+  });
+
+  it("does not allow an internal caller to attach a constraint to a metric outside the profile", async () => {
+    const { service, repository } = subject();
+    await expect(service.createProfile(actor(), PROJECT_A, {
+      code: "water_level_control_v1", name: "Water level",
+      metrics: [{ metric_id: "44444444-4444-4444-8444-444444444444", weight: 1 }],
+      constraints: [{ metric_id: "55555555-5555-4555-8555-555555555555", kind: "MAXIMUM", upper_bound: 1 }]
+    })).rejects.toBeInstanceOf(ValidationError);
     expect(repository.create).not.toHaveBeenCalled();
   });
 });

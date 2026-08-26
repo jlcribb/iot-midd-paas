@@ -22,6 +22,17 @@ export interface EvaluationProfileMetric {
   required: boolean;
 }
 
+export type EvaluationProfileConstraintKind = "MINIMUM" | "MAXIMUM" | "RANGE";
+
+export interface EvaluationProfileConstraint {
+  id?: string;
+  metric_id: string;
+  kind: EvaluationProfileConstraintKind;
+  lower_bound: number | null;
+  upper_bound: number | null;
+  critical: boolean;
+}
+
 export interface EvaluationProfile {
   id: string;
   project_id: string;
@@ -35,6 +46,7 @@ export interface EvaluationProfile {
   created_by: string;
   created_at: string;
   metrics: EvaluationProfileMetric[];
+  constraints: EvaluationProfileConstraint[];
 }
 
 export interface CreateEvaluationProfileInput {
@@ -43,4 +55,11 @@ export interface CreateEvaluationProfileInput {
   description?: string;
   metadata?: Record<string, unknown>;
   metrics: Array<{ metric_id: string; weight: number; required?: boolean }>;
+  constraints?: Array<{
+    metric_id: string;
+    kind: EvaluationProfileConstraintKind;
+    lower_bound?: number;
+    upper_bound?: number;
+    critical?: boolean;
+  }>;
 }

@@ -1,7 +1,7 @@
 import type { QueryResultRow } from "pg";
 import { pool } from "@/lib/db/pool";
 import { withTransaction, type SqlExecutor, type TransactionRunner } from "@/lib/db/tx";
-import type { CreateEvaluationProfileInput, EvaluationMetric, EvaluationProfile, EvaluationProfileMetric } from "@/lib/dto/evaluation-profile.dto";
+import type { CreateEvaluationProfileInput, EvaluationMetric, EvaluationProfile, EvaluationProfileConstraint, EvaluationProfileMetric } from "@/lib/dto/evaluation-profile.dto";
 import { ConflictError, NotFoundError } from "@/lib/errors/domain-errors";
 
 function object(value: unknown): Record<string, unknown> {
@@ -21,12 +21,18 @@ export function mapEvaluationMetric(row: QueryResultRow): EvaluationMetric {
 
 function mapProfile(row: QueryResultRow): EvaluationProfile {
   const metrics = Array.isArray(row.metrics) ? row.metrics : [];
+  const constraints = Array.isArray(row.constraints) ? row.constraints : [];
   return {
     id: String(row.id), project_id: String(row.project_id), code: String(row.code), version: Number(row.version),
     name: String(row.name), description: String(row.description ?? ""), status: String(row.status) as EvaluationProfile["status"],
     schema_version: 1, metadata: object(row.metadata), created_by: String(row.created_by), created_at: String(row.created_at),
     metrics: metrics.map((entry): EvaluationProfileMetric => ({
       metric: mapEvaluationMetric(entry), weight: Number(entry.weight), required: Boolean(entry.required)
+    })),
+    constraints: constraints.map((entry): EvaluationProfileConstraint => ({
+      id: String(entry.id), metric_id: String(entry.metric_id), kind: String(entry.kind) as EvaluationProfileConstraint["kind"],
+      lower_bound: entry.lower_bound === null ? null : Number(entry.lower_bound),
+      upper_bound: entry.upper_bound === null ? null : Number(entry.upper_bound), critical: Boolean(entry.critical)
     }))
   };
 }
@@ -45,6 +51,11 @@ export class EvaluationProfileRepository {
   async listByProject(projectId: string): Promise<EvaluationProfile[]> {
     const result = await this.db.query(this.profileQuery("WHERE p.project_id=$1::uuid"), [projectId]);
     return result.rows.map(mapProfile);
+  }
+
+  async findByProjectAndId(projectId: string, profileId: string): Promise<EvaluationProfile | null> {
+    const result = await this.db.query(this.profileQuery("WHERE p.project_id=$1::uuid AND p.id=$2::uuid"), [projectId, profileId]);
+    return result.rows[0] ? mapProfile(result.rows[0]) : null;
   }
 
   async create(projectId: string, createdBy: string, input: CreateEvaluationProfileInput): Promise<EvaluationProfile> {
@@ -72,6 +83,14 @@ export class EvaluationProfileRepository {
           [profile.id, metric.metric_id, metric.weight, metric.required ?? true]
         );
       }
+      for (const constraint of input.constraints ?? []) {
+        await tx.query(
+          `INSERT INTO public.control_evaluation_profile_constraints
+            (profile_id, metric_id, kind, lower_bound, upper_bound, critical)
+           VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6)`,
+          [profile.id, constraint.metric_id, constraint.kind, constraint.lower_bound ?? null, constraint.upper_bound ?? null, constraint.critical ?? false]
+        );
+      }
       await tx.query(
         `INSERT INTO iot_schema.auditoria (entidad, entidad_id, accion, cambios, contexto)
          VALUES ('control_evaluation_profiles', $1::uuid, 'EVALUATION_PROFILE_VERSION_CREATED', $2::jsonb, $3::jsonb)`,
@@ -86,17 +105,23 @@ export class EvaluationProfileRepository {
 
   private profileQuery(where: string): string {
     return `
-      SELECT p.*, COALESCE(jsonb_agg(jsonb_build_object(
+      SELECT p.*, COALESCE((SELECT jsonb_agg(jsonb_build_object(
         'id', m.id, 'code', m.code, 'version', m.version, 'name', m.name, 'description', m.description,
         'unit', m.unit, 'direction', m.direction, 'normalization_method', m.normalization_method,
         'normalization_config', m.normalization_config, 'weightable', m.weightable, 'active', m.active,
         'created_at', m.created_at, 'weight', pm.weight, 'required', pm.required
-      ) ORDER BY m.code, m.version DESC) FILTER (WHERE m.id IS NOT NULL), '[]'::jsonb) AS metrics
+      ) ORDER BY m.code, m.version DESC)
+      FROM public.control_evaluation_profile_metrics pm
+      JOIN public.control_evaluation_metrics m ON m.id=pm.metric_id
+      WHERE pm.profile_id=p.id), '[]'::jsonb) AS metrics,
+      COALESCE((SELECT jsonb_agg(jsonb_build_object(
+        'id', c.id, 'metric_id', c.metric_id, 'kind', c.kind, 'lower_bound', c.lower_bound,
+        'upper_bound', c.upper_bound, 'critical', c.critical
+      ) ORDER BY c.metric_id)
+      FROM public.control_evaluation_profile_constraints c
+      WHERE c.profile_id=p.id), '[]'::jsonb) AS constraints
       FROM public.control_evaluation_profiles p
-      LEFT JOIN public.control_evaluation_profile_metrics pm ON pm.profile_id=p.id
-      LEFT JOIN public.control_evaluation_metrics m ON m.id=pm.metric_id
       ${where}
-      GROUP BY p.id
       ORDER BY p.code, p.version DESC, p.created_at DESC`;
   }
 }
