@@ -1,7 +1,7 @@
 import type { QueryResultRow } from "pg";
 import { pool } from "@/lib/db/pool";
 import { withTransaction, type SqlExecutor, type TransactionRunner } from "@/lib/db/tx";
-import type { EvaluationComputation, EvaluationContext, EvaluationMetricResult, ExperimentEvaluation, SimulationResultEvidence } from "@/lib/dto/experiment-evaluation.dto";
+import type { EvaluationComputation, EvaluationContext, EvaluationMetricResult, ExperimentEvaluation, SimulationResultEvidence, SimulationTraceEvidence } from "@/lib/dto/experiment-evaluation.dto";
 import type { EvaluationProfileConstraint } from "@/lib/dto/evaluation-profile.dto";
 
 function object(value: unknown): Record<string, unknown> {
@@ -50,10 +50,20 @@ function mapEvaluation(row: QueryResultRow): ExperimentEvaluation {
 }
 
 function mapResult(row: QueryResultRow): SimulationResultEvidence {
+  const traceRow = object(row.trace);
+  const points = Array.isArray(traceRow.points) ? traceRow.points.map((point) => {
+    const item = object(point); return { sequence_number: Number(item.sequence_number), simulation_time_seconds: Number(item.simulation_time_seconds),
+      process_value: Number(item.process_value), setpoint: Number(item.setpoint), control_output: Number(item.control_output),
+      actuator_state: String(item.actuator_state), constraint_state: item.constraint_state === null ? null : String(item.constraint_state) };
+  }) : [];
+  const trace: SimulationTraceEvidence | null = typeof traceRow.trace_hash === "string" ? {
+    trace_hash: traceRow.trace_hash, trace_schema_version: Number(traceRow.trace_schema_version), time_representation: String(traceRow.time_representation),
+    point_count: Number(traceRow.point_count), simulation_duration_seconds: Number(traceRow.simulation_duration_seconds), points
+  } : null;
   return {
     id: String(row.id), project_id: String(row.project_id), session_id: String(row.session_id), run_id: String(row.run_id),
     result_fingerprint: String(row.result_fingerprint), processed_events: Number(row.processed_events),
-    actionable_recommendation_count: Number(row.actionable_recommendation_count), failed_domain_event_count: Number(row.failed_domain_event_count)
+    actionable_recommendation_count: Number(row.actionable_recommendation_count), failed_domain_event_count: Number(row.failed_domain_event_count), trace
   };
 }
 
@@ -62,9 +72,16 @@ export class ExperimentEvaluationRepository {
 
   async findSimulationResult(projectId: string, resultId: string): Promise<SimulationResultEvidence | null> {
     const result = await this.db.query(
-      `SELECT id, project_id, session_id, run_id, result_fingerprint, processed_events,
-              actionable_recommendation_count, failed_domain_event_count
-       FROM public.control_simulation_results WHERE project_id=$1::uuid AND id=$2::uuid`, [projectId, resultId]
+      `SELECT r.id, r.project_id, r.session_id, r.run_id, r.result_fingerprint, r.processed_events,
+              r.actionable_recommendation_count, r.failed_domain_event_count,
+        COALESCE((SELECT jsonb_build_object('trace_hash',t.trace_hash,'trace_schema_version',t.trace_schema_version,
+          'time_representation',t.time_representation,'point_count',t.point_count,
+          'simulation_duration_seconds',t.simulation_duration_seconds,'points',COALESCE((SELECT jsonb_agg(jsonb_build_object(
+            'sequence_number',p.sequence_number,'simulation_time_seconds',p.simulation_time_seconds,'process_value',p.process_value,
+            'setpoint',p.setpoint,'control_output',p.control_output,'actuator_state',p.actuator_state,'constraint_state',p.constraint_state
+          ) ORDER BY p.sequence_number) FROM public.control_simulation_trace_points p WHERE p.trace_id=t.id),'[]'::jsonb))
+          FROM public.control_simulation_traces t WHERE t.simulation_result_id=r.id), '{}'::jsonb) AS trace
+       FROM public.control_simulation_results r WHERE r.project_id=$1::uuid AND r.id=$2::uuid`, [projectId, resultId]
     );
     return result.rows[0] ? mapResult(result.rows[0]) : null;
   }

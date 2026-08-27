@@ -7,6 +7,16 @@ export type ConstraintStatus = "SATISFIED" | "VIOLATED" | "UNKNOWN" | "NOT_APPLI
 export interface SimulationResultEvidence {
   id: string; project_id: string; session_id: string; run_id: string; result_fingerprint: string;
   processed_events: number; actionable_recommendation_count: number; failed_domain_event_count: number;
+  trace?: SimulationTraceEvidence | null;
+}
+
+export interface SimulationTracePointEvidence {
+  sequence_number: number; simulation_time_seconds: number; process_value: number; setpoint: number;
+  control_output: number; actuator_state: string; constraint_state: string | null;
+}
+export interface SimulationTraceEvidence {
+  trace_hash: string; trace_schema_version: number; time_representation: string;
+  point_count: number; simulation_duration_seconds: number; points: SimulationTracePointEvidence[];
 }
 
 export interface EvaluationMetricResult {

@@ -1,6 +1,6 @@
 import type { EvaluationMetric } from "@/lib/dto/evaluation-profile.dto";
 
-export const NORMALIZATION_ENGINE_VERSION = "evaluation-engine:v1";
+export const NORMALIZATION_ENGINE_VERSION = "evaluation-engine:v2";
 export const EVALUATION_SCHEMA_VERSION = 1;
 export const HASH_DECIMAL_PLACES = 9;
 

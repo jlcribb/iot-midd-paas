@@ -48,16 +48,23 @@ class ReplayDomainOutput:
     recommendation_kind: str | None
     action_label: str | None
     command_value: float | None
+    process_value: float
+    setpoint: float
+    control_output: float
+    actuator_state: str
 
     def as_dict(self) -> dict[str, Any]:
         return {
-            "schema_version": 1, "sequence": self.sequence, "event_id": self.event_id,
+            "schema_version": 2, "sequence": self.sequence, "event_id": self.event_id,
             "virtual_timestamp": self.virtual_timestamp.isoformat(),
             "evaluation_outcome": self.evaluation_outcome,
             "has_recommendation": self.has_recommendation, "actionable": self.actionable,
             "recommendation_only": self.recommendation_only, "reason_code": self.reason_code,
             "recommendation_kind": self.recommendation_kind, "action_label": self.action_label,
             "command_value": self.command_value, "execution_context": "SIMULATION",
+            "process_value": self.process_value, "setpoint": self.setpoint,
+            "control_output": self.control_output, "actuator_state": self.actuator_state,
+            "constraint_state": None,
             "physical_effects": False,
         }
 
@@ -144,6 +151,9 @@ class SimulationReplayRunner:
                 recommendation_kind=kind.value if has_recommendation else None,
                 action_label=recommendation.evaluation.recommendation.action_label if has_recommendation else None,
                 command_value=recommendation.evaluation.recommendation.command_value if has_recommendation else None,
+                process_value=event.value, setpoint=selection.binding.setpoint.value,
+                control_output=recommendation.evaluation.applied_control_signal,
+                actuator_state=kind.value,
             ))
         return outputs
 

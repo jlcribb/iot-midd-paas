@@ -1,7 +1,7 @@
 import type { EvaluationComputation, EvaluationContext, EvaluationMetricResult, ConstraintStatus } from "@/lib/dto/experiment-evaluation.dto";
 import type { EvaluationProfileConstraint } from "@/lib/dto/evaluation-profile.dto";
 import { sha256Canonical } from "@/lib/simulation/canonical";
-import { kpiForMetric } from "@/lib/evaluation/kpi-extractor";
+import { KPI_EXTRACTION_ENGINE_VERSION, kpiForMetric } from "@/lib/evaluation/kpi-extractor";
 import { canonicalNumber, EVALUATION_SCHEMA_VERSION, NORMALIZATION_ENGINE_VERSION, normalizeMetric } from "@/lib/evaluation/normalization";
 
 function constraintStatus(raw: number | null, constraints: EvaluationProfileConstraint[]): ConstraintStatus {
@@ -78,7 +78,8 @@ export function evaluateExperiment(context: EvaluationContext): EvaluationComput
   const canonicalMetrics = [...details].sort((left, right) => left.metric_code.localeCompare(right.metric_code) || left.metric_version - right.metric_version);
   const evaluation_hash = sha256Canonical({
     schema_version: EVALUATION_SCHEMA_VERSION, engine_version: NORMALIZATION_ENGINE_VERSION,
-    simulation_result: { result_fingerprint: context.result.result_fingerprint },
+    kpi_extraction_engine_version: KPI_EXTRACTION_ENGINE_VERSION,
+    simulation_result: { result_fingerprint: context.result.result_fingerprint, trace_hash: context.result.trace?.trace_hash ?? null },
     evaluation_profile: { id: context.profile.id, version: context.profile.version },
     status, score: finalScore, metrics: canonicalMetrics,
     constraint_summary: { satisfied, violated, unknown, critical_violation: criticalViolation }

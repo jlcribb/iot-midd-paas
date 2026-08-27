@@ -20,6 +20,7 @@ from iot_middleware.storage.db_handler import (
     _get_control_settings_engine,
 )
 from iot_middleware.services.simulation_result_model import SimulationResultEvidence, canonical_result_evidence
+from iot_middleware.services.simulation_trace_model import canonical_trace_evidence
 
 
 @dataclass(frozen=True)
@@ -180,7 +181,8 @@ class SimulationRunRepository:
                 JOIN public.control_simulation_sessions s ON s.id=r.session_id AND s.project_id=r.project_id
                 WHERE r.id=CAST(:run_id AS uuid)
             """), {"run_id": str(completed["id"])}).mappings().one()
-            self._materialize_result_in_transaction(connection, row, materialized)
+            result = self._materialize_result_in_transaction(connection, row, materialized)
+            self._materialize_trace_in_transaction(connection, row, result, materialized)
             self._audit(connection, row, "SIMULATION_RUN_COMPLETED", {"output_count": len(materialized)})
         return _map_run(row)
 
@@ -263,7 +265,9 @@ class SimulationRunRepository:
             if run["status"] != "COMPLETED":
                 raise ValueError("only COMPLETED simulation runs may produce a result")
             events = self._events_in_transaction(connection, run_id)
-            return self._materialize_result_in_transaction(connection, run, events)
+            result = self._materialize_result_in_transaction(connection, run, events)
+            self._materialize_trace_in_transaction(connection, run, result, events)
+            return result
 
     def trace(self, project_id: str, session_id: str, run_id: str, *, limit: int = 100, offset: int = 0) -> tuple[list[dict[str, Any]], int]:
         if limit < 1 or limit > 500 or offset < 0:
@@ -320,6 +324,40 @@ class SimulationRunRepository:
             row = connection.execute(text("SELECT * FROM public.control_simulation_results WHERE run_id=CAST(:run_id AS uuid)"), {"run_id": str(run["id"])}).mappings().one()
         self._audit(connection, run, "SIMULATION_RESULT_MATERIALIZED", {"result_fingerprint": evidence.result_fingerprint})
         return _map_result(row)
+
+    def _materialize_trace_in_transaction(self, connection, run: Any, result: SimulationResult,
+                                          events: Iterable[SimulationRunEvent]) -> None:
+        """Persist one immutable trace per run from raw replay output, idempotently."""
+        existing = connection.execute(text("SELECT id FROM public.control_simulation_traces WHERE simulation_run_id=CAST(:run_id AS uuid)"), {"run_id": str(run["id"])}).mappings().first()
+        if existing is not None:
+            return
+        outputs = [event.output for event in events]
+        # M5.3/M5.4 historical outputs were schema v1 aggregate evidence. They
+        # remain valid historical results but cannot be retroactively treated as
+        # process traces. New replay schema v2 is the explicit trace contract.
+        if any(int(output.get("schema_version", 1)) < 2 for output in outputs):
+            return
+        evidence = canonical_trace_evidence(experiment_fingerprint=str(run["experiment_fingerprint"]), outputs=outputs)
+        trace_id = str(uuid.uuid4())
+        row = connection.execute(text("""
+          INSERT INTO public.control_simulation_traces
+            (id,project_id,simulation_run_id,simulation_result_id,trace_schema_version,time_representation,trace_hash,point_count,simulation_duration_seconds,physical_effects_allowed)
+          VALUES (CAST(:id AS uuid),CAST(:project_id AS uuid),CAST(:run_id AS uuid),CAST(:result_id AS uuid),:schema_version,:time_representation,:trace_hash,:point_count,:duration,FALSE)
+          ON CONFLICT (simulation_run_id) DO NOTHING RETURNING id
+        """), {"id": trace_id, "project_id": str(run["project_id"]), "run_id": str(run["id"]), "result_id": result.id,
+               "schema_version": evidence.trace_schema_version, "time_representation": evidence.time_representation,
+               "trace_hash": evidence.trace_hash, "point_count": evidence.point_count, "duration": evidence.simulation_duration_seconds}).mappings().first()
+        if row is None:
+            return
+        for point in evidence.points:
+            connection.execute(text("""INSERT INTO public.control_simulation_trace_points
+              (trace_id,sequence_number,simulation_time_seconds,process_value,setpoint,control_output,actuator_state,constraint_state,metadata)
+              VALUES (CAST(:trace_id AS uuid),:sequence,:time,:process,:setpoint,:output,:state,:constraint,'{}'::jsonb)"""),
+              {"trace_id": trace_id, "sequence": point.sequence_number, "time": point.simulation_time_seconds,
+               "process": point.process_value, "setpoint": point.setpoint, "output": point.control_output,
+               "state": point.actuator_state, "constraint": point.constraint_state})
+        self._audit(connection, run, "SIMULATION_TRACE_CREATED", {"trace_hash": evidence.trace_hash,
+                    "point_count": evidence.point_count, "trace_schema_version": evidence.trace_schema_version})
 
     def _events_in_transaction(self, connection, run_id: str) -> list[SimulationRunEvent]:
         rows = connection.execute(text("""

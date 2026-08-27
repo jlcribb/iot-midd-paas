@@ -58,6 +58,7 @@ def stored_ready_session():
     finally:
         with engine.begin() as connection:
             connection.execute(text("DELETE FROM iot_schema.auditoria WHERE contexto->>'project_id'=:project_id AND entidad='control_simulation_runs'"), {"project_id": project_id})
+            connection.execute(text("DELETE FROM public.control_simulation_traces WHERE project_id=CAST(:project_id AS uuid)"), {"project_id": project_id})
             connection.execute(text("DELETE FROM public.control_simulation_results WHERE project_id=CAST(:project_id AS uuid)"), {"project_id": project_id})
             connection.execute(text("DELETE FROM public.control_simulation_run_events WHERE run_id IN (SELECT id FROM public.control_simulation_runs WHERE project_id=CAST(:project_id AS uuid))"), {"project_id": project_id})
             connection.execute(text("DELETE FROM public.control_simulation_runs WHERE project_id=CAST(:project_id AS uuid)"), {"project_id": project_id})
@@ -81,6 +82,12 @@ def test_ready_session_runs_twice_with_isolated_outputs_and_no_operational_outbo
     assert {fingerprint for _, fingerprint in run_page} == {first_result.result_fingerprint}
     assert [event.output for event in first_events] == [event.output for event in second_events]
     assert first_result and second_result and first_result.result_fingerprint == second_result.result_fingerprint
+    with engine.connect() as connection:
+        traces = connection.execute(text("""SELECT id, simulation_run_id, trace_hash, point_count, simulation_duration_seconds
+          FROM public.control_simulation_traces WHERE simulation_run_id IN (CAST(:first AS uuid),CAST(:second AS uuid)) ORDER BY simulation_run_id"""), {"first": first.id, "second": second.id}).mappings().all()
+    assert len(traces) == 2 and {row["point_count"] for row in traces} == {2}
+    assert len({row["trace_hash"] for row in traces}) == 1
+    assert all(float(row["simulation_duration_seconds"]) == 60.0 for row in traces)
     assert repository.materialize_result(project_id, session_id, first.id).id == first_result.id
     trace, total = repository.trace(project_id, session_id, first.id, limit=1, offset=1)
     assert total == 2 and trace[0]["sequence"] == 2 and trace[0]["recommendation_state"] == "RECOMMENDATION_ONLY"
@@ -94,6 +101,9 @@ def test_ready_session_runs_twice_with_isolated_outputs_and_no_operational_outbo
     with pytest.raises(DBAPIError, match="immutable"):
         with engine.begin() as connection:
             connection.execute(text("UPDATE public.control_simulation_results SET recommendation_count=99 WHERE id=CAST(:id AS uuid)"), {"id": first_result.id})
+    with pytest.raises(DBAPIError, match="immutable"):
+        with engine.begin() as connection:
+            connection.execute(text("UPDATE public.control_simulation_trace_points SET process_value=99 WHERE trace_id=CAST(:id AS uuid)"), {"id": traces[0]["id"]})
     assert repository.get_result(str(uuid.uuid4()), session_id, first.id) is None
     with pytest.raises(LookupError):
         repository.trace(str(uuid.uuid4()), session_id, first.id)

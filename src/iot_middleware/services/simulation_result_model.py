@@ -9,7 +9,7 @@ from datetime import datetime
 from typing import Any, Iterable
 
 
-CANONICAL_RESULT_SCHEMA_VERSION = 1
+CANONICAL_RESULT_SCHEMA_VERSION = 2
 
 
 @dataclass(frozen=True)
@@ -78,6 +78,10 @@ def _canonical_output(output: dict[str, Any], *, expected_sequence: int) -> dict
         "recommendation_kind": output.get("recommendation_kind"),
         "action_label": output.get("action_label"),
         "command_value": output.get("command_value"),
+        # v2 intentionally binds result identity to the primary process evidence
+        # from which M6.3A derives KPIs.  Historical v1 results remain immutable.
+        "process_value": output.get("process_value"), "setpoint": output.get("setpoint"),
+        "control_output": output.get("control_output"), "actuator_state": output.get("actuator_state"),
     }
 
 
