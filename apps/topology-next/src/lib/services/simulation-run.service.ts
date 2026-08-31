@@ -29,7 +29,10 @@ export class SimulationRunService {
   }
   private async request<T = SimulationRunSummary>(path: string, init?: RequestInit): Promise<T> {
     let response: Response;
-    try { response = await fetch(`${this.endpoint}${path}`, init); } catch { throw new InternalError("Simulation replay runner is unavailable"); }
+    try { response = await fetch(`${this.endpoint}${path}`, init); } catch (error) {
+      const detail = error instanceof Error && error.message ? `: ${error.message}` : "";
+      throw new InternalError(`Simulation replay runner is unavailable${detail}`);
+    }
     const body = await response.json().catch(() => ({}));
     if (response.status === 404) throw new NotFoundError("Simulation run not found");
     if (response.status === 409) throw new ConflictError(String(body.detail ?? "Simulation run rejected"));
