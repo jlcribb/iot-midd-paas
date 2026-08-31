@@ -1,0 +1,11 @@
+import type { ControlStrategyCandidate, StrategySearchSpace } from "@/lib/dto/strategy-candidate.dto";
+import type { SimulationSession } from "@/lib/dto/simulation-session.dto";
+
+export const EXPERIMENT_BATCH_ORCHESTRATOR_VERSION = "experiment-batch-orchestrator:v1";
+export const MAX_BATCH_ITEMS = 100;
+export type ExperimentBatchStatus = "READY" | "RUNNING" | "COMPLETED" | "COMPLETED_WITH_WARNINGS" | "PARTIALLY_FAILED" | "FAILED";
+export type ExperimentBatchItemStatus = "PENDING" | "RUNNING" | "COMPLETED" | "COMPLETED_WITH_WARNINGS" | "NOT_EVALUABLE" | "FAILED";
+export interface CreateExperimentBatchInput { search_space_id: string; simulation_session_id: string; evaluation_profile_id?: string; name: string; description?: string; candidate_ids?: string[]; }
+export interface ExperimentBatchItem { id: string; batch_id: string; project_id: string; candidate_id: string; candidate_hash: string; item_index: number; status: ExperimentBatchItemStatus; simulation_session_id: string | null; experiment_fingerprint: string | null; simulation_run_id: string | null; simulation_result_id: string | null; result_fingerprint: string | null; trace_id: string | null; trace_hash: string | null; evaluation_id: string | null; evaluation_hash: string | null; attempt_count: number; last_error_code: string | null; last_error_summary: string | null; created_at: string; started_at: string | null; completed_at: string | null; }
+export interface ExperimentBatch { id: string; project_id: string; search_space_id: string; base_session_id: string; base_experiment_fingerprint: string; evaluation_profile_id: string | null; evaluation_profile_version: number | null; name: string; description: string; batch_hash: string; status: ExperimentBatchStatus; total_items: number; pending_items: number; running_items: number; completed_items: number; completed_with_warnings_items: number; not_evaluable_items: number; failed_items: number; schema_version: 1; orchestrator_version: string; created_by: string; created_at: string; started_at: string | null; completed_at: string | null; items?: ExperimentBatchItem[]; }
+export interface BatchDefinition { searchSpace: StrategySearchSpace; baseSession: SimulationSession; candidates: ControlStrategyCandidate[]; evaluationProfile: { id: string; version: number } | null; batchHash: string; }
