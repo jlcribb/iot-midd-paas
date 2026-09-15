@@ -1,0 +1,1 @@
+import {z}from"zod";export const controlledPolicyApprovalSchema=z.object({decision:z.enum(["APPROVE_FOR_CONTROLLED_DEPLOYMENT_PREPARATION","REJECT","REQUEST_REVALIDATION"]),rationale:z.string().trim().min(10).max(2000)}).strict();

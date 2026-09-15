@@ -1,4 +1,4 @@
-# M7.2A — Controlled Policy Candidate E2E
+# M7.2A / M7.3 — Controlled Policy Candidate, Validation and Approval E2E
 
 The replay runner is intentionally internal to Docker (`simulation-replay-runner:8010`). Do not execute runner-backed M6/M7.1/M7.2 E2E tests from the host: the host cannot resolve that Docker service name and the batch will fail before promotion evidence exists.
 
@@ -15,7 +15,7 @@ docker run --rm --network containers_default \
   sh -lc 'npm test -- tests/integration/controlled-policy-version.e2e.test.ts'
 ```
 
-The isolated test creates four real M6→M7.1 chains, materializes controlled candidates v1–v4, checks replay idempotency, an immutable row, one audit event, configuration hashing, and concurrent version allocation. Its dedicated project is removed in `finally`, so it neither changes active policies nor leaves shared fixture references.
+The isolated test creates four real M6→M7.1 chains, materializes controlled candidates v1–v4, and performs M7.3 validation and approval on v1. It checks validation replay, all eight passing gates, immutable validation evidence, approval replay, conflicting second decision denial, both audit events, configuration hashing, and concurrent version allocation. Its dedicated project is removed in `finally`, so it neither changes active policies nor leaves shared fixture references.
 
 The M6/M7.1 regression remains:
 
