@@ -1,0 +1,35 @@
+import {pool} from "@/lib/db/pool";
+import {withTransaction,type SqlExecutor,type TransactionRunner} from "@/lib/db/tx";
+import {ConflictError} from "@/lib/errors/domain-errors";
+import {CONTROLLED_POLICY_MATERIALIZER_VERSION,CONTROLLED_POLICY_VERSION_SCHEMA,type ControlledPolicyVersionCandidate} from "@/lib/dto/controlled-policy-version.dto";
+import {assertControlledPolicyVersionEligibility,buildControlledPolicyConfigurationHash,buildControlledPolicyVersionHash,buildControlledPolicyVersionProvenance,materializeControlledPolicyVersionCandidate,type ControlledPolicyVersionMaterializationInput} from "@/lib/promotion/controlled-policy-version-materializer";
+
+const map=(r:any):ControlledPolicyVersionCandidate=>({id:String(r.id),project_id:String(r.project_id),promotion_proposal_id:String(r.promotion_proposal_id),proposal_hash:String(r.proposal_hash),promotion_assessment_id:String(r.promotion_assessment_id),assessment_hash:String(r.assessment_hash),source_candidate_id:String(r.source_candidate_id),candidate_hash:String(r.candidate_hash),strategy_type:r.strategy_type, strategy_schema_version:Number(r.strategy_schema_version),version_number:Number(r.version_number),version_label:String(r.version_label),configuration_snapshot:r.configuration_snapshot,configuration_hash:String(r.configuration_hash),policy_version_hash:String(r.policy_version_hash),provenance_snapshot:r.provenance_snapshot,status:"CANDIDATE",policy_version_schema:String(r.policy_version_schema),materializer_version:String(r.materializer_version),created_by:String(r.created_by),created_at:String(r.created_at),physical_effects_allowed:false});
+
+export class ControlledPolicyVersionRepository {
+  constructor(private db:SqlExecutor=pool,private transaction:TransactionRunner=withTransaction){}
+  async createOrGet(projectId:string,proposalId:string,actor:string){return this.transaction(async tx=>{
+    const input=await this.loadMaterializationInput(tx,projectId,proposalId,true);
+    if(!input)throw new ConflictError("CONTROLLED_POLICY_VERSION_PROVENANCE_INTEGRITY_CONFLICT");
+    assertControlledPolicyVersionEligibility(input);
+    const existing=await this.getByProposal(tx,projectId,proposalId);
+    if(existing)return existing;
+    await tx.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))",[`controlled-policy-version:${projectId}:${input.candidate_strategy_type}`]);
+    const replay=await this.getByProposal(tx,projectId,proposalId);
+    if(replay)return replay;
+    const configuration=materializeControlledPolicyVersionCandidate(input);
+    const configurationHash=buildControlledPolicyConfigurationHash(configuration);
+    const versionResult=await tx.query("SELECT COALESCE(MAX(version_number),0)+1 AS version_number FROM public.control_controlled_policy_version_candidates WHERE project_id=$1::uuid AND strategy_type=$2",[projectId,input.candidate_strategy_type]);
+    const versionNumber=Number(versionResult.rows[0].version_number);
+    const policyVersionHash=buildControlledPolicyVersionHash({project_id:projectId,configuration_hash:configurationHash,proposal_hash:input.proposal_hash,assessment_hash:input.assessment_hash!,candidate_hash:input.candidate_hash,strategy_type:input.candidate_strategy_type,version_number:versionNumber});
+    const provenance=buildControlledPolicyVersionProvenance(input);
+    const inserted=await tx.query(`INSERT INTO public.control_controlled_policy_version_candidates(project_id,promotion_proposal_id,proposal_hash,promotion_assessment_id,assessment_hash,source_candidate_id,candidate_hash,strategy_type,strategy_schema_version,version_number,version_label,configuration_snapshot,configuration_hash,policy_version_hash,provenance_snapshot,status,policy_version_schema,materializer_version,created_by,physical_effects_allowed) VALUES($1::uuid,$2::uuid,$3,$4::uuid,$5,$6::uuid,$7,$8,$9,$10,$11,$12::jsonb,$13,$14,$15::jsonb,'CANDIDATE',$16,$17,$18,FALSE) RETURNING *`,[projectId,proposalId,input.proposal_hash,input.assessment_id,input.assessment_hash,input.candidate_id,input.candidate_hash,input.candidate_strategy_type,input.strategy_schema_version,versionNumber,`v${versionNumber}`,JSON.stringify(configuration),configurationHash,policyVersionHash,JSON.stringify(provenance),CONTROLLED_POLICY_VERSION_SCHEMA,CONTROLLED_POLICY_MATERIALIZER_VERSION,actor]);
+    const candidate=map(inserted.rows[0]);
+    await tx.query("INSERT INTO iot_schema.auditoria(entidad,entidad_id,accion,cambios,contexto) VALUES('control_controlled_policy_version_candidates',$1::uuid,'CONTROLLED_POLICY_VERSION_CANDIDATE_CREATED',$2::jsonb,$3::jsonb)",[candidate.id,JSON.stringify({version_candidate_id:candidate.id,version_number:candidate.version_number,strategy_type:candidate.strategy_type,configuration_hash:candidate.configuration_hash,policy_version_hash:candidate.policy_version_hash,proposal_hash:candidate.proposal_hash,assessment_hash:candidate.assessment_hash,candidate_hash:candidate.candidate_hash,status:candidate.status}),JSON.stringify({project_id:projectId,actor_id:actor,execution_context:"SIMULATION",physical_effects:false})]);
+    return candidate;
+  });}
+  async list(projectId:string,strategyType?:string){const q=await this.db.query(`SELECT * FROM public.control_controlled_policy_version_candidates WHERE project_id=$1::uuid ${strategyType?"AND strategy_type=$2":""} ORDER BY strategy_type,version_number`,strategyType?[projectId,strategyType]:[projectId]);return q.rows.map(map);}
+  async get(projectId:string,id:string){const q=await this.db.query("SELECT * FROM public.control_controlled_policy_version_candidates WHERE project_id=$1::uuid AND id=$2::uuid",[projectId,id]);return q.rows[0]?map(q.rows[0]):null;}
+  private async getByProposal(db:SqlExecutor,projectId:string,proposalId:string){const q=await db.query("SELECT * FROM public.control_controlled_policy_version_candidates WHERE project_id=$1::uuid AND promotion_proposal_id=$2::uuid AND materializer_version=$3",[projectId,proposalId,CONTROLLED_POLICY_MATERIALIZER_VERSION]);return q.rows[0]?map(q.rows[0]):null;}
+  private async loadMaterializationInput(db:SqlExecutor,projectId:string,proposalId:string,lock:boolean):Promise<ControlledPolicyVersionMaterializationInput|null>{const q=await db.query(`SELECT p.project_id,p.id proposal_id,p.proposal_hash,p.status proposal_status,a.id assessment_id,a.assessment_hash,a.status assessment_status,p.candidate_id,c.candidate_hash,c.strategy_type candidate_strategy_type,s.parameter_schema_version strategy_schema_version,c.parameters candidate_parameters,p.recommendation_hash,p.review_hash,p.evaluation_hash,p.ranking_hash FROM public.control_policy_promotion_proposals p LEFT JOIN public.control_policy_promotion_assessments a ON a.proposal_id=p.id LEFT JOIN public.control_strategy_candidates c ON c.id=p.candidate_id AND c.project_id=p.project_id AND c.candidate_hash=p.candidate_hash LEFT JOIN public.control_strategy_search_spaces s ON s.id=c.search_space_id AND s.project_id=p.project_id WHERE p.project_id=$1::uuid AND p.id=$2::uuid ${lock?"FOR UPDATE OF p":""}`,[projectId,proposalId]);return q.rows[0]?q.rows[0] as ControlledPolicyVersionMaterializationInput:null;}
+}

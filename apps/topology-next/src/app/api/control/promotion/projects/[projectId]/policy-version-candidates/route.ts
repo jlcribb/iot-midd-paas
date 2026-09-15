@@ -1,0 +1,10 @@
+import {resolveAuthenticatedControlActor} from "@/lib/auth/control-auth-session";
+import {ok} from "@/lib/http/response";
+import {withRouteErrorHandling} from "@/lib/http/route-handler";
+import {ControlledPolicyVersionService} from "@/lib/services/controlled-policy-version.service";
+import {createControlledPolicyVersionCandidateSchema} from "@/lib/validators/controlled-policy-version.schemas";
+import {uuidSchema} from "@/lib/validators/common";
+import {ValidationError} from "@/lib/errors/domain-errors";
+const service=new ControlledPolicyVersionService();
+export const GET=withRouteErrorHandling(async(request:Request,{params}:any)=>{const actor=await resolveAuthenticatedControlActor(request),raw=await params,projectId=uuidSchema.parse(raw.projectId),strategyType=new URL(request.url).searchParams.get("strategyType")??undefined;if(strategyType!==undefined&&strategyType!=="proportional"&&strategyType!=="threshold")throw new ValidationError("Invalid strategyType");return ok(await service.list(actor,projectId,strategyType));});
+export const POST=withRouteErrorHandling(async(request:Request,{params}:any)=>{const actor=await resolveAuthenticatedControlActor(request),raw=await params,input=createControlledPolicyVersionCandidateSchema.parse(await request.json());return ok(await service.create(actor,uuidSchema.parse(raw.projectId),input.proposalId),201);});
