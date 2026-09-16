@@ -5,11 +5,12 @@ the public boundary and authorizes the actor before forwarding a request here.
 """
 
 from fastapi import FastAPI, HTTPException, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from uuid import UUID
 
 from iot_middleware.services.simulation_replay_runner import SimulationReplayRejected, SimulationReplayRunner
 from iot_middleware.storage.simulation_run_repository import SimulationRunRepository
+from parametric_control_engine.evaluators.shadow_control import ShadowControlEvaluationError, evaluate_shadow_control
 
 
 app = FastAPI(title="Midd IoT Simulation Replay", docs_url=None, redoc_url=None, openapi_url=None)
@@ -19,6 +20,14 @@ class ExecuteRequest(BaseModel):
     project_id: UUID
     session_id: UUID
     created_by: str
+
+
+class ShadowEvaluationRequest(BaseModel):
+    strategy_type: str
+    configuration: dict
+    input_snapshot: dict
+    required_inputs: list[str] = Field(min_length=1, max_length=32)
+    limits: dict
 
 
 def serialize(run):
@@ -36,6 +45,16 @@ def execute(request: ExecuteRequest):
     try:
         return serialize(SimulationReplayRunner().execute(project_id=str(request.project_id), session_id=str(request.session_id), created_by=request.created_by))
     except SimulationReplayRejected as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@app.post("/internal/shadow-control-evaluations")
+def shadow_evaluate(request: ShadowEvaluationRequest):
+    try:
+        return evaluate_shadow_control(strategy_type=request.strategy_type, configuration=request.configuration,
+                                       input_snapshot=request.input_snapshot, required_inputs=request.required_inputs,
+                                       limits=request.limits)
+    except ShadowControlEvaluationError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
