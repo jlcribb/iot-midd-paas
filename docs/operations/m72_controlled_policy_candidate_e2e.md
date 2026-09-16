@@ -15,7 +15,7 @@ docker run --rm --network containers_default \
   sh -lc 'npm test -- tests/integration/controlled-policy-version.e2e.test.ts'
 ```
 
-The isolated test creates four real M6→M7.1 chains, materializes controlled candidates v1–v4, performs M7.3 validation and approval on v1, creates an explicit simulation `programmable_node` target with declared readiness capabilities, records M7.5 human authorization plus a separate governed intent, and executes a non-active M7.6 database staging delivery. It checks idempotent execution, a controlled partial-delivery rollback, immutable evidence, M7.5/M7.6 audit events, and before/after equality for active policies, runtime bindings, operational delivery intents, and outbox. Its dedicated project is removed in `finally`, so it neither changes active policies nor leaves shared fixture references.
+The isolated test creates real M6→M7.7 chains and proves non-actuating activation behavior. It activates policy A, switches atomically to policy B in the same governed runtime slot, then injects a mismatched ACK for a later replacement and verifies rollback restores B. It checks exactly one `ACTIVE` binding, immutable activation/ACK history, disabled loop and actuation flags, and no change to operational actuation delivery, outbox, MQTT, or hardware. Its dedicated project is removed in `finally`.
 
 The M6/M7.1 regression remains:
 
