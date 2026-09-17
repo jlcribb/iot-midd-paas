@@ -1,0 +1,9 @@
+export const PHYSICAL_ACTUATION_READINESS_POLICY_VERSION="physical-actuation-readiness:v1";
+export const PHYSICAL_ACTUATION_READINESS_ENGINE_VERSION="physical-actuation-readiness-engine:v1";
+export const PHYSICAL_ACTUATION_READINESS_SCHEMA_VERSION="physical-actuation-readiness-schema:v1";
+export const PHYSICAL_ACTUATION_AUTHORIZATION_POLICY_VERSION="governed-physical-actuation-authorization:v1";
+export const PHYSICAL_ACTUATION_AUTHORIZATION_SCHEMA_VERSION="governed-physical-actuation-authorization-schema:v1";
+export const GOVERNED_ACTUATION_INTENT_POLICY_VERSION="governed-actuation-intent:v1";
+export const GOVERNED_ACTUATION_INTENT_SCHEMA_VERSION="governed-actuation-intent-schema:v1";
+export type PhysicalActuationReadinessStatus="PENDING"|"PASSED"|"FAILED"|"BLOCKED";
+export type PhysicalActuationDecision="AUTHORIZE_PHYSICAL_ACTUATION_INTENT"|"REJECT_PHYSICAL_ACTUATION"|"REQUEST_ACTUATION_REASSESSMENT";
