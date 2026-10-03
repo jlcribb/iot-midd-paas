@@ -1,0 +1,9 @@
+export const DYNAMIC_SEMANTIC_VERSION = "DETERMINISTIC_CONTINUOUS_TIME_V1" as const;
+export const SOLVER_VERSION = "EXPLICIT_EULER_V1" as const;
+export const TRAJECTORY_FORMAT_VERSION = "GDSS_TRAJECTORY_NDJSON_V1" as const;
+export const TRAJECTORY_MEDIA_TYPE = "application/vnd.midd.gdss-trajectory+ndjson;version=1" as const;
+export const SIMULATION_LIMITS_VERSION = "GDSS_SIM_LIMITS_V1" as const;
+export const RECOVERY_POLICY_VERSION = "GDSS_SIM_RECOVERY_V1" as const;
+export const CONSTRAINT_POLICY = "FAIL_RUN" as const;
+export const PHYSICAL_AUTHORITY = "NONE" as const;
+export const SIMULATION_EPISTEMIC_KIND = "SIMULATED" as const;

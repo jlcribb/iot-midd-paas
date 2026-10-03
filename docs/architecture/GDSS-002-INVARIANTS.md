@@ -112,3 +112,8 @@ Ninguno de GDS2-INV-01..25 se clasifica aquí como `STRUCTURALLY_RESERVED`: todo
 de la futura implementación GDSS-002 y por eso están `NOT_TESTED`. Simulación, predicción,
 recomendación y actuación sí son conceptos futuros fuera de esta matriz; su ausencia es una
 frontera, no un supuesto PASS.
+# Post-closure invariant namespace
+
+Temporal catalog successor invariants are intentionally not inserted into or renumbered within
+`GDS2-INV-01..25`. They are defined separately as `GDS2-EXT-INV-01..08` in
+`GDSS-002-TEMPORAL-UNIT-EXTENSION.md`.

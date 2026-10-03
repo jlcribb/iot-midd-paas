@@ -7,8 +7,8 @@ import { analyzeAst, evaluateAst, formatOutput, prepareInputs, type EvaluationIn
 import { DEFAULT_EXPRESSION_LIMITS, type ExpressionLimits } from "./limits";
 import { parseExpression } from "./parser";
 import { findFormula, resolveSymbols, type FormulaContent } from "./symbols";
-import type { QuantitySemantics, UnitIdentity } from "./units";
-import { EVALUATOR_VERSION, EXPRESSION_LANGUAGE_VERSION, RESOURCE_LIMITS_PROFILE, UNIT_CONVERSION_CATALOG_VERSION } from "./versions";
+import { getUnitCatalog, type QuantitySemantics, type UnitIdentity } from "./units";
+import { EVALUATOR_VERSION, EXPRESSION_LANGUAGE_VERSION, RESOURCE_LIMITS_PROFILE, type UnitConversionCatalogVersion } from "./versions";
 
 export interface ModelVersionSnapshot { id: string; content: ModelContent; content_hash?: string | null; lifecycle_status?: string }
 export interface EvaluationContext {
@@ -17,7 +17,7 @@ export interface EvaluationContext {
   formulaSymbol: string;
   expressionLanguageVersion: typeof EXPRESSION_LANGUAGE_VERSION;
   evaluatorVersion: typeof EVALUATOR_VERSION;
-  conversionCatalogVersion: typeof UNIT_CONVERSION_CATALOG_VERSION;
+  conversionCatalogVersion: UnitConversionCatalogVersion;
   resourceLimitsProfile: typeof RESOURCE_LIMITS_PROFILE;
   inputs: EvaluationInputs;
   requestedOutputUnit?: UnitIdentity;
@@ -30,7 +30,7 @@ export interface EvaluationSuccess {
   formulaSymbol: string;
   expressionLanguageVersion: typeof EXPRESSION_LANGUAGE_VERSION;
   evaluatorVersion: typeof EVALUATOR_VERSION;
-  conversionCatalogVersion: typeof UNIT_CONVERSION_CATALOG_VERSION;
+  conversionCatalogVersion: UnitConversionCatalogVersion;
   resourceLimitsProfile: typeof RESOURCE_LIMITS_PROFILE;
   result: { value: number; unit: UnitIdentity; dimension: readonly number[]; quantitySemantics?: QuantitySemantics };
   dependencyGraph: DependencyGraph;
@@ -61,8 +61,9 @@ function preflightOwnership(model: ModelContent, formulaSymbol: string) {
 
 function assertVersions(context: EvaluationContext, snapshot: ModelVersionSnapshot) {
   if (context.modelVersionId !== snapshot.id) fail("CROSS_VERSION_REFERENCE", "SOURCE", "Evaluation context does not match exact model version", { expected: snapshot.id, actual: context.modelVersionId });
-  const expected = { expressionLanguageVersion:EXPRESSION_LANGUAGE_VERSION, evaluatorVersion:EVALUATOR_VERSION, conversionCatalogVersion:UNIT_CONVERSION_CATALOG_VERSION, resourceLimitsProfile:RESOURCE_LIMITS_PROFILE };
+  const expected = { expressionLanguageVersion:EXPRESSION_LANGUAGE_VERSION, evaluatorVersion:EVALUATOR_VERSION, resourceLimitsProfile:RESOURCE_LIMITS_PROFILE };
   for (const [field,value] of Object.entries(expected)) if (context[field as keyof EvaluationContext] !== value) fail("VERSION_MISMATCH", "SOURCE", `${field} is not supported`, { expected:value, actual:context[field as keyof EvaluationContext] });
+  getUnitCatalog(context.conversionCatalogVersion);
 }
 
 function compileDependencies(model: ModelContent, limits: ExpressionLimits): { records: FormulaDependency[]; compiled: Map<string,{formula:FormulaContent;ast:ReturnType<typeof parseExpression>["ast"]}> } {
@@ -91,16 +92,16 @@ export function evaluateExpression(snapshot: ModelVersionSnapshot, context: Eval
     assertAcyclic(graph);
     stage = "SYMBOL_RESOLVED";
     inputHash = derivedHash("gdss-eval-input:v1", { modelVersionId:snapshot.id, formulaSymbol:formula.symbol, expressionLanguageVersion:context.expressionLanguageVersion, evaluatorVersion:context.evaluatorVersion, conversionCatalogVersion:context.conversionCatalogVersion, resourceLimitsProfile:context.resourceLimitsProfile, inputs:context.inputs, requestedOutputUnit:context.requestedOutputUnit, expectedOutputQuantitySemantics:context.expectedOutputQuantitySemantics });
-    const values = prepareInputs(model,resolved,context.inputs,limits);
+    const values = prepareInputs(model,resolved,context.inputs,limits,context.conversionCatalogVersion);
     const dimensional = analyzeAst(parsed.ast,values);
     if (!dimensionsEqual(dimensional.dimension,resolved.output.dimension)) fail("DIMENSION_MISMATCH", "DIMENSIONALLY_VALIDATED", "Expression dimension does not match output artifact", { expected:resolved.output.dimension, actual:dimensional.dimension });
     if (dimensional.quantitySemantics !== context.expectedOutputQuantitySemantics && (dimensional.quantitySemantics || context.expectedOutputQuantitySemantics)) fail("AFFINE_QUANTITY_ERROR", "DIMENSIONALLY_VALIDATED", "Derived output quantity semantics differ from evaluation context", { expected:context.expectedOutputQuantitySemantics, actual:dimensional.quantitySemantics });
     stage = "DIMENSIONALLY_VALIDATED";
     const canonicalValue = evaluateAst(parsed.ast,values,limits);
-    const output = formatOutput(canonicalValue,model,resolved.output.unit_ref,context.requestedOutputUnit,dimensional.quantitySemantics);
+    const output = formatOutput(canonicalValue,model,resolved.output.unit_ref,context.requestedOutputUnit,dimensional.quantitySemantics,context.conversionCatalogVersion);
     const resultBase = { value:output.value, unit:output.unit, dimension:dimensional.dimension, quantitySemantics:output.quantitySemantics };
     const resultHash = derivedHash("gdss-eval-result:v1", { evaluation_input_hash:inputHash, expression_ast_hash:astHash, result:resultBase, epistemic_kind:"DERIVED", physical_authority:"NONE" });
-    return { status:"SUCCEEDED", stage:"EVALUABLE", modelVersionId:snapshot.id, formulaSymbol:formula.symbol, expressionLanguageVersion:EXPRESSION_LANGUAGE_VERSION, evaluatorVersion:EVALUATOR_VERSION, conversionCatalogVersion:UNIT_CONVERSION_CATALOG_VERSION, resourceLimitsProfile:RESOURCE_LIMITS_PROFILE, result:resultBase, dependencyGraph:graph, expression_ast_hash:astHash, evaluation_input_hash:inputHash, evaluation_result_hash:resultHash, epistemic_kind:"DERIVED", physical_authority:"NONE", diagnostics:[] };
+    return { status:"SUCCEEDED", stage:"EVALUABLE", modelVersionId:snapshot.id, formulaSymbol:formula.symbol, expressionLanguageVersion:EXPRESSION_LANGUAGE_VERSION, evaluatorVersion:EVALUATOR_VERSION, conversionCatalogVersion:context.conversionCatalogVersion, resourceLimitsProfile:RESOURCE_LIMITS_PROFILE, result:resultBase, dependencyGraph:graph, expression_ast_hash:astHash, evaluation_input_hash:inputHash, evaluation_result_hash:resultHash, epistemic_kind:"DERIVED", physical_authority:"NONE", diagnostics:[] };
   } catch (error) {
     const diagnostic = diagnosticFrom(error,stage,context.formulaSymbol);
     return { status:"FAILED", stage:diagnostic.stage, modelVersionId:snapshot.id, formulaSymbol:context.formulaSymbol, diagnostics:[diagnostic], expression_ast_hash:astHash, evaluation_input_hash:inputHash };

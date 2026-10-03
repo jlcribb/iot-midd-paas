@@ -291,3 +291,9 @@ identifica bytes computacionales reproducibles; no certifica verdad científica.
 - la falta de una operación RBAC `EVALUATE_MODEL` es `GDSS2-CF-02`; su mapeo queda para el plan.
 - `canonical_unit` no es una referencia versionada ni garantiza una familia completa
   (`GDSS2-CF-03`); toda conversión futura validará un catálogo cerrado y fallará si es ambiguo.
+# Post-closure extension notice
+
+`GDSS_UNIT_CONVERSION_V1` remains immutable. `GDSS_UNIT_CONVERSION_V2` is an explicitly selected
+successor that preserves V1 and adds canonical interval unit `second@1`. This notice does not
+retroactively change the original contracts; the normative delta is recorded in
+`GDSS-002-TEMPORAL-UNIT-EXTENSION.md`.

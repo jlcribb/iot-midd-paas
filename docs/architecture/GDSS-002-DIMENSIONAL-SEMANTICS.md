@@ -176,3 +176,9 @@ mostrar la derivación de cada nodo y la conversión de cada input.
 La firma entera de GDSS-001 limita potencias fraccionarias dimensionadas y se respeta. Extender a
 exponentes racionales o persistir `ABSOLUTE | INTERVAL` exige una fase gobernada posterior. No se
 redondearán exponentes ni se editará el `content_hash` histórico para sortear esa limitación.
+# Post-closure temporal dimension extension
+
+The explicitly selected `GDSS_UNIT_CONVERSION_V2` adds `second@1` as an `INTERVAL` with dimension
+`[0,0,1,0,0,0,0]`. It enables existing dimensional algebra to prove `rate × dt = state` without a
+GDSS-003-specific algebra. V1 remains unchanged; details are in
+`GDSS-002-TEMPORAL-UNIT-EXTENSION.md`.

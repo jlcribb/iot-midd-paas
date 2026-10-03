@@ -5,6 +5,7 @@ import { compatibleForAddSubtract, dimensionsEqual, divideDimensions, DIMENSIONL
 import { assertLimit, DEFAULT_EXPRESSION_LIMITS, type ExpressionLimits } from "./limits";
 import type { ResolvedSymbols } from "./symbols";
 import { assertConvertible, assertModelUnit, assertQuantitySemantics, catalogUnit, fromCanonical, toCanonical, type QuantitySemantics, type UnitIdentity } from "./units";
+import { UNIT_CONVERSION_CATALOG_VERSION_V1, type UnitConversionCatalogVersion } from "./versions";
 
 export interface EvaluationInput { value: number; unit: UnitIdentity; quantitySemantics?: QuantitySemantics }
 export interface EvaluationInputs { [symbol: string]: EvaluationInput }
@@ -67,7 +68,7 @@ function analyzeFunction(node: FunctionCall, values: DimensionalValue[]): Dimens
   return { dimension: powerDimension(first.dimension,integer,node.span), quantitySemantics: integer === 1 ? first.quantitySemantics : undefined };
 }
 
-export function prepareInputs(model: ModelContent, resolved: ResolvedSymbols, inputs: EvaluationInputs, limits: ExpressionLimits = DEFAULT_EXPRESSION_LIMITS): ReadonlyMap<string,SemanticValue> {
+export function prepareInputs(model: ModelContent, resolved: ResolvedSymbols, inputs: EvaluationInputs, limits: ExpressionLimits = DEFAULT_EXPRESSION_LIMITS, catalogVersion: UnitConversionCatalogVersion = UNIT_CONVERSION_CATALOG_VERSION_V1): ReadonlyMap<string,SemanticValue> {
   assertLimit(Object.keys(inputs).length,limits.suppliedInputs,"supplied inputs","EVALUABLE");
   const declared = new Set(resolved.references);
   for (const symbol of Object.keys(inputs)) if (!declared.has(symbol)) fail("UNDECLARED_INPUT", "EVALUABLE", "Input is not declared by formula", { symbol });
@@ -80,8 +81,8 @@ export function prepareInputs(model: ModelContent, resolved: ResolvedSymbols, in
     const artifact = resolved.symbols.get(symbol)!;
     const modelDefinition = units.get(artifact.unit_ref);
     if (!modelDefinition) fail("INVALID_INPUT_UNIT", "DIMENSIONALLY_VALIDATED", "Governed model unit is missing", { symbol, actual: artifact.unit_ref });
-    const modelUnit = assertModelUnit(modelDefinition);
-    const suppliedUnit = catalogUnit(input.unit);
+    const modelUnit = assertModelUnit(modelDefinition,undefined,catalogVersion);
+    const suppliedUnit = catalogUnit(input.unit,undefined,catalogVersion);
     assertConvertible(suppliedUnit,modelUnit);
     if (!dimensionsEqual(artifact.dimension,modelUnit.dimension)) fail("DIMENSION_MISMATCH", "DIMENSIONALLY_VALIDATED", "Artifact dimension differs from governed unit", { symbol, expected: artifact.dimension, actual: modelUnit.dimension });
     const semantics = assertQuantitySemantics(suppliedUnit,input.quantitySemantics);
@@ -154,10 +155,10 @@ export function evaluateAst(ast: ASTNode, symbols: ReadonlyMap<string,SemanticVa
   return evaluate(ast);
 }
 
-export function formatOutput(canonicalValue: number, model: ModelContent, outputUnitRef: string, requested: UnitIdentity | undefined, semantics: QuantitySemantics | undefined) {
+export function formatOutput(canonicalValue: number, model: ModelContent, outputUnitRef: string, requested: UnitIdentity | undefined, semantics: QuantitySemantics | undefined, catalogVersion: UnitConversionCatalogVersion = UNIT_CONVERSION_CATALOG_VERSION_V1) {
   const definition = model.units.find(unit => unit.key === outputUnitRef);
   if (!definition) fail("INVALID_INPUT_UNIT", "DIMENSIONALLY_VALIDATED", "Output unit is absent from model", { actual: outputUnitRef });
-  const governed = assertModelUnit(definition), target = requested ? catalogUnit(requested) : governed;
+  const governed = assertModelUnit(definition,undefined,catalogVersion), target = requested ? catalogUnit(requested,undefined,catalogVersion) : governed;
   assertConvertible(governed,target);
   const resolvedSemantics = assertQuantitySemantics(target,semantics);
   return { value: finite(fromCanonical(canonicalValue,target,resolvedSemantics),"NON_FINITE_RESULT"), unit: {key:target.key,revision:target.revision}, quantitySemantics: target.affineFamily ? resolvedSemantics : undefined };

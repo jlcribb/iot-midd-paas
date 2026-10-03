@@ -188,3 +188,10 @@ unchanged. DRAFT through DEPRECATED were checked against before/after DB snapsho
   physical actuation.
 
 > **Executable mathematics does not confer executable physical authority.**
+
+## Post-closure temporal catalog extension
+
+After the original closure, `GDSS_UNIT_CONVERSION_V2` was introduced as an explicit successor for
+governed temporal intervals. V1 remains unchanged and remains the historical default. V2 preserves
+all V1 entries and adds `second@1` with dimension `[0,0,1,0,0,0,0]`, scale 1, offset 0 and
+`INTERVAL` semantics. See `GDSS-002-TEMPORAL-UNIT-EXTENSION.md`; no migration was required.

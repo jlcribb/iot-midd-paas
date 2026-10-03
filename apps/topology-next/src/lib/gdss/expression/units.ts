@@ -1,7 +1,7 @@
 import type { DimensionDefinition, UnitDefinition } from "@/lib/gdss/core";
 import { fail, type SourceSpan } from "./diagnostics";
 import { dimensionsEqual } from "./dimensions";
-import { UNIT_CONVERSION_CATALOG_VERSION } from "./versions";
+import { UNIT_CONVERSION_CATALOG_VERSION_V1, UNIT_CONVERSION_CATALOG_VERSION_V2, type UnitConversionCatalogVersion } from "./versions";
 
 export type QuantitySemantics = "ABSOLUTE" | "INTERVAL";
 export interface UnitIdentity { key: string; revision: number }
@@ -17,10 +17,11 @@ const FLOW: DimensionDefinition = [3,0,-1,0,0,0,0];
 const TEMPERATURE: DimensionDefinition = [0,0,0,1,0,0,0];
 const TRANSMITTANCE: DimensionDefinition = [0,1,-3,-1,0,0,0];
 const POWER: DimensionDefinition = [2,1,-3,0,0,0,0];
+const TIME: DimensionDefinition = [0,0,1,0,0,0,0];
 const LINEAR = ["INTERVAL"] as const;
 const AFFINE = ["ABSOLUTE","INTERVAL"] as const;
 
-export const UNIT_CONVERSION_CATALOG: Readonly<Record<string,CatalogUnit>> = Object.freeze({
+const v1Definitions: Record<string,CatalogUnit> = {
   "meter@1": { key:"meter", revision:1, symbol:"m", name:"meter", dimension:L, scale:1, offset:0, canonical_unit:"meter", quantitySemantics:LINEAR, affineFamily:false },
   "centimeter@1": { key:"centimeter", revision:1, symbol:"cm", name:"centimeter", dimension:L, scale:0.01, offset:0, canonical_unit:"meter", quantitySemantics:LINEAR, affineFamily:false },
   "square_meter@1": { key:"square_meter", revision:1, symbol:"m2", name:"square meter", dimension:AREA, scale:1, offset:0, canonical_unit:"square_meter", quantitySemantics:LINEAR, affineFamily:false },
@@ -30,17 +31,35 @@ export const UNIT_CONVERSION_CATALOG: Readonly<Record<string,CatalogUnit>> = Obj
   "celsius@1": { key:"celsius", revision:1, symbol:"degC", name:"degree Celsius", dimension:TEMPERATURE, scale:1, offset:273.15, canonical_unit:"kelvin", quantitySemantics:AFFINE, affineFamily:true },
   "watt_per_square_meter_kelvin@1": { key:"watt_per_square_meter_kelvin", revision:1, symbol:"W/(m2*K)", name:"watt per square meter kelvin", dimension:TRANSMITTANCE, scale:1, offset:0, canonical_unit:"watt_per_square_meter_kelvin", quantitySemantics:LINEAR, affineFamily:false },
   "watt@1": { key:"watt", revision:1, symbol:"W", name:"watt", dimension:POWER, scale:1, offset:0, canonical_unit:"watt", quantitySemantics:LINEAR, affineFamily:false }
+};
+function immutableCatalog(definitions: Record<string,CatalogUnit>): Readonly<Record<string,CatalogUnit>> {
+  return Object.freeze(Object.fromEntries(Object.entries(definitions).map(([key,unit]) => [key,Object.freeze({...unit,dimension:Object.freeze([...unit.dimension])})])) as Record<string,CatalogUnit>);
+}
+export const UNIT_CONVERSION_CATALOG_V1 = immutableCatalog(v1Definitions);
+export const UNIT_CONVERSION_CATALOG_V2 = immutableCatalog({
+  ...v1Definitions,
+  "second@1": { key:"second", revision:1, symbol:"s", name:"second", dimension:TIME, scale:1, offset:0, canonical_unit:"second", quantitySemantics:LINEAR, affineFamily:false }
 });
+export const UNIT_CONVERSION_CATALOG = UNIT_CONVERSION_CATALOG_V1;
+const catalogs: Readonly<Record<UnitConversionCatalogVersion,Readonly<Record<string,CatalogUnit>>>> = Object.freeze({
+  [UNIT_CONVERSION_CATALOG_VERSION_V1]:UNIT_CONVERSION_CATALOG_V1,
+  [UNIT_CONVERSION_CATALOG_VERSION_V2]:UNIT_CONVERSION_CATALOG_V2
+});
+export function getUnitCatalog(version: UnitConversionCatalogVersion): Readonly<Record<string,CatalogUnit>> {
+  const catalog=(catalogs as Readonly<Record<string,Readonly<Record<string,CatalogUnit>>>>)[version];
+  if(!catalog) fail("VERSION_MISMATCH","SOURCE","Unit conversion catalog version is not supported",{expected:Object.keys(catalogs),actual:version});
+  return catalog;
+}
 
 const catalogKey = (identity: UnitIdentity) => `${identity.key}@${identity.revision}`;
-export function catalogUnit(identity: UnitIdentity, span?: SourceSpan): CatalogUnit {
-  const unit = UNIT_CONVERSION_CATALOG[catalogKey(identity)];
-  if (!unit) fail("INVALID_INPUT_UNIT", "DIMENSIONALLY_VALIDATED", "Unit is not supported by the closed conversion catalog", { sourceSpan: span, actual: identity, expected: UNIT_CONVERSION_CATALOG_VERSION });
+export function catalogUnit(identity: UnitIdentity, span?: SourceSpan, version: UnitConversionCatalogVersion = UNIT_CONVERSION_CATALOG_VERSION_V1): CatalogUnit {
+  const unit = getUnitCatalog(version)[catalogKey(identity)];
+  if (!unit) fail("INVALID_INPUT_UNIT", "DIMENSIONALLY_VALIDATED", "Unit is not supported by the selected closed conversion catalog", { sourceSpan: span, actual: identity, expected: version });
   return unit;
 }
 
-export function assertModelUnit(definition: UnitDefinition, span?: SourceSpan): CatalogUnit {
-  const expected = catalogUnit(definition,span);
+export function assertModelUnit(definition: UnitDefinition, span?: SourceSpan, version: UnitConversionCatalogVersion = UNIT_CONVERSION_CATALOG_VERSION_V1): CatalogUnit {
+  const expected = catalogUnit(definition,span,version);
   const fields: (keyof UnitDefinition)[] = ["key","revision","symbol","name","scale","offset","canonical_unit"];
   if (fields.some(field => definition[field] !== expected[field]) || !dimensionsEqual(definition.dimension,expected.dimension))
     fail("INVALID_INPUT_UNIT", "DIMENSIONALLY_VALIDATED", "Model unit does not match the versioned conversion catalog", { sourceSpan: span, expected, actual: definition });
