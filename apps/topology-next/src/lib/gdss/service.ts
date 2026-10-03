@@ -8,7 +8,8 @@ import { canonicalContent, contentHash, nextStatus, type Lifecycle, type SystemM
 
 const uuid = z.string().uuid();
 const nonempty = z.string().trim().min(1).max(2000);
-export type GdssOperation = "read" | "create" | "edit" | "validate" | "experimental" | "approve" | "publish" | "deprecate" | "successor";
+export type GdssOperation = "read" | "create" | "edit" | "validate" | "experimental" | "approve" | "publish" | "deprecate" | "successor" | "evaluate";
+export const GDSS_EVALUATE_CAPABILITY = "EVALUATE_MODEL" as const;
 export function assertGdssAccess(actor: ControlActor, projectId: string, operation: GdssOperation) {
   uuid.parse(projectId);
   if (actor.auth_source !== "oauth_session" || !actor.user_id || !canAccessProject(actor, projectId))
