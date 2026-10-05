@@ -1,0 +1,4 @@
+import type { MetricDefinition } from "./contracts";
+import type { SimulationInputManifest } from "@/lib/gdss/simulation";
+const eq=(a:unknown,b:unknown)=>JSON.stringify(a)===JSON.stringify(b);
+export function temporalCompatibility(metric:MetricDefinition,reference:SimulationInputManifest,target:SimulationInputManifest){const r=reference.temporalConfiguration,t=target.temporalConfiguration;if(!Object.is(r.start,t.start)||!eq(r.timeUnit,t.timeUnit))return{ok:false as const,diagnosticCode:"INELIGIBLE_TEMPORAL_MISMATCH",field:"start/timeUnit"};if(metric.operation==="INITIAL_VALUE")return{ok:true as const};if(!Object.is(r.step,t.step)||r.stepCount!==t.stepCount||!Object.is(r.start+r.step*r.stepCount,t.start+t.step*t.stepCount))return{ok:false as const,diagnosticCode:"INELIGIBLE_TEMPORAL_MISMATCH",field:"step/stepCount/horizon"};return{ok:true as const};}

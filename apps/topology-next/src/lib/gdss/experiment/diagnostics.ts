@@ -1,0 +1,4 @@
+export type ExperimentStage="DESIGN"|"EXPANSION"|"MATERIALIZATION"|"DISPATCH"|"TRAJECTORY_READ"|"METRIC"|"COMPARISON"|"TERMINALIZATION"|"ABORT"|"RECOVERY"|"PERSISTENCE";
+export class ExperimentError extends Error { constructor(public readonly code:string,public readonly stage:ExperimentStage,message:string,public readonly details:Record<string,unknown>={}){super(message);this.name="ExperimentError";} }
+export const experimentFail=(code:string,stage:ExperimentStage,message:string,details:Record<string,unknown>={}):never=>{throw new ExperimentError(code,stage,message,details);};
+export const finite=(value:number,stage:ExperimentStage,code="NON_FINITE_METRIC")=>{if(!Number.isFinite(value))experimentFail(code,stage,"Experiment arithmetic must remain finite");return Object.is(value,-0)?0:value;};

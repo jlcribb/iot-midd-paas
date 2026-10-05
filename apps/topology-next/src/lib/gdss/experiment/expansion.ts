@@ -1,0 +1,16 @@
+import type { ExperimentDesign,ExperimentManifest,ExperimentValue,MaterializedScenario,ScenarioOverride } from "./contracts";
+import { experimentDesignHash,scenarioDefinitionHash,semanticVersions } from "./canonical";
+import { experimentFail } from "./diagnostics";
+import { GDSS_EXPERIMENT_LIMITS_V1 } from "./limits";
+import { validateExperimentDesign } from "./design";
+import { governedBaseValue,materializeManifest } from "./scenario";
+
+const factorOrder=(a:ExperimentDesign["factors"][number],b:ExperimentDesign["factors"][number])=>`${a.targetKind}:${a.targetIdentity}:${a.factorKey}`.localeCompare(`${b.targetKind}:${b.targetIdentity}:${b.factorKey}`);
+export function expandExperiment(d:ExperimentDesign):ExperimentManifest{
+  validateExperimentDesign(d);const factors=[...d.factors].sort(factorOrder);let count=1;for(const f of factors){if(count>Math.floor(GDSS_EXPERIMENT_LIMITS_V1.expandedScenarios/f.values.length))experimentFail("CARTESIAN_OVERFLOW","EXPANSION","Expanded scenario limit exceeded");count*=f.values.length;}if(count<1)count=1;
+  const designHash=experimentDesignHash(d),scenarios:MaterializedScenario[]=[];
+  for(let ordinal=0;ordinal<count;ordinal++){let cursor=ordinal;const assignments:Record<string,ExperimentValue>={},overrides:ScenarioOverride[]=[];for(let i=factors.length-1;i>=0;i--){const factor=factors[i],value=factor.values[cursor%factor.values.length];cursor=Math.floor(cursor/factor.values.length);assignments[factor.factorKey]=value;const previous=governedBaseValue(d.baseManifest,factor.targetKind,factor.targetIdentity);overrides.push({targetKind:factor.targetKind,targetIdentity:factor.targetIdentity,expectedPreviousValue:previous,replacementValue:value,provenanceIdentity:value.provenanceIdentity});}overrides.sort((a,b)=>`${a.targetKind}:${a.targetIdentity}`.localeCompare(`${b.targetKind}:${b.targetIdentity}`));const baseline=Object.entries(d.baselineAssignments).every(([key,value])=>assignments[key]&&Object.is(Object.is(assignments[key].value,-0)?0:assignments[key].value,Object.is(value,-0)?0:value));const explicitType=Object.values(assignments).find(v=>v.scenarioType)?.scenarioType;const scenarioType=baseline?"BASELINE":explicitType??"ALTERNATIVE";const materialized=materializeManifest(d.baseManifest,overrides,d.controlledInputs);const partial={ordinal,scenarioType,experimentDesignHash:designHash,factorAssignments:assignments,overrides,controlledInputProofHash:materialized.controlledInputProofHash,manifest:materialized.manifest,simulationInputHash:materialized.simulationInputHash};scenarios.push({...partial,scenarioDefinitionHash:scenarioDefinitionHash(partial)});}
+  if(scenarios.filter(s=>s.scenarioType==="BASELINE").length!==1)experimentFail("INVALID_DESIGN","EXPANSION","Exactly one explicit baseline is required");
+  for(const c of d.comparisons)if(c.referenceScenarioOrdinal<0||c.referenceScenarioOrdinal>=scenarios.length||c.targetScenarioOrdinal<0||c.targetScenarioOrdinal>=scenarios.length)experimentFail("INVALID_DESIGN","EXPANSION","Comparison scenario ordinal is outside materialized universe");
+  return{experimentDesignHash:designHash,completenessPolicy:d.completenessPolicy,scenarios,metrics:d.metrics,comparisons:d.comparisons,semanticVersions:semanticVersions()};
+}

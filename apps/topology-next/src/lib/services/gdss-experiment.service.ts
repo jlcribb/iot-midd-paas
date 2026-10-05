@@ -1,0 +1,14 @@
+import type { ControlActor } from "@/lib/dto/control-access.dto";
+import { assertExperimentAccess,encodeManifest,expandExperiment,GDSS_EXPERIMENT_LIMITS_V1,constructExperimentResult,type ExperimentDesign,type ScenarioEvidence } from "@/lib/gdss/experiment";
+import { GdssExperimentRepository } from "@/lib/repositories/gdss-experiment.repository";
+
+export class GdssExperimentService {
+  constructor(private readonly repository=new GdssExperimentRepository()){}
+  async create(actor:ControlActor,projectId:string,canonicalName:string,description:string,design:ExperimentDesign){assertExperimentAccess(actor,projectId,"CREATE_EXPERIMENT");if(design.projectId!==projectId||design.lifecycleStatus!=="DRAFT")throw Error("CROSS_PROJECT_REFERENCE or invalid draft lifecycle");return this.repository.createDraft(actor,projectId,canonicalName,description,design);}
+  async validate(actor:ControlActor,projectId:string,experimentVersionId:string,reason:string){assertExperimentAccess(actor,projectId,"VALIDATE_EXPERIMENT");return this.repository.lifecycle(actor,projectId,experimentVersionId,"DRAFT","VALIDATED",reason);}
+  async publish(actor:ControlActor,projectId:string,experimentVersionId:string,reason:string){assertExperimentAccess(actor,projectId,"PUBLISH_EXPERIMENT");return this.repository.lifecycle(actor,projectId,experimentVersionId,"VALIDATED","PUBLISHED",reason);}
+  async deprecate(actor:ControlActor,projectId:string,experimentVersionId:string,reason:string){assertExperimentAccess(actor,projectId,"DEPRECATE_EXPERIMENT");return this.repository.lifecycle(actor,projectId,experimentVersionId,"PUBLISHED","DEPRECATED",reason);}
+  async execute(actor:ControlActor,projectId:string,design:ExperimentDesign,idempotencyKey?:string){assertExperimentAccess(actor,projectId,"RUN_EXPERIMENT");if(design.projectId!==projectId)throw Error("CROSS_PROJECT_REFERENCE");const manifest=expandExperiment(design),encoded=encodeManifest(manifest);if(encoded.bytes.byteLength>GDSS_EXPERIMENT_LIMITS_V1.manifestArtifactBytes)throw Error("RESOURCE_LIMIT_EXCEEDED");const attempt=await this.repository.acceptAttempt(actor,projectId,design.experimentVersionId,manifest,encoded.hash,encoded.bytes,idempotencyKey);return{attempt,manifest};}
+  async abort(actor:ControlActor,projectId:string,attemptId:string){assertExperimentAccess(actor,projectId,"ABORT_EXPERIMENT");await this.repository.requestAbort(actor,projectId,attemptId);return this.repository.abortUndispatched(attemptId);}
+  async finalize(actor:ControlActor,projectId:string,attemptId:string,manifestHash:string,manifest:ReturnType<typeof expandExperiment>,evidence:readonly ScenarioEvidence[],aborted=false){assertExperimentAccess(actor,projectId,aborted?"ABORT_EXPERIMENT":"RUN_EXPERIMENT");const result=constructExperimentResult(manifestHash,manifest,evidence,aborted);return{result,terminal:await this.repository.finalize(actor.user_id,projectId,attemptId,result)};}
+}

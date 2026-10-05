@@ -1,0 +1,14 @@
+export const EXPERIMENT_SEMANTIC_VERSION="GDSS_EXPERIMENT_V1" as const;
+export const EXPANSION_VERSION="GDSS_EXPERIMENT_EXPANSION_V1" as const;
+export const METRICS_VERSION="GDSS_EXPERIMENT_METRICS_V1" as const;
+export const COMPARISONS_VERSION="GDSS_EXPERIMENT_COMPARISONS_V1" as const;
+export const TEMPORAL_COMPARABILITY_VERSION="GDSS_TEMPORAL_COMPARABILITY_V1" as const;
+export const NUMERIC_VERSION="GDSS_EXPERIMENT_NUMERIC_V1" as const;
+export const RECOVERY_VERSION="GDSS_EXPERIMENT_RECOVERY_V1" as const;
+export const LIMITS_VERSION="GDSS_EXPERIMENT_LIMITS_V1" as const;
+export const MANIFEST_FORMAT_VERSION="GDSS_EXPERIMENT_MANIFEST_JSON_V1" as const;
+export const RESULT_FORMAT_VERSION="GDSS_EXPERIMENT_RESULT_JSON_V1" as const;
+export const MANIFEST_MEDIA_TYPE="application/vnd.midd.gdss-experiment-manifest+json;version=1" as const;
+export const RESULT_MEDIA_TYPE="application/vnd.midd.gdss-experiment-result+json;version=1" as const;
+export const EXPERIMENT_PROVENANCE="SIMULATION_DERIVED" as const;
+export const EXPERIMENT_PHYSICAL_AUTHORITY="NONE" as const;
