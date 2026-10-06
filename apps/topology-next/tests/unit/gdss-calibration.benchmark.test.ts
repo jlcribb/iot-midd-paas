@@ -1,0 +1,23 @@
+import { performance } from "node:perf_hooks";
+import { randomUUID } from "node:crypto";
+import { describe,expect,it } from "vitest";
+import { binary64Hex } from "@/lib/gdss/expression/canonical";
+import { governedHash } from "@/lib/gdss/observation";
+import { parameterVectorHash } from "@/lib/gdss/calibration";
+
+interface BenchResult{name:string;kernelWallMs:number;prePostMaxRss:number;summaryBytes:number;declaredKernelOperations:number;winner:string;objectiveBits:string;alignmentHash:string;estimateHash:string;resultHash:string;runId:string;}
+const mb=(value:number)=>value/1024/1024;
+function run(name:string,candidates:readonly Record<string,number>[],pointCount:number,truth:Record<string,number>,reverse=false):BenchResult{
+  const started=performance.now(),before=process.memoryUsage().rss,alignmentHash=governedHash("midd:gdss:observation-alignment:v1",{name,pointCount,truth}),ordered=reverse?[...candidates].reverse():[...candidates];let operations=0;
+  const evaluated=ordered.map(values=>{let sum=0;const simulatedError=Object.entries(values).reduce((total,[key,value])=>total+(value-truth[key]),0);for(let point=0;point<pointCount;point++){const residual=simulatedError*(1+(point%7)/10);const square=residual*residual;sum+=square;operations+=3;}const objective=Math.sqrt(sum/pointCount);operations+=2;return{values,hash:parameterVectorHash(values),objective,bits:binary64Hex(objective)};});
+  evaluated.sort((a,b)=>a.objective-b.objective||a.hash.localeCompare(b.hash));const winner=evaluated[0],estimateHash=governedHash("midd:gdss:parameter-estimate-set:v1",{alignmentHash,winner}),resultHash=governedHash("midd:gdss:calibration-result:v1",{estimateHash,physicalAuthority:"NONE"}),summaryBytes=Buffer.byteLength(JSON.stringify({alignmentHash,evaluated,estimateHash,resultHash}));return{name,kernelWallMs:performance.now()-started,prePostMaxRss:Math.max(before,process.memoryUsage().rss),summaryBytes,declaredKernelOperations:operations,winner:winner.hash,objectiveBits:winner.bits,alignmentHash,estimateHash,resultHash,runId:randomUUID()};
+}
+const cartesian=(entries:readonly [string,readonly number[]][])=>{const out:Record<string,number>[]=[];const visit=(i:number,v:Record<string,number>)=>{if(i===entries.length){out.push({...v});return;}for(const x of entries[i][1]){v[entries[i][0]]=x;visit(i+1,v);}};visit(0,{});return out;};
+function sameIdentity(a:BenchResult,b:BenchResult){expect(a.runId).not.toBe(b.runId);expect([a.alignmentHash,a.winner,a.objectiveBits,a.estimateHash,a.resultHash]).toEqual([b.alignmentHash,b.winner,b.objectiveBits,b.estimateHash,b.resultHash]);}
+
+describe("GDSS-005 computational kernel microbenchmark",()=>{
+ it("B1 proxy is reproducible across iteration order",()=>{const grid=cartesian([["Qout",[0.6,0.7,0.8,0.9,1,1.1,1.2,1.3,1.4]]]),a=run("B1",grid,1001,{Qout:1}),b=run("B1",grid,1001,{Qout:1},true);sameIdentity(a,b);expect(a.kernelWallMs).toBeLessThan(30_000);expect(mb(a.prePostMaxRss)).toBeLessThan(256);expect(a.summaryBytes).toBeLessThan(4*1024*1024);console.info("GDSS005_KERNEL_MICROBENCHMARK",JSON.stringify({...a,prePostMaxRssMiB:mb(a.prePostMaxRss)}));});
+ it("B2 proxy is reproducible across iteration order",()=>{const values=[0.65,0.75,0.85,0.95,1.05,1.15,1.25,1.35],grid=cartesian([["Qout",values],["k",values]]),a=run("B2",grid,4002,{Qout:1.05,k:0.85}),b=run("B2",grid,4002,{Qout:1.05,k:0.85},true);sameIdentity(a,b);expect(a.kernelWallMs).toBeLessThan(120_000);expect(mb(a.prePostMaxRss)).toBeLessThan(512);console.info("GDSS005_KERNEL_MICROBENCHMARK",JSON.stringify({...a,prePostMaxRssMiB:mb(a.prePostMaxRss)}));});
+ it("B3 proxy retains the narrow declared arithmetic budget",()=>{const grid=cartesian([["p1",[0,1,2,3]],["p2",[0,1,2,3]],["p3",[0,1,2,3]],["p4",[0,1,2,3]]]),a=run("B3",grid,80_008,{p1:1,p2:2,p3:1,p4:2});expect(a.kernelWallMs).toBeLessThan(900_000);expect(mb(a.prePostMaxRss)).toBeLessThan(1024);expect(a.summaryBytes).toBeLessThan(64*1024*1024);expect(a.declaredKernelOperations).toBeLessThanOrEqual(100_000_000);expect(grid).toHaveLength(256);console.info("GDSS005_KERNEL_MICROBENCHMARK",JSON.stringify({...a,prePostMaxRssMiB:mb(a.prePostMaxRss)}));});
+ it("20-run order-perturbation diagnostic has stable computational identity",()=>{const values=[0.65,0.75,0.85,0.95,1.05,1.15,1.25,1.35],grid=cartesian([["Qout",values],["k",values]]),reference=run("B2",grid,4002,{Qout:1.05,k:0.85});const runs=Array.from({length:20},(_,index)=>run("B2",grid,4002,{Qout:1.05,k:0.85},index%2===0));for(const value of runs)sameIdentity(reference,value);expect(new Set(runs.map(value=>value.runId)).size).toBe(20);console.info("GDSS005_KERNEL_ORDER_STRESS",JSON.stringify({runs:20,identityDrift:0,boundary:"COMPUTATIONAL_KERNEL"}));});
+});

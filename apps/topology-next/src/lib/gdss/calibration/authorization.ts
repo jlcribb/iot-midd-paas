@@ -1,0 +1,6 @@
+import { canAccessProject,getControlRoleForProject } from "@/lib/auth/control-access";
+import type { ControlActor } from "@/lib/dto/control-access.dto";
+import { ForbiddenError } from "@/lib/errors/domain-errors";
+export type CalibrationCapability="READ_OBSERVATION"|"ADMIT_OBSERVATION"|"CREATE_CALIBRATION"|"VALIDATE_CALIBRATION_DESIGN"|"RUN_CALIBRATION"|"ACCEPT_PARAMETER_ESTIMATE"|"PUBLISH_CALIBRATION_RESULT";
+const allowed:Record<CalibrationCapability,readonly string[]>={READ_OBSERVATION:["viewer","operator","admin"],ADMIT_OBSERVATION:["operator","admin"],CREATE_CALIBRATION:["operator","admin"],VALIDATE_CALIBRATION_DESIGN:["operator","admin"],RUN_CALIBRATION:["operator","admin"],ACCEPT_PARAMETER_ESTIMATE:["admin"],PUBLISH_CALIBRATION_RESULT:["admin"]};
+export function assertCalibrationAccess(actor:ControlActor,projectId:string,capability:CalibrationCapability){if(actor.auth_source!=="oauth_session"||!actor.user_id||!canAccessProject(actor,projectId))throw new ForbiddenError("GDSS calibration requires scoped OAuth membership");const role=getControlRoleForProject(actor,projectId);if(!role||!allowed[capability].includes(role))throw new ForbiddenError(`${capability} is not authorized for project role`);}
