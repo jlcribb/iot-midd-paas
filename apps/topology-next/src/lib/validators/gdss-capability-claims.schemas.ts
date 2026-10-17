@@ -1,0 +1,15 @@
+export {
+  capabilityAssessmentInputSchema,
+  capabilityInvalidationInputSchema,
+  claimAuthorizationInputSchema,
+  claimDraftInputSchema,
+  claimDraftUpdateInputSchema,
+  claimIdentityInputSchema,
+  claimReviewInputSchema,
+  claimRevocationInputSchema,
+  claimSupersessionInputSchema,
+  claimTransitionInputSchema,
+  evidenceTransferInputSchema,
+  revalidationResolutionInputSchema,
+  revalidationTriggerInputSchema,
+} from "@/lib/gdss/validation";
