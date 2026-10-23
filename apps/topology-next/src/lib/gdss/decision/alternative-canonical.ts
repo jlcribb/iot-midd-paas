@@ -1,0 +1,9 @@
+import { validationHash,canonicalValidationJson } from "@/lib/gdss/validation";
+import { alternativeDraftInputSchema,scenarioDraftInputSchema,type AlternativeDraftInput,type ScenarioDraftInput } from "./alternative-contracts";
+const semantic=<T extends {idempotencyKey:string;identityId?:string;predecessorVersionId?:string}>(v:T)=>{const {idempotencyKey:_,identityId:__identity,predecessorVersionId:__predecessor,...rest}=v;return rest;};
+const byKey=<T extends Record<string,unknown>>(key:keyof T)=>(a:T,b:T)=>String(a[key]).localeCompare(String(b[key]));
+export function canonicalAlternative(raw:unknown):AlternativeDraftInput{const v=alternativeDraftInputSchema.parse(raw);return {...v,whatChanges:[...new Set(v.whatChanges)].sort(),whatRemainsFixed:[...new Set(v.whatRemainsFixed)].sort(),applicableConstraintKeys:[...new Set(v.applicableConstraintKeys)].sort(),variables:[...v.variables].sort(byKey("semanticVariableRef")),parameterDeltas:[...v.parameterDeltas].sort(byKey("key")),structuralAssumptions:[...v.structuralAssumptions].sort(byKey("key"))};}
+export function canonicalScenario(raw:unknown):ScenarioDraftInput{const v=scenarioDraftInputSchema.parse(raw);return {...v,initialConditions:[...v.initialConditions].sort(byKey("key")),parameterSet:[...v.parameterSet].sort(byKey("key")),perturbations:[...v.perturbations].sort(byKey("key")),assumptions:[...v.assumptions].sort(byKey("key")),boundaryConditions:[...v.boundaryConditions].sort(byKey("variable")),uncertaintyCondition:{...v.uncertaintyCondition,manifest:[...v.uncertaintyCondition.manifest].sort(byKey("key"))}};}
+export const alternativeHash=(raw:unknown)=>validationHash("midd:gdss:decision-alternative:v1",semantic(canonicalAlternative(raw)));
+export const scenarioHash=(raw:unknown)=>validationHash("midd:gdss:decision-scenario:v1",semantic(canonicalScenario(raw)));
+export {canonicalValidationJson as canonicalAlternativeJson};

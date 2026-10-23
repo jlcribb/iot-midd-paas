@@ -1,0 +1,13 @@
+import {canonicalValidationJson,validationHash} from "@/lib/gdss/validation";
+import {robustnessAssessmentInputSchema,sensitivityAssessmentInputSchema,sensitivityPointInputSchema} from "./sensitivity-contracts";
+const omit=<T extends {idempotencyKey:string}>(v:T)=>{const {idempotencyKey:_,...x}=v;return x;};
+export const canonicalSensitivity=(raw:unknown)=>{const v=sensitivityAssessmentInputSchema.parse(raw);return {...v,criterionVersionIds:[...v.criterionVersionIds].sort(),alternativeVersionIds:[...v.alternativeVersionIds].sort(),scenarioEvaluationIds:[...v.scenarioEvaluationIds].sort(),dimensions:[...v.dimensions].map(d=>({...d,levels:[...d.levels]})).sort((a,b)=>a.key.localeCompare(b.key))};};
+export const sensitivityAssessmentContent=(raw:unknown)=>omit(canonicalSensitivity(raw));
+export const sensitivityAssessmentHash=(raw:unknown)=>validationHash("midd:gdss:sensitivity-assessment:v1",sensitivityAssessmentContent(raw));
+export const canonicalSensitivityPoint=(raw:unknown)=>sensitivityPointInputSchema.parse(raw);
+export const sensitivityPointContent=(raw:unknown)=>omit(canonicalSensitivityPoint(raw));
+export const sensitivityPointHash=(raw:unknown)=>validationHash("midd:gdss:sensitivity-point:v1",sensitivityPointContent(raw));
+export const canonicalRobustness=(raw:unknown)=>{const v=robustnessAssessmentInputSchema.parse(raw);return {...v,scenarioDefinitionIds:[...v.scenarioDefinitionIds].sort(),scenarioEvaluationIds:[...v.scenarioEvaluationIds].sort(),constraintEvaluationIds:[...v.constraintEvaluationIds].sort(),scenarioResults:[...v.scenarioResults].sort((a,b)=>a.scenarioDefinitionId.localeCompare(b.scenarioDefinitionId))};};
+export const robustnessAssessmentContent=(raw:unknown)=>omit(canonicalRobustness(raw));
+export const robustnessAssessmentHash=(raw:unknown)=>validationHash("midd:gdss:robustness-assessment:v1",robustnessAssessmentContent(raw));
+export const canonicalSensitivityJson=canonicalValidationJson;

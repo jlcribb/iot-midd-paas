@@ -6,19 +6,22 @@ Status: `COMPLETED_GDSS_007_ARCHITECTURE_AND_IMPLEMENTATION_PLAN_CONTRACT`
 
 Architecture source: `docs/architecture/GDSS-007-ARCHITECTURE.md`
 
-Baseline: `main@68422b5e4aa35aaa9b0b159ad04480ca653079df`; `origin/main` synchronized;
-Alembic source and principal database `0051 (head)`, single head.
+Versioned contract baseline: `main@edf2be84004cc691ef2dbb0456e4e8b536765382`; `origin/main`
+synchronized at implementation preflight. Controlled GDSS-007A–F implementation advances Alembic
+source and principal database to the single head `0057`.
 
 Authorization state:
 
 ```text
-GDSS_007A_NOT_AUTHORIZED
-GDSS_007B_NOT_AUTHORIZED
-GDSS_007C_NOT_AUTHORIZED
-GDSS_007D_NOT_AUTHORIZED
-GDSS_007E_NOT_AUTHORIZED
-GDSS_007F_NOT_AUTHORIZED
-GDSS_007G_NOT_AUTHORIZED
+GDSS_007A_IMPLEMENTED
+GDSS_007B_IMPLEMENTED
+GDSS_007C_IMPLEMENTED
+GDSS_007D_IMPLEMENTED
+GDSS_007E_IMPLEMENTED
+GDSS_007F_IMPLEMENTED
+GDSS_007G_VERIFIED
+
+GDSS_007_IMPLEMENTED_AND_VERIFIED
 ```
 
 ```text
@@ -851,17 +854,19 @@ GDSS-007 is implemented and verified only when all of the following are true:
 
 ## 21. Final contract status
 
-This task authorizes documents only. No code, API, migration, commit, push, tag or release was
-authorized or performed.
+The architecture-plan task authorized documents only. Subsequent controlled authorizations verified
+GDSS-007A through GDSS-007F without authorizing GDSS-007G, commit, push, tag or release.
 
 ```text
-GDSS_007A_NOT_AUTHORIZED
-GDSS_007B_NOT_AUTHORIZED
-GDSS_007C_NOT_AUTHORIZED
-GDSS_007D_NOT_AUTHORIZED
-GDSS_007E_NOT_AUTHORIZED
-GDSS_007F_NOT_AUTHORIZED
-GDSS_007G_NOT_AUTHORIZED
+GDSS_007A_IMPLEMENTED
+GDSS_007B_IMPLEMENTED
+GDSS_007C_IMPLEMENTED
+GDSS_007D_IMPLEMENTED
+GDSS_007E_IMPLEMENTED
+GDSS_007F_IMPLEMENTED
+GDSS_007G_VERIFIED
+
+GDSS_007_IMPLEMENTED_AND_VERIFIED
 ```
 
 ```text
